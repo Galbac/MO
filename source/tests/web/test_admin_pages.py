@@ -202,3 +202,36 @@ async def test_admin_integrations_page_has_controls(async_client) -> None:
     assert 'id="admin-integrations-status"' in response.text
     assert 'id="admin-integrations-update-form"' in response.text
     assert 'id="admin-integrations-logs"' in response.text
+
+
+async def test_admin_jobs_and_maintenance_pages_have_empty_states(async_client) -> None:
+    jobs = await async_client.get('/admin/jobs')
+    maintenance = await async_client.get('/admin/maintenance')
+
+    assert 'id="admin-jobs-empty"' in jobs.text
+    assert 'id="admin-maintenance-empty"' in maintenance.text
+
+
+async def test_admin_notifications_page_has_delivery_log_controls(async_client) -> None:
+    response = await async_client.get('/admin/notifications')
+
+    assert response.status_code == status.HTTP_200_OK
+    assert 'id="admin-delivery-log-filters"' in response.text
+    assert 'id="admin-delivery-log-type"' in response.text
+    assert 'id="admin-delivery-log-channel"' in response.text
+    assert 'id="admin-delivery-log-status"' in response.text
+    assert 'id="admin-delivery-log"' in response.text
+
+
+async def test_admin_media_and_settings_pages_have_operational_states(async_client) -> None:
+    media = await async_client.get('/admin/media')
+    settings = await async_client.get('/admin/settings')
+
+    assert media.status_code == status.HTTP_200_OK
+    assert 'id="admin-media-error"' in media.text
+    assert 'id="admin-media-empty"' in media.text
+
+    assert settings.status_code == status.HTTP_200_OK
+    assert 'id="admin-settings-error"' in settings.text
+    assert 'id="admin-settings-summary"' in settings.text
+    assert 'id="admin-settings-notes-preview"' in settings.text

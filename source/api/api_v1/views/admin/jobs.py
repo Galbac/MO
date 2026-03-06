@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from source.schemas.pydantic.admin import AdminJobItem, AdminJobPruneResult
-from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
+from source.schemas.pydantic.admin import AdminJobItem, AdminJobProcessResult, AdminJobPruneResult
 from source.schemas.pydantic.common import SuccessResponse
 from source.services import JobService
 
@@ -26,11 +25,11 @@ async def retry_admin_job(job_id: int) -> SuccessResponse[AdminJobItem]:
 @router.post("/prune", response_model=SuccessResponse[AdminJobPruneResult])
 async def prune_admin_jobs(payload: dict | None = None) -> SuccessResponse[AdminJobPruneResult]:
     statuses = payload.get('statuses') if isinstance(payload, dict) else None
-    removed = service.prune_jobs(statuses=[str(item) for item in statuses] if statuses else None)
-    return SuccessResponse(data=AdminJobPruneResult(removed=removed))
+    result = service.prune_jobs(statuses=[str(item) for item in statuses] if statuses else None)
+    return SuccessResponse(data=AdminJobPruneResult.model_validate(result))
 
 
-@router.post("/process", response_model=MessageResponse)
-async def process_admin_jobs() -> MessageResponse:
-    processed = await service.process_due_jobs()
-    return MessageResponse(data=SimpleMessage(message=f'Processed {processed} jobs'))
+@router.post("/process", response_model=SuccessResponse[AdminJobProcessResult])
+async def process_admin_jobs() -> SuccessResponse[AdminJobProcessResult]:
+    result = await service.process_due_jobs()
+    return SuccessResponse(data=AdminJobProcessResult.model_validate(result))

@@ -303,9 +303,14 @@ async function initMatchDetailPage() {
 
 async function initLiveCenterPage() {
     const render = async () => {
-        const [matches, feed] = await Promise.all([apiGet("/live"), apiGet("/live/feed")]);
-        setHtml("live-matches-list", extractList(matches).map(matchCard).join(""));
-        setHtml("live-feed-list", extractList(feed).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.event_type)}</div><strong>${escapeHtml(JSON.stringify(item.payload_json))}</strong></div>`).join(""));
+        try {
+            const [matches, feed] = await Promise.all([apiGet("/live"), apiGet("/live/feed")]);
+            renderCollectionState({ targetId: "live-matches-list", items: extractList(matches), renderItem: matchCard, emptyId: "live-matches-empty", errorId: "live-matches-error", emptyMessage: "Сейчас нет активных live-матчей." });
+            renderCollectionState({ targetId: "live-feed-list", items: extractList(feed), renderItem: (item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.event_type)}</div><strong>${escapeHtml(JSON.stringify(item.payload_json))}</strong></div>`, emptyId: "live-feed-empty", errorId: "live-feed-error", emptyMessage: "События live-ленты пока не поступали." });
+        } catch (error) {
+            renderCollectionState({ targetId: "live-matches-list", items: [], renderItem: matchCard, emptyId: "live-matches-empty", errorId: "live-matches-error", error });
+            renderCollectionState({ targetId: "live-feed-list", items: [], renderItem: (item) => item, emptyId: "live-feed-empty", errorId: "live-feed-error", error });
+        }
     };
     await render();
     const refresh = debounce(render, 250);
@@ -313,15 +318,24 @@ async function initLiveCenterPage() {
 }
 
 async function initRankingsPage() {
-    const [atpPayload, wtaPayload] = await Promise.all([
-        apiGet("/rankings/current?ranking_type=atp"),
-        apiGet("/rankings/current?ranking_type=wta"),
-    ]);
-    const atp = extractList(atpPayload);
-    const wta = extractList(wtaPayload);
-    setHtml("rankings-date", escapeHtml(atp[0]?.ranking_date || wta[0]?.ranking_date || "-"));
-    setHtml("rankings-atp-body", atp.map((item) => `<tr><td>${escapeHtml(item.position)}</td><td>${escapeHtml(item.movement)}</td><td>${escapeHtml(item.player_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.points)}</td></tr>`).join(""));
-    setHtml("rankings-wta-body", wta.map((item) => `<tr><td>${escapeHtml(item.position)}</td><td>${escapeHtml(item.movement)}</td><td>${escapeHtml(item.player_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.points)}</td></tr>`).join(""));
+    try {
+        const [atpPayload, wtaPayload] = await Promise.all([
+            apiGet("/rankings/current?ranking_type=atp"),
+            apiGet("/rankings/current?ranking_type=wta"),
+        ]);
+        const atp = extractList(atpPayload);
+        const wta = extractList(wtaPayload);
+        setHtml("rankings-date", escapeHtml(atp[0]?.ranking_date || wta[0]?.ranking_date || "-"));
+        setHtml("rankings-atp-body", atp.map((item) => `<tr><td>${escapeHtml(item.position)}</td><td>${escapeHtml(item.movement)}</td><td>${escapeHtml(item.player_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.points)}</td></tr>`).join(""));
+        setHtml("rankings-wta-body", wta.map((item) => `<tr><td>${escapeHtml(item.position)}</td><td>${escapeHtml(item.movement)}</td><td>${escapeHtml(item.player_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.points)}</td></tr>`).join(""));
+        showNode("rankings-empty", atp.length === 0 && wta.length === 0, 'Данные рейтинга пока недоступны.');
+        showNode("rankings-error", false);
+    } catch (error) {
+        setHtml("rankings-atp-body", "");
+        setHtml("rankings-wta-body", "");
+        showNode("rankings-empty", false);
+        showNode("rankings-error", true, escapeHtml(error.message || String(error)));
+    }
 }
 
 async function initNewsListPage() {
@@ -397,16 +411,21 @@ async function initSearchPage() {
 }
 
 async function initAccountPage() {
-    const [me, favorites, subscriptions] = await Promise.all([apiGet("/users/me"), apiGet("/users/me/favorites"), apiGet("/users/me/subscriptions")]);
-    setHtml("account-name", escapeHtml(`${me.data.first_name || ""} ${me.data.last_name || ""}`.trim() || me.data.username));
-    const firstName = document.getElementById("account-first-name");
-    const lastName = document.getElementById("account-last-name");
-    const timezone = document.getElementById("account-timezone");
-    if (firstName) firstName.value = me.data.first_name || "";
-    if (lastName) lastName.value = me.data.last_name || "";
-    if (timezone) timezone.value = me.data.timezone || "";
-    setHtml("account-favorites", extractList(favorites).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.entity_name)}</strong><div class="text-muted">${escapeHtml(item.entity_type)}</div></div>`).join(""));
-    setHtml("account-subscriptions", extractList(subscriptions).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.entity_type)} #${escapeHtml(item.entity_id)}</strong><div class="text-muted">${escapeHtml(item.notification_types.join(", "))}</div></div>`).join(""));
+    try {
+        const [me, favorites, subscriptions] = await Promise.all([apiGet("/users/me"), apiGet("/users/me/favorites"), apiGet("/users/me/subscriptions")]);
+        setHtml("account-name", escapeHtml(`${me.data.first_name || ""} ${me.data.last_name || ""}`.trim() || me.data.username));
+        const firstName = document.getElementById("account-first-name");
+        const lastName = document.getElementById("account-last-name");
+        const timezone = document.getElementById("account-timezone");
+        if (firstName) firstName.value = me.data.first_name || "";
+        if (lastName) lastName.value = me.data.last_name || "";
+        if (timezone) timezone.value = me.data.timezone || "";
+        renderCollectionState({ targetId: "account-favorites", items: extractList(favorites), renderItem: (item) => `<div class="entity-card"><strong>${escapeHtml(item.entity_name)}</strong><div class="text-muted">${escapeHtml(item.entity_type)}</div></div>`, emptyId: "account-favorites-empty", emptyMessage: "Избранное пока пустое." });
+        renderCollectionState({ targetId: "account-subscriptions", items: extractList(subscriptions), renderItem: (item) => `<div class="entity-card"><strong>${escapeHtml(item.entity_type)} #${escapeHtml(item.entity_id)}</strong><div class="text-muted">${escapeHtml(item.notification_types.join(", "))}</div></div>`, emptyId: "account-subscriptions-empty", emptyMessage: "Подписок пока нет." });
+        showNode("account-error", false);
+    } catch (error) {
+        showNode("account-error", true, escapeHtml(error.message || String(error)));
+    }
 }
 
 async function initNotificationsPage() {
@@ -675,10 +694,12 @@ async function initAdminMaintenancePage() {
     };
     const render = async () => {
         const payload = await apiGet("/admin/maintenance");
+        const items = extractList(payload);
         setHtml(
             "admin-maintenance-body",
-            extractList(payload).map((item) => `<tr><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.exists ? "yes" : "no")}</td><td>${escapeHtml(item.updated_at || "-")}</td><td>${escapeHtml(item.path)}</td></tr>`).join(""),
+            items.map((item) => `<tr><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.exists ? "yes" : "no")}</td><td>${escapeHtml(item.updated_at || "-")}</td><td>${escapeHtml(item.path)}</td></tr>`).join(""),
         );
+        showNode("admin-maintenance-empty", items.every((item) => !item.exists), 'Maintenance-артефакты пока не созданы.');
     };
     document.querySelectorAll("[data-maintenance-run]").forEach((button) => {
         button.addEventListener("click", async () => {
@@ -709,10 +730,12 @@ async function initAdminJobsPage() {
     };
     const render = async () => {
         const payload = await apiGet("/admin/jobs");
+        const items = extractList(payload);
         setHtml(
             "admin-jobs-body",
-            extractList(payload).map((item) => `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.job_type)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.run_at)}</td><td>${escapeHtml(item.attempts)}</td><td>${escapeHtml(item.error || "-")}</td><td>${item.status === "failed" ? `<button class="btn btn-sm btn-outline-dark" type="button" data-job-retry="${escapeHtml(item.id)}">Retry</button>` : "-"}</td></tr>`).join(""),
+            items.map((item) => `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.job_type)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.run_at)}</td><td>${escapeHtml(item.attempts)}</td><td>${escapeHtml(item.error || "-")}</td><td>${item.status === "failed" ? `<button class="btn btn-sm btn-outline-dark" type="button" data-job-retry="${escapeHtml(item.id)}">Retry</button>` : "-"}</td></tr>`).join(""),
         );
+        showNode("admin-jobs-empty", items.length === 0, 'Очередь задач сейчас пуста.');
         document.querySelectorAll("[data-job-retry]").forEach((button) => {
             button.addEventListener("click", async () => {
                 try {
@@ -931,25 +954,79 @@ async function initAdminIntegrationsPage() {
 }
 
 async function initAdminSettingsPage() {
-    const payload = await apiGet("/admin/settings");
-    const data = payload.data || {};
-    const seo = document.querySelector("[name=seo_title]");
-    const support = document.querySelector("[name=support_email]");
-    const notes = document.querySelector("[name=provider_notes]");
-    if (seo) seo.value = data.seo_title || "";
-    if (support) support.value = data.support_email || "";
-    if (notes) notes.value = data.provider_notes || "";
+    try {
+        const payload = await apiGet("/admin/settings");
+        const data = payload.data || {};
+        const seo = document.querySelector("[name=seo_title]");
+        const support = document.querySelector("[name=support_email]");
+        const notes = document.querySelector("[name=provider_notes]");
+        if (seo) seo.value = data.seo_title || "";
+        if (support) support.value = data.support_email || "";
+        if (notes) notes.value = data.provider_notes || "";
+        setHtml("admin-settings-summary", `<div class="entity-card"><strong>${escapeHtml(data.seo_title || "Не задано")}</strong><div class="text-muted">support: ${escapeHtml(data.support_email || "-")}</div></div>`);
+        setHtml("admin-settings-notes-preview", `<div class="entity-card"><div class="text-muted">${escapeHtml((data.provider_notes || "").slice(0, 180) || "Заметки отсутствуют")}</div></div>`);
+        showNode("admin-settings-error", false);
+    } catch (error) {
+        showNode("admin-settings-error", true, escapeHtml(error.message || String(error)));
+    }
 }
 
 async function initAdminMediaPage() {
-    const payload = await apiGet("/admin/media");
-    setHtml("admin-media-list", extractList(payload).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.filename)}</strong><div class="text-muted">${escapeHtml(item.content_type)}</div><div class="text-muted">${escapeHtml(item.url)}</div><div class="mt-2">${escapeHtml(item.size || 0)} байт</div></div>`).join(""));
+    try {
+        const payload = await apiGet("/admin/media");
+        const items = extractList(payload);
+        setHtml("admin-media-list", items.map((item) => `<div class="entity-card"><strong>${escapeHtml(item.filename)}</strong><div class="text-muted">${escapeHtml(item.content_type)}</div><div class="text-muted">${escapeHtml(item.url)}</div><div class="mt-2">${escapeHtml(item.size || 0)} байт</div><div class="mt-3 d-flex gap-2"><button class="btn btn-sm btn-outline-danger" type="button" data-media-delete="${escapeHtml(item.id)}">Delete</button></div></div>`).join(""));
+        showNode("admin-media-empty", items.length === 0, 'Медиатека пока пуста.');
+        showNode("admin-media-error", false);
+        document.querySelectorAll("[data-media-delete]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                try {
+                    await apiRequest(`/admin/media/${button.dataset.mediaDelete}`, { method: "DELETE" });
+                    await initAdminMediaPage();
+                } catch (error) {
+                    showNode("admin-media-error", true, escapeHtml(error.message || String(error)));
+                }
+            });
+        });
+    } catch (error) {
+        setHtml("admin-media-list", "");
+        showNode("admin-media-empty", false);
+        showNode("admin-media-error", true, escapeHtml(error.message || String(error)));
+    }
 }
 
 async function initAdminNotificationsPage() {
+    const filtersForm = document.getElementById("admin-delivery-log-filters");
+    const resetButton = document.getElementById("admin-delivery-log-reset");
+    const renderDeliveryLog = async () => {
+        const params = new URLSearchParams();
+        const notificationType = document.getElementById("admin-delivery-log-type")?.value?.trim() || "";
+        const channel = document.getElementById("admin-delivery-log-channel")?.value || "";
+        const status = document.getElementById("admin-delivery-log-status")?.value || "";
+        if (notificationType) params.set("notification_type", notificationType);
+        if (channel) params.set("channel", channel);
+        if (status) params.set("status", status);
+        const payload = await apiGet(`/admin/notifications/delivery-log${params.toString() ? `?${params.toString()}` : ""}`);
+        const items = extractList(payload);
+        setHtml("admin-delivery-log", items.map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.created_at)}</div><strong>${escapeHtml(item.notification_type)} · ${escapeHtml(item.channel)}</strong><div class="text-muted">${escapeHtml(item.status)}${item.reason ? ` · ${escapeHtml(item.reason)}` : ""}</div><div class="text-muted">${escapeHtml(item.title)}</div></div>`).join(""));
+        showNode("admin-delivery-log-empty", items.length === 0, 'Delivery log пока пуст.');
+    };
     const [templatesPayload, historyPayload] = await Promise.all([apiGet("/admin/notifications/templates"), apiGet("/admin/notifications")]);
-    setHtml("admin-notification-templates", extractList(templatesPayload).map((item) => `<tr><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.channel)}</td><td>${escapeHtml(item.is_active ? "активен" : "отключен")}</td><td>${escapeHtml(item.updated_at)}</td></tr>`).join(""));
-    setHtml("admin-notification-history", extractList(historyPayload).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.created_at)}</div><strong>${escapeHtml(item.title)}</strong><div class="text-muted">${escapeHtml(item.status)} · sent ${escapeHtml(item.sent_count)}</div></div>`).join(""));
+    const templates = extractList(templatesPayload);
+    const history = extractList(historyPayload);
+    setHtml("admin-notification-templates", templates.map((item) => `<tr><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.channel)}</td><td>${escapeHtml(item.is_active ? "активен" : "отключен")}</td><td>${escapeHtml(item.updated_at)}</td></tr>`).join(""));
+    setHtml("admin-notification-history", history.map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.created_at)}</div><strong>${escapeHtml(item.title)}</strong><div class="text-muted">${escapeHtml(item.status)} · sent ${escapeHtml(item.sent_count)} · channels ${escapeHtml((item.channels || []).join(", "))}</div></div>`).join(""));
+    showNode("admin-notification-templates-empty", templates.length === 0, 'Шаблоны пока недоступны.');
+    showNode("admin-notification-history-empty", history.length === 0, 'История отправок пока пуста.');
+    await renderDeliveryLog();
+    filtersForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await renderDeliveryLog();
+    });
+    resetButton?.addEventListener("click", async () => {
+        filtersForm?.reset();
+        await renderDeliveryLog();
+    });
 }
 
 async function initAdminTaxonomyPage(kind) {

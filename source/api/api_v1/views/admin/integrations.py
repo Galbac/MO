@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Query
 
-from source.schemas.pydantic.admin import AdminIntegrationItem, AdminIntegrationLogItem
-from source.schemas.pydantic.auth import MessageResponse
+from source.schemas.pydantic.admin import (
+    AdminIntegrationItem,
+    AdminIntegrationLogItem,
+    AdminIntegrationSyncResult,
+    AdminIntegrationUpdateResult,
+)
 from source.schemas.pydantic.common import SuccessResponse
 from source.services import OperationsService
 
@@ -17,13 +21,13 @@ async def get_admin_integrations(
     return await service.list_integrations(provider=provider, status=status)
 
 
-@router.patch("/{provider}", response_model=MessageResponse)
-async def patch_admin_integration(provider: str, payload: dict | None = None) -> MessageResponse:
+@router.patch("/{provider}", response_model=SuccessResponse[AdminIntegrationUpdateResult])
+async def patch_admin_integration(provider: str, payload: dict | None = None) -> SuccessResponse[AdminIntegrationUpdateResult]:
     return await service.update_integration(provider, payload or {})
 
 
-@router.post("/{provider}/sync", response_model=MessageResponse)
-async def sync_admin_integration(provider: str, payload: dict | None = None) -> MessageResponse:
+@router.post("/{provider}/sync", response_model=SuccessResponse[AdminIntegrationSyncResult])
+async def sync_admin_integration(provider: str, payload: dict | None = None) -> SuccessResponse[AdminIntegrationSyncResult]:
     return await service.sync_integration(provider, payload or {})
 
 

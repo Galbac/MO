@@ -16,7 +16,14 @@ from source.config.settings import settings
 from source.db.session import db_session_manager
 from source.integrations import IntegrationSyncError, LiveScoreProviderClient, ProviderPayloadMapper, RankingsProviderClient
 from source.repositories import AdminSupportRepository, AuditRepository, MatchRepository
-from source.schemas.pydantic.admin import AdminIntegrationItem, AdminIntegrationLogItem, AuditLogItem
+from source.schemas.pydantic.admin import (
+    AdminIntegrationItem,
+    AdminIntegrationLogItem,
+    AdminIntegrationSyncResult,
+    AdminIntegrationUpdateResult,
+    AuditLogItem,
+    AuditLogSummary,
+)
 from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.media import MediaFile
@@ -36,6 +43,28 @@ class OperationsService:
     def _ensure_storage(self) -> None:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.media_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _audit_changed_keys(before_json: dict | None, after_json: dict | None) -> list[str]:
+        before_payload = before_json or {}
+        after_payload = after_json or {}
+        keys = sorted(set(before_payload) | set(after_payload))
+        return [key for key in keys if before_payload.get(key) != after_payload.get(key)]
+
+    def _to_audit_log_item(self, item) -> AuditLogItem:
+        changed_keys = self._audit_changed_keys(item.before_json, item.after_json)
+        return AuditLogItem(
+            id=item.id,
+            user_id=item.user_id,
+            action=item.action,
+            entity_type=item.entity_type,
+            entity_id=item.entity_id,
+            before_json=item.before_json,
+            after_json=item.after_json,
+            changed_keys=changed_keys,
+            changed_fields_count=len(changed_keys),
+            created_at=item.created_at,
+        )
 
     def _read_json(self, path: Path, default: Any) -> Any:
         if not path.exists():
@@ -361,7 +390,7 @@ class OperationsService:
             data.append(AdminIntegrationItem(provider=provider_name, status=integration_status, last_sync_at=datetime.fromisoformat(item['last_sync_at']) if item.get('last_sync_at') else None, last_error=item.get('last_error')))
         return SuccessResponse(data=data)
 
-    async def update_integration(self, provider: str, payload: dict[str, Any]) -> MessageResponse:
+    async def update_integration(self, provider: str, payload: dict[str, Any]) -> SuccessResponse[AdminIntegrationUpdateResult]:
         records = self._integration_records()
         current = records.get(provider, {'status': 'configured', 'last_sync_at': None, 'last_error': None, 'settings': {}, 'logs': []})
         normalized_payload = self._normalize_integration_settings(payload)
@@ -369,14 +398,23 @@ class OperationsService:
         records[provider] = updated
         self._save_integration_records(records)
         await self._log_audit(action='integration.update', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
-        return MessageResponse(data=SimpleMessage(message=f'Integration {provider} updated'))
+        return SuccessResponse(
+            data=AdminIntegrationUpdateResult(
+                provider=provider,
+                status=str(updated.get('status') or 'configured'),
+                last_sync_at=datetime.fromisoformat(updated['last_sync_at']) if updated.get('last_sync_at') else None,
+                last_error=updated.get('last_error'),
+                settings=dict(updated.get('settings') or {}),
+            )
+        )
 
-    async def sync_integration(self, provider: str, payload: dict[str, Any] | None = None) -> MessageResponse:
+    async def sync_integration(self, provider: str, payload: dict[str, Any] | None = None) -> SuccessResponse[AdminIntegrationSyncResult]:
         records = self._integration_records()
         current = records.get(provider, {'status': 'configured', 'last_sync_at': None, 'last_error': None, 'settings': {}, 'logs': []})
         payload = payload or {}
         provider_payload = payload.get('provider_payload')
         log_message = 'Manual sync executed'
+        applied = 0
         try:
             if isinstance(provider_payload, dict):
                 if 'live' in provider:
@@ -385,6 +423,7 @@ class OperationsService:
                     log_message = f'Validated {len(events)} live events from provider payload, applied {applied}'
                 elif 'rank' in provider:
                     rows = self.mapper.parse_rankings(provider, provider_payload)
+                    applied = len(rows)
                     log_message = f'Validated {len(rows)} ranking rows from provider payload'
             else:
                 endpoint = self._validate_integration_endpoint(str(payload.get('endpoint') or current.get('settings', {}).get('endpoint') or ''))
@@ -404,7 +443,17 @@ class OperationsService:
             records[provider] = updated
             self._save_integration_records(records)
             await self._log_audit(action='integration.sync', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
-            return MessageResponse(data=SimpleMessage(message=f'Integration {provider} sync started'))
+            return SuccessResponse(
+                data=AdminIntegrationSyncResult(
+                    provider=provider,
+                    status=str(updated.get('status') or 'ok'),
+                    last_sync_at=datetime.fromisoformat(updated['last_sync_at']) if updated.get('last_sync_at') else None,
+                    last_error=updated.get('last_error'),
+                    message=log_message,
+                    applied_count=applied,
+                    logs_count=len(updated.get('logs') or []),
+                )
+            )
         except IntegrationSyncError as exc:
             log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'level': 'error', 'message': f'Provider sync failed: {exc}'}
             updated = current | {'status': 'error', 'last_sync_at': log_entry['timestamp'], 'last_error': str(exc), 'logs': [*current.get('logs', []), log_entry][-20:]}
@@ -430,14 +479,66 @@ class OperationsService:
         ]
         return SuccessResponse(data=payload)
 
-    async def list_audit_logs(self, *, user_id: int | None = None, entity_type: str | None = None, action: str | None = None, date_from: str | None = None, date_to: str | None = None) -> SuccessResponse[list[AuditLogItem]]:
+    async def list_audit_logs(
+        self,
+        *,
+        user_id: int | None = None,
+        entity_type: str | None = None,
+        action: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        limit: int = 100,
+    ) -> SuccessResponse[list[AuditLogItem]]:
         async with db_session_manager.session() as session:
-            items = await self.audit_repo.list(session, user_id=user_id, entity_type=entity_type, action=action, date_from=date_from, date_to=date_to)
-            return SuccessResponse(data=[AuditLogItem(id=item.id, user_id=item.user_id, action=item.action, entity_type=item.entity_type, entity_id=item.entity_id, before_json=item.before_json, after_json=item.after_json, created_at=item.created_at) for item in items])
+            items = await self.audit_repo.list(
+                session,
+                user_id=user_id,
+                entity_type=entity_type,
+                action=action,
+                date_from=date_from,
+                date_to=date_to,
+                limit=max(1, min(limit, 500)),
+            )
+            return SuccessResponse(data=[self._to_audit_log_item(item) for item in items])
+
+    async def summarize_audit_logs(
+        self,
+        *,
+        user_id: int | None = None,
+        entity_type: str | None = None,
+        action: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> SuccessResponse[AuditLogSummary]:
+        async with db_session_manager.session() as session:
+            items = await self.audit_repo.list(
+                session,
+                user_id=user_id,
+                entity_type=entity_type,
+                action=action,
+                date_from=date_from,
+                date_to=date_to,
+            )
+        by_action: dict[str, int] = {}
+        by_entity_type: dict[str, int] = {}
+        latest_at = None
+        for item in items:
+            by_action[item.action] = by_action.get(item.action, 0) + 1
+            by_entity_type[item.entity_type] = by_entity_type.get(item.entity_type, 0) + 1
+            if latest_at is None or item.created_at > latest_at:
+                latest_at = item.created_at
+        return SuccessResponse(
+            data=AuditLogSummary(
+                total=len(items),
+                by_action=by_action,
+                by_entity_type=by_entity_type,
+                latest_at=latest_at,
+            )
+        )
 
     async def get_audit_log(self, log_id: int) -> SuccessResponse[AuditLogItem]:
         async with db_session_manager.session() as session:
             item = await self.audit_repo.get(session, log_id)
             if item is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Audit log not found')
-            return SuccessResponse(data=AuditLogItem(id=item.id, user_id=item.user_id, action=item.action, entity_type=item.entity_type, entity_id=item.entity_id, before_json=item.before_json, after_json=item.after_json, created_at=item.created_at))
+            return SuccessResponse(data=self._to_audit_log_item(item))

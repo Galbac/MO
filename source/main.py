@@ -12,7 +12,7 @@ from source.config.settings import settings
 from source.db.bootstrap import seed_demo_data
 from source.db.session import db_session_manager
 from source.web.router import router as web_router
-from source.tasks import process_due_jobs
+from source.tasks.job_runner import process_due_jobs
 
 
 @asynccontextmanager

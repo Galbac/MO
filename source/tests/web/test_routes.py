@@ -182,3 +182,18 @@ async def test_public_list_pages_have_state_placeholders(async_client) -> None:
     assert 'id="search-empty"' in search.text
     assert 'id="notifications-error"' in notifications.text
     assert 'id="notifications-empty"' in notifications.text
+
+
+async def test_live_rankings_account_pages_have_state_placeholders(async_client) -> None:
+    live = await async_client.get('/live')
+    rankings = await async_client.get('/rankings')
+    account = await async_client.get('/account')
+
+    assert 'id="live-matches-error"' in live.text
+    assert 'id="live-matches-empty"' in live.text
+    assert 'id="live-feed-error"' in live.text
+    assert 'id="rankings-error"' in rankings.text
+    assert 'id="rankings-empty"' in rankings.text
+    assert 'id="account-error"' in account.text
+    assert 'id="account-favorites-empty"' in account.text
+    assert 'id="account-subscriptions-empty"' in account.text

@@ -183,3 +183,16 @@ async def test_admin_rankings_import_clears_players_missing_from_latest_snapshot
     still_ranked = still_ranked_response.json()['data']
     assert still_ranked['current_rank'] == 1
     assert still_ranked['current_points'] == 9300
+
+
+async def test_admin_notification_delivery_log_filters(async_client, admin_auth_headers) -> None:
+    test_notification = await async_client.post(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/notifications/test", headers=admin_auth_headers)
+    assert test_notification.status_code == status.HTTP_200_OK
+
+    delivery_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/notifications/delivery-log",
+        params={"channel": "web"},
+        headers=admin_auth_headers,
+    )
+    assert delivery_response.status_code == status.HTTP_200_OK
+    assert isinstance(delivery_response.json()["data"], list)

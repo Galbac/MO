@@ -63,6 +63,7 @@ class AuditRepository:
         action: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
+        limit: int | None = None,
     ) -> list[AuditLog]:
         stmt = select(AuditLog)
         if user_id is not None:
@@ -76,6 +77,8 @@ class AuditRepository:
         if date_to:
             stmt = stmt.where(AuditLog.created_at <= _parse_date_ceil(date_to))
         stmt = stmt.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        if limit is not None:
+            stmt = stmt.limit(limit)
         return list((await session.scalars(stmt)).all())
 
     async def get(self, session: AsyncSession, log_id: int) -> AuditLog | None:

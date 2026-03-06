@@ -44,4 +44,13 @@ async def run_maintenance_job(payload: dict | None = None) -> SuccessResponse[Ad
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'Invalid payload for maintenance job: {job_type}') from exc
     record = await job_service.enqueue(job_type=job_type, payload=job_payload)
     await job_service.process_due_jobs()
-    return SuccessResponse(data=AdminMaintenanceRunResult(job_id=int(record['id']), job_type=job_type))
+    current = next(item for item in job_service.list_jobs() if int(item['id']) == int(record['id']))
+    return SuccessResponse(
+        data=AdminMaintenanceRunResult(
+            job_id=int(current['id']),
+            job_type=job_type,
+            status=str(current.get('status') or 'pending'),
+            result=current.get('result'),
+            error=current.get('error'),
+        )
+    )

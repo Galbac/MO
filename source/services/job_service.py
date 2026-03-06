@@ -31,13 +31,13 @@ class JobService:
     def list_jobs(self) -> list[dict[str, Any]]:
         return self._read_jobs()
 
-    def prune_jobs(self, *, statuses: list[str] | None = None) -> int:
+    def prune_jobs(self, *, statuses: list[str] | None = None) -> dict[str, Any]:
         statuses = statuses or ['finished', 'failed']
         jobs = self._read_jobs()
         kept = [item for item in jobs if item.get('status') not in statuses]
         removed = len(jobs) - len(kept)
         self._write_jobs(kept)
-        return removed
+        return {'removed': removed, 'remaining': len(kept), 'statuses': statuses}
 
     async def retry_failed_job(self, job_id: int) -> dict[str, Any]:
         jobs = self._read_jobs()
@@ -70,17 +70,23 @@ class JobService:
         self._write_jobs(jobs)
         return record
 
-    async def process_due_jobs(self) -> int:
+    async def process_due_jobs(self) -> dict[str, Any]:
         if not settings.jobs.enabled:
-            return 0
+            return {'processed': 0, 'failed': 0, 'skipped': 0, 'processed_job_ids': [], 'failed_job_ids': []}
         jobs = self._read_jobs()
         now = datetime.now(tz=UTC)
         processed = 0
+        failed = 0
+        skipped = 0
+        processed_job_ids: list[int] = []
+        failed_job_ids: list[int] = []
         for job in jobs:
             if job.get('status') != 'pending':
+                skipped += 1
                 continue
             run_at = datetime.fromisoformat(job['run_at'])
             if run_at > now:
+                skipped += 1
                 continue
             job['attempts'] = int(job.get('attempts', 0)) + 1
             job['updated_at'] = now.isoformat()
@@ -90,13 +96,22 @@ class JobService:
                 job['result'] = result if isinstance(result, dict) else {'value': result} if result is not None else None
                 job['error'] = None
                 processed += 1
+                processed_job_ids.append(int(job['id']))
             except Exception as exc:  # noqa: BLE001
                 job['status'] = 'failed'
                 job['error'] = str(exc)
                 job['result'] = None
+                failed += 1
+                failed_job_ids.append(int(job['id']))
             job['updated_at'] = datetime.now(tz=UTC).isoformat()
         self._write_jobs(jobs)
-        return processed
+        return {
+            'processed': processed,
+            'failed': failed,
+            'skipped': skipped,
+            'processed_job_ids': processed_job_ids,
+            'failed_job_ids': failed_job_ids,
+        }
 
     async def _run_job(self, job_type: str, payload: dict[str, Any]) -> Any:
         if job_type == 'finalize_match_postprocess':

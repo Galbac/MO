@@ -34,3 +34,19 @@ class RankingImportJob(BaseModel):
     status: str
     imported_at: str
     processed_rows: int
+
+
+class RankingImportResult(BaseModel):
+    ranking_type: str
+    status: str
+    imported_at: str
+    processed_rows: int
+    source: str | None = None
+    mode: str
+
+
+class RankingRecalculationResult(BaseModel):
+    message: str = 'Ranking movements recalculated'
+    ranking_types: list[str]
+    snapshot_dates_processed: int
+    updated_rows: int

@@ -11,11 +11,15 @@ from source.config.settings import settings
 from source.db.session import db_session_manager
 from source.integrations import ProviderPayloadMapper
 from source.repositories import AdminSupportRepository
-from source.schemas.pydantic.admin import AdminNotificationBroadcast, AdminNotificationTemplate
+from source.schemas.pydantic.admin import (
+    AdminNotificationBroadcast,
+    AdminNotificationDeliveryLogItem,
+    AdminNotificationTemplate,
+)
 from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.news import NewsCategoryItem, TagItem
-from source.schemas.pydantic.ranking import RankingImportJob
+from source.schemas.pydantic.ranking import RankingImportJob, RankingImportResult, RankingRecalculationResult
 from source.services.cache_service import CacheService
 from source.services.workflow_service import WorkflowService
 
@@ -55,6 +59,16 @@ class AdminSupportService:
             return []
         return json.loads(path.read_text())
 
+    @staticmethod
+    def _delivery_stats(entries: list[dict[str, Any]]) -> dict[str, int]:
+        stats = {'sent': 0, 'queued': 0, 'suppressed': 0, 'skipped': 0}
+        for entry in entries:
+            status_value = str(entry.get('status') or '')
+            if status_value in stats:
+                stats[status_value] += 1
+        stats['total'] = sum(stats.values())
+        return stats
+
     async def get_settings(self) -> SuccessResponse[dict]:
         payload = self._read_json(self.settings_file)
         return SuccessResponse(data=payload or {})
@@ -91,8 +105,57 @@ class AdminSupportService:
                 matching_logs = [entry for entry in delivery_logs if entry.get('notification_type') == code and entry.get('title') == title]
                 sent_count = len([entry for entry in matching_logs if entry.get('status') in {'sent', 'queued'}]) or len(items)
                 status_value = matching_logs[-1]['status'] if matching_logs else ('sent' if all(item.status == 'read' for item in items) else 'queued')
-                data.append(AdminNotificationBroadcast(id=index, title=title, status=status_value, sent_count=sent_count, created_at=latest.created_at))
+                data.append(
+                    AdminNotificationBroadcast(
+                        id=index,
+                        code=code,
+                        title=title,
+                        status=status_value,
+                        sent_count=sent_count,
+                        created_at=latest.created_at,
+                        last_delivery_at=datetime.fromisoformat(matching_logs[-1]['created_at']) if matching_logs and matching_logs[-1].get('created_at') else None,
+                        last_reason=str(matching_logs[-1].get('reason')) if matching_logs and matching_logs[-1].get('reason') else None,
+                        channels=sorted({str(entry.get('channel') or 'web') for entry in matching_logs}) or ['web'],
+                        delivery_stats=self._delivery_stats(matching_logs),
+                    )
+                )
             return SuccessResponse(data=data)
+
+    async def list_notification_delivery_log(
+        self,
+        *,
+        notification_type: str | None = None,
+        channel: str | None = None,
+        status_value: str | None = None,
+        limit: int = 100,
+    ) -> SuccessResponse[list[AdminNotificationDeliveryLogItem]]:
+        items = self._delivery_logs()
+        filtered = []
+        for entry in reversed(items):
+            if notification_type and entry.get('notification_type') != notification_type:
+                continue
+            if channel and entry.get('channel') != channel:
+                continue
+            if status_value and entry.get('status') != status_value:
+                continue
+            if not entry.get('created_at'):
+                continue
+            filtered.append(
+                AdminNotificationDeliveryLogItem(
+                    user_id=int(entry.get('user_id') or 0),
+                    channel=str(entry.get('channel') or 'web'),
+                    notification_type=str(entry.get('notification_type') or ''),
+                    title=str(entry.get('title') or ''),
+                    entity_type=str(entry.get('entity_type') or ''),
+                    entity_id=int(entry.get('entity_id') or 0),
+                    status=str(entry.get('status') or ''),
+                    reason=str(entry.get('reason')) if entry.get('reason') is not None else None,
+                    created_at=datetime.fromisoformat(str(entry['created_at'])),
+                )
+            )
+            if len(filtered) >= max(1, min(limit, 500)):
+                break
+        return SuccessResponse(data=filtered)
 
     async def send_test_notification(self) -> MessageResponse:
         async with db_session_manager.session() as session:
@@ -185,7 +248,7 @@ class AdminSupportService:
             next_id += 1
         return SuccessResponse(data=data)
 
-    async def import_rankings(self, payload: dict[str, Any]) -> MessageResponse:
+    async def import_rankings(self, payload: dict[str, Any]) -> SuccessResponse[RankingImportResult]:
         provider = str(payload.get('provider') or '').strip()
         provider_payload = payload.get('provider_payload')
         if provider and isinstance(provider_payload, dict):
@@ -222,31 +285,64 @@ class AdminSupportService:
                 await self.repo.commit(session)
             await self.workflows.process_ranking_updates(ranking_rows, ranking_type=rows[0].ranking_type, ranking_date=rows[0].ranking_date)
             jobs = self._read_json(self.jobs_file) or []
-            jobs.append({'ranking_type': rows[0].ranking_type, 'status': 'finished', 'imported_at': datetime.now(tz=UTC).isoformat(), 'processed_rows': len(ranking_rows), 'source_file': str(payload.get('source_file') or provider)})
+            imported_at = datetime.now(tz=UTC).isoformat()
+            jobs.append({'ranking_type': rows[0].ranking_type, 'status': 'finished', 'imported_at': imported_at, 'processed_rows': len(ranking_rows), 'source_file': str(payload.get('source_file') or provider)})
             self._write_json(self.jobs_file, jobs)
             self._invalidate_cache('rankings:', 'players:', 'search:')
-            return MessageResponse(data=SimpleMessage(message=f'Imported {len(ranking_rows)} ranking rows from {provider}'))
+            return SuccessResponse(
+                data=RankingImportResult(
+                    ranking_type=rows[0].ranking_type,
+                    status='finished',
+                    imported_at=imported_at,
+                    processed_rows=len(ranking_rows),
+                    source=str(payload.get('source_file') or provider),
+                    mode='provider_payload',
+                )
+            )
 
         async with db_session_manager.session() as session:
             ranking_type = await self.repo.get_latest_ranking_type(session) or 'unknown'
         jobs = self._read_json(self.jobs_file) or []
-        jobs.append({'ranking_type': str(payload.get('ranking_type') or ranking_type), 'status': 'queued', 'imported_at': datetime.now(tz=UTC).isoformat(), 'processed_rows': 0, 'source_file': str(payload.get('source_file') or '')})
+        imported_at = datetime.now(tz=UTC).isoformat()
+        resolved_ranking_type = str(payload.get('ranking_type') or ranking_type)
+        resolved_source = str(payload.get('source_file') or '')
+        jobs.append({'ranking_type': resolved_ranking_type, 'status': 'queued', 'imported_at': imported_at, 'processed_rows': 0, 'source_file': resolved_source})
         self._write_json(self.jobs_file, jobs)
         self._invalidate_cache('rankings:', 'players:')
-        return MessageResponse(data=SimpleMessage(message='Ranking import queued'))
+        return SuccessResponse(
+            data=RankingImportResult(
+                ranking_type=resolved_ranking_type,
+                status='queued',
+                imported_at=imported_at,
+                processed_rows=0,
+                source=resolved_source or None,
+                mode='queued',
+            )
+        )
 
-    async def recalculate_ranking_movements(self) -> MessageResponse:
+    async def recalculate_ranking_movements(self) -> SuccessResponse[RankingRecalculationResult]:
         async with db_session_manager.session() as session:
             ranking_types = await self.repo.list_ranking_types(session)
+            snapshot_dates_processed = 0
+            updated_rows = 0
             for ranking_type in ranking_types:
                 previous_positions: dict[int, int] = {}
                 for ranking_date in await self.repo.list_ranking_dates(session, ranking_type):
+                    snapshot_dates_processed += 1
                     snapshots = await self.repo.list_rankings_for_date(session, ranking_type, ranking_date)
                     current_positions: dict[int, int] = {}
                     for snapshot in snapshots:
                         current_positions[snapshot.player_id] = int(snapshot.rank_position)
                         snapshot.movement = 0 if snapshot.player_id not in previous_positions else previous_positions[snapshot.player_id] - int(snapshot.rank_position)
+                        updated_rows += 1
                     previous_positions = current_positions
             await self.repo.commit(session)
         self._invalidate_cache('rankings:', 'players:')
-        return MessageResponse(data=SimpleMessage(message='Ranking movements recalculated'))
+        return SuccessResponse(
+            data=RankingRecalculationResult(
+                message='Ranking movements recalculated',
+                ranking_types=[str(item) for item in ranking_types],
+                snapshot_dates_processed=snapshot_dates_processed,
+                updated_rows=updated_rows,
+            )
+        )
