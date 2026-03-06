@@ -1,0 +1,324 @@
+    1: from __future__ import annotations
+       
+    1: import base64
+    1: import binascii
+    1: import ipaddress
+    1: import json
+    1: import re
+    1: from datetime import UTC, datetime
+    1: from pathlib import Path
+    1: from typing import Any
+    1: from urllib.parse import urlparse
+       
+    1: from fastapi import HTTPException, UploadFile, status
+       
+    1: from source.config.settings import settings
+    1: from source.db.session import db_session_manager
+    1: from source.integrations import IntegrationSyncError, LiveScoreProviderClient, ProviderPayloadMapper, RankingsProviderClient
+    1: from source.repositories import AuditRepository
+    1: from source.schemas.pydantic.admin import AdminIntegrationItem, AuditLogItem
+    1: from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.media import MediaFile
+       
+       
+    2: class OperationsService:
+    1:     def __init__(self) -> None:
+    4:         self.storage_dir = Path('var')
+    4:         self.media_dir = self.storage_dir / 'media'
+    4:         self.media_index_file = self.storage_dir / 'media_index.json'
+    4:         self.integrations_file = self.storage_dir / 'integrations.json'
+    4:         self.audit_repo = AuditRepository()
+    4:         self.mapper = ProviderPayloadMapper()
+       
+    1:     def _ensure_storage(self) -> None:
+   17:         self.storage_dir.mkdir(parents=True, exist_ok=True)
+   17:         self.media_dir.mkdir(parents=True, exist_ok=True)
+       
+    1:     def _read_json(self, path: Path, default: Any) -> Any:
+   25:         if not path.exists():
+   13:             return default
+   12:         return json.loads(path.read_text())
+       
+    1:     def _write_json(self, path: Path, payload: Any) -> None:
+   12:         self._ensure_storage()
+   12:         path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+       
+    1:     async def _log_audit(self, *, action: str, entity_type: str, entity_id: int | None = None, before_json: dict | None = None, after_json: dict | None = None, user_id: int | None = None) -> None:
+   24:         async with db_session_manager.session() as session:
+   12:             await self.audit_repo.create(session, {'user_id': user_id, 'action': action, 'entity_type': entity_type, 'entity_id': entity_id, 'before_json': before_json, 'after_json': after_json})
+       
+    1:     def _media_records(self) -> list[dict]:
+   10:         return self._read_json(self.media_index_file, [])
+       
+    1:     def _save_media_records(self, payload: list[dict]) -> None:
+    5:         self._write_json(self.media_index_file, payload)
+       
+    2:     @staticmethod
+    2:     def _media_item(payload: dict) -> MediaFile:
+    7:         return MediaFile(id=payload['id'], filename=payload['filename'], content_type=payload['content_type'], url=payload['url'], size=payload.get('size'))
+       
+    2:     @staticmethod
+    2:     def _sanitize_filename(filename: str) -> str:
+    7:         candidate = Path(filename).name.strip()
+    7:         candidate = re.sub(r'[^A-Za-z0-9._-]+', '_', candidate)
+    7:         candidate = candidate.lstrip('._')
+    7:         return candidate
+       
+    1:     def _validate_upload(self, filename: str, content_type: str, size: int) -> None:
+   12:         if not filename:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='filename is required')
+   12:         if filename != Path(filename).name or '..' in filename:
+    1:             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsafe filename')
+   11:         extension = Path(filename).suffix.lower()
+   11:         if extension in set(settings.media.forbidden_extensions):
+    2:             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Forbidden file extension')
+    9:         if content_type not in settings.media.allowed_content_types:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsupported media type')
+    9:         allowed_extensions = settings.media.allowed_extensions_by_content_type.get(content_type, [])
+    9:         if extension not in allowed_extensions:
+    1:             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='File extension does not match content type')
+    8:         if size > settings.media.max_upload_size_bytes:
+    1:             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='File too large')
+       
+    2:     @staticmethod
+    2:     def _decode_media_content(payload: dict[str, Any]) -> bytes:
+    5:         content_base64 = payload.get('content_base64')
+    5:         if content_base64 not in (None, ''):
+    1:             try:
+    1:                 return base64.b64decode(str(content_base64), validate=True)
+>>>>>>             except (ValueError, binascii.Error) as exc:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid base64 payload') from exc
+    4:         raw_content = payload.get('content', '')
+    4:         if isinstance(raw_content, bytes):
+>>>>>>             return raw_content
+    4:         return str(raw_content).encode('utf-8')
+       
+    2:     @staticmethod
+    2:     def _validate_content_signature(content_type: str, content: bytes) -> None:
+    5:         if not content:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Empty file content')
+    5:         if content_type == 'image/jpeg':
+    1:             if not (content.startswith(b'\xff\xd8\xff') and content.endswith(b'\xff\xd9')):
+    1:                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid JPEG file signature')
+>>>>>>             return
+    4:         if content_type == 'image/png':
+    1:             if not content.startswith(b'\x89PNG\r\n\x1a\n'):
+>>>>>>                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid PNG file signature')
+    1:             return
+    3:         if content_type == 'image/gif':
+>>>>>>             if not (content.startswith(b'GIF87a') or content.startswith(b'GIF89a')):
+>>>>>>                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid GIF file signature')
+>>>>>>             return
+    3:         if content_type == 'image/webp':
+>>>>>>             if not (len(content) >= 12 and content.startswith(b'RIFF') and content[8:12] == b'WEBP'):
+>>>>>>                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid WEBP file signature')
+>>>>>>             return
+    3:         if content_type == 'text/plain':
+    3:             try:
+    3:                 decoded = content.decode('utf-8')
+>>>>>>             except UnicodeDecodeError as exc:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid UTF-8 text payload') from exc
+    3:             if '\x00' in decoded:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Binary content is not allowed for text/plain')
+       
+    1:     async def list_media(self) -> SuccessResponse[list[MediaFile]]:
+    5:         return SuccessResponse(data=[self._media_item(item) for item in self._media_records()])
+       
+    1:     async def get_media(self, media_id: int) -> SuccessResponse[MediaFile]:
+    2:         record = next((item for item in self._media_records() if item['id'] == media_id), None)
+    1:         if record is None:
+>>>>>>             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Media not found')
+    1:         return SuccessResponse(data=self._media_item(record))
+       
+    1:     async def upload_media_file(self, file: UploadFile) -> SuccessResponse[MediaFile]:
+    5:         raw_filename = (file.filename or '').strip()
+    5:         self._validate_upload(raw_filename, file.content_type or 'application/octet-stream', 0)
+    2:         filename = self._sanitize_filename(raw_filename)
+    2:         content_type = file.content_type or 'application/octet-stream'
+    2:         records = self._media_records()
+    4:         media_id = max((item['id'] for item in records), default=0) + 1
+    2:         self._ensure_storage()
+    2:         file_path = self.media_dir / f'{media_id}_{filename}'
+    2:         content = await file.read()
+    2:         self._validate_upload(raw_filename, content_type, len(content))
+    2:         self._validate_content_signature(content_type, content)
+    1:         file_path.write_bytes(content)
+    1:         record = {'id': media_id, 'filename': filename, 'content_type': content_type, 'url': f'/static-runtime/media/{file_path.name}', 'size': len(content), 'stored_path': str(file_path), 'created_at': datetime.now(tz=UTC).isoformat()}
+    1:         records.append(record)
+    1:         self._save_media_records(records)
+    1:         await self._log_audit(action='media.upload', entity_type='media', entity_id=media_id, after_json=record)
+    1:         return SuccessResponse(data=self._media_item(record))
+       
+    1:     async def create_media_record(self, payload: dict[str, Any]) -> SuccessResponse[MediaFile]:
+    5:         raw_filename = str(payload.get('filename', '')).strip()
+    5:         filename = self._sanitize_filename(raw_filename)
+    5:         content_type = str(payload.get('content_type') or 'application/octet-stream')
+    5:         content = self._decode_media_content(payload)
+    5:         self._validate_upload(raw_filename, content_type, int(payload.get('size') or len(content)))
+    3:         self._validate_content_signature(content_type, content)
+    3:         records = self._media_records()
+    6:         media_id = max((item['id'] for item in records), default=0) + 1
+    3:         self._ensure_storage()
+    3:         file_path = self.media_dir / f'{media_id}_{filename}'
+    3:         file_path.write_bytes(content)
+    3:         record = {'id': media_id, 'filename': filename, 'content_type': content_type, 'url': f'/static-runtime/media/{file_path.name}', 'size': int(payload.get('size') or len(content)), 'stored_path': str(file_path), 'created_at': datetime.now(tz=UTC).isoformat()}
+    3:         records.append(record)
+    3:         self._save_media_records(records)
+    3:         await self._log_audit(action='admin.media.upload', entity_type='media', entity_id=media_id, after_json=record)
+    3:         return SuccessResponse(data=self._media_item(record))
+       
+    1:     async def delete_media(self, media_id: int) -> MessageResponse:
+    1:         records = self._media_records()
+    2:         record = next((item for item in records if item['id'] == media_id), None)
+    1:         if record is None:
+>>>>>>             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Media not found')
+    2:         records = [item for item in records if item['id'] != media_id]
+    1:         self._save_media_records(records)
+    1:         stored_path = Path(record.get('stored_path', ''))
+    1:         if stored_path.exists():
+    1:             stored_path.unlink()
+    1:         await self._log_audit(action='media.delete', entity_type='media', entity_id=media_id, before_json=record)
+    1:         return MessageResponse(data=SimpleMessage(message='Media deleted'))
+       
+    1:     def _integration_records(self) -> dict[str, dict]:
+   15:         return self._read_json(self.integrations_file, {})
+       
+    1:     def _save_integration_records(self, payload: dict[str, dict]) -> None:
+    7:         self._write_json(self.integrations_file, payload)
+       
+    2:     @staticmethod
+    2:     def _validate_integration_endpoint(endpoint: str) -> str:
+   10:         candidate = endpoint.strip()
+   10:         if not candidate:
+>>>>>>             return ''
+   10:         parsed = urlparse(candidate)
+   10:         if parsed.scheme not in {'http', 'https'}:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Integration endpoint must use http or https')
+   10:         if not parsed.netloc or not parsed.hostname:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Integration endpoint hostname is required')
+   10:         if parsed.username or parsed.password:
+    1:             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Credentials in integration endpoint are not allowed')
+    9:         hostname = parsed.hostname.lower()
+    9:         if hostname in {'localhost', 'localhost.localdomain'}:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Local integration endpoints are not allowed')
+    9:         try:
+    9:             ip = ipaddress.ip_address(hostname)
+    6:         except ValueError:
+    6:             ip = None
+    9:         if ip is not None and (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified):
+    3:             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Private integration endpoints are not allowed')
+    6:         return candidate
+       
+    2:     @staticmethod
+    2:     def _normalize_integration_settings(payload: dict[str, Any]) -> dict[str, Any]:
+    7:         normalized: dict[str, Any] = {}
+   12:         for key, value in payload.items():
+    8:             if value in (None, ''):
+>>>>>>                 continue
+    8:             if key == 'endpoint':
+    7:                 normalized[key] = OperationsService._validate_integration_endpoint(str(value))
+    4:                 continue
+    1:             if key == 'headers':
+>>>>>>                 if not isinstance(value, dict):
+>>>>>>                     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Integration headers must be an object')
+>>>>>>                 normalized[key] = {str(header_key): str(header_value) for header_key, header_value in value.items()}
+>>>>>>                 continue
+    1:             if key == 'timeout_seconds':
+>>>>>>                 timeout = float(value)
+>>>>>>                 if timeout <= 0 or timeout > 30:
+>>>>>>                     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Integration timeout_seconds is out of range')
+>>>>>>                 normalized[key] = timeout
+>>>>>>                 continue
+    1:             if key == 'max_attempts':
+>>>>>>                 attempts = int(value)
+>>>>>>                 if attempts < 1 or attempts > 5:
+>>>>>>                     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Integration max_attempts is out of range')
+>>>>>>                 normalized[key] = attempts
+>>>>>>                 continue
+    1:             normalized[key] = value
+    4:         return normalized
+       
+    1:     def _integration_client(self, provider: str, settings_payload: dict[str, Any] | None = None):
+>>>>>>         settings_payload = settings_payload or {}
+>>>>>>         timeout_seconds = float(settings_payload.get('timeout_seconds') or 5.0)
+>>>>>>         max_attempts = int(settings_payload.get('max_attempts') or 3)
+>>>>>>         if 'live' in provider:
+>>>>>>             return LiveScoreProviderClient(provider, timeout_seconds=timeout_seconds, max_attempts=max_attempts)
+>>>>>>         if 'rank' in provider:
+>>>>>>             return RankingsProviderClient(provider, timeout_seconds=timeout_seconds, max_attempts=max_attempts)
+>>>>>>         return None
+       
+    1:     async def list_integrations(self) -> SuccessResponse[list[AdminIntegrationItem]]:
+    1:         records = self._integration_records()
+    2:         data = [AdminIntegrationItem(provider=provider, status=item.get('status', 'configured'), last_sync_at=datetime.fromisoformat(item['last_sync_at']) if item.get('last_sync_at') else None, last_error=item.get('last_error')) for provider, item in sorted(records.items())]
+    1:         return SuccessResponse(data=data)
+       
+    1:     async def update_integration(self, provider: str, payload: dict[str, Any]) -> MessageResponse:
+    7:         records = self._integration_records()
+    7:         current = records.get(provider, {'status': 'configured', 'last_sync_at': None, 'last_error': None, 'settings': {}, 'logs': []})
+    7:         normalized_payload = self._normalize_integration_settings(payload)
+    4:         updated = current | {'settings': current.get('settings', {}) | normalized_payload}
+    4:         records[provider] = updated
+    4:         self._save_integration_records(records)
+    4:         await self._log_audit(action='integration.update', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
+    4:         return MessageResponse(data=SimpleMessage(message=f'Integration {provider} updated'))
+       
+    1:     async def sync_integration(self, provider: str, payload: dict[str, Any] | None = None) -> MessageResponse:
+    4:         records = self._integration_records()
+    4:         current = records.get(provider, {'status': 'configured', 'last_sync_at': None, 'last_error': None, 'settings': {}, 'logs': []})
+    4:         payload = payload or {}
+    4:         provider_payload = payload.get('provider_payload')
+    4:         log_message = 'Manual sync executed'
+    4:         try:
+    4:             if isinstance(provider_payload, dict):
+    1:                 if 'live' in provider:
+    1:                     events = self.mapper.parse_live_events(provider, provider_payload)
+    1:                     log_message = f'Validated {len(events)} live events from provider payload'
+>>>>>>                 elif 'rank' in provider:
+>>>>>>                     rows = self.mapper.parse_rankings(provider, provider_payload)
+>>>>>>                     log_message = f'Validated {len(rows)} ranking rows from provider payload'
+                   else:
+    3:                 endpoint = self._validate_integration_endpoint(str(payload.get('endpoint') or current.get('settings', {}).get('endpoint') or ''))
+    2:                 headers = current.get('settings', {}).get('headers') or {}
+    2:                 client = self._integration_client(provider, current.get('settings', {}))
+    2:                 if endpoint and client is not None:
+    2:                     if 'live' in provider:
+    2:                         events = await client.fetch_events(endpoint, headers=headers)
+    1:                         log_message = f'Fetched {len(events)} live events from provider endpoint'
+>>>>>>                     elif 'rank' in provider:
+>>>>>>                         rows = await client.fetch_rankings(endpoint, headers=headers)
+>>>>>>                         log_message = f'Fetched {len(rows)} ranking rows from provider endpoint'
+    2:             log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'message': log_message}
+    2:             updated = current | {'status': 'ok', 'last_sync_at': log_entry['timestamp'], 'last_error': None, 'logs': [*current.get('logs', []), log_entry][-20:]}
+    2:             records[provider] = updated
+    2:             self._save_integration_records(records)
+    2:             await self._log_audit(action='integration.sync', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
+    2:             return MessageResponse(data=SimpleMessage(message=f'Integration {provider} sync started'))
+    2:         except IntegrationSyncError as exc:
+    1:             log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'message': f'Provider sync failed: {exc}'}
+    1:             updated = current | {'status': 'error', 'last_sync_at': log_entry['timestamp'], 'last_error': str(exc), 'logs': [*current.get('logs', []), log_entry][-20:]}
+    1:             records[provider] = updated
+    1:             self._save_integration_records(records)
+    1:             await self._log_audit(action='integration.sync.failed', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
+    1:             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+       
+    1:     async def get_integration_logs(self, provider: str) -> MessageResponse:
+    3:         records = self._integration_records()
+    3:         current = records.get(provider)
+    3:         if current is None:
+>>>>>>             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Integration not found')
+    3:         logs = current.get('logs', [])
+    9:         return MessageResponse(data=SimpleMessage(message='\n'.join(item['timestamp'] + ' ' + item['message'] for item in logs) or 'No logs available'))
+       
+    1:     async def list_audit_logs(self) -> SuccessResponse[list[AuditLogItem]]:
+    8:         async with db_session_manager.session() as session:
+    4:             items = await self.audit_repo.list(session)
+    8:             return SuccessResponse(data=[AuditLogItem(id=item.id, action=item.action, entity_type=item.entity_type, entity_id=item.entity_id, before_json=item.before_json, after_json=item.after_json, created_at=item.created_at) for item in items])
+       
+    1:     async def get_audit_log(self, log_id: int) -> SuccessResponse[AuditLogItem]:
+    2:         async with db_session_manager.session() as session:
+    1:             item = await self.audit_repo.get(session, log_id)
+    1:             if item is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Audit log not found')
+    1:             return SuccessResponse(data=AuditLogItem(id=item.id, action=item.action, entity_type=item.entity_type, entity_id=item.entity_id, before_json=item.before_json, after_json=item.after_json, created_at=item.created_at))

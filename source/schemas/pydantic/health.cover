@@ -1,0 +1,16 @@
+    1: from pydantic import BaseModel, Field
+       
+       
+    2: class HealthResponse(BaseModel):
+    1:     status: str
+       
+       
+    2: class ReadinessDependency(BaseModel):
+    1:     status: str
+    1:     backend: str | None = None
+    1:     detail: str | None = None
+       
+       
+    2: class ReadinessResponse(BaseModel):
+    1:     status: str
+    1:     dependencies: dict[str, ReadinessDependency] = Field(default_factory=dict)

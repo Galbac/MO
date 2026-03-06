@@ -1,0 +1,129 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_users_me_returns_seeded_demo_user(async_client, user_auth_headers) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/users/me", headers=user_auth_headers)
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["data"]["username"] == "demo_user"
+       
+       
+    1: async def test_patch_users_me_updates_profile(async_client, user_auth_headers) -> None:
+    2:     response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/users/me",
+    1:         json={"first_name": "Updated", "timezone": "UTC", "quiet_hours_start": "23:00", "quiet_hours_end": "07:00"},
+    1:         headers=user_auth_headers,
+           )
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["data"]["first_name"] == "Updated"
+    1:     assert payload["data"]["timezone"] == "UTC"
+    1:     assert payload["data"]["quiet_hours_start"] == "23:00"
+    1:     assert payload["data"]["quiet_hours_end"] == "07:00"
+       
+       
+    1: async def test_patch_users_me_password_changes_hash(async_client, user_auth_headers) -> None:
+    2:     response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/password",
+    1:         json={"current_password": "UserPass123", "new_password": "NewPass456"},
+    1:         headers=user_auth_headers,
+           )
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["data"]["message"] == "Password changed and tokens revoked"
+       
+       
+    1: async def test_favorites_crud_flow(async_client, user_auth_headers) -> None:
+    1:     list_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/favorites", headers=user_auth_headers)
+    1:     assert list_response.status_code == status.HTTP_200_OK
+    1:     assert len(list_response.json()["data"]) >= 2
+       
+    2:     create_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/favorites",
+    1:         json={"entity_type": "news", "entity_id": 1},
+    1:         headers=user_auth_headers,
+           )
+    1:     assert create_response.status_code == status.HTTP_200_OK
+    1:     favorite_id = create_response.json()["data"]["id"]
+       
+    1:     delete_response = await async_client.delete(f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/favorites/{favorite_id}", headers=user_auth_headers)
+    1:     assert delete_response.status_code == status.HTTP_200_OK
+    1:     assert delete_response.json()["data"]["message"] == "Favorite deleted"
+       
+       
+    1: async def test_subscriptions_crud_flow(async_client, user_auth_headers) -> None:
+    1:     list_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions", headers=user_auth_headers)
+    1:     assert list_response.status_code == status.HTTP_200_OK
+    1:     assert list_response.json()["data"][0]["entity_type"] == "player"
+       
+    2:     create_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions",
+    1:         json={
+    1:             "entity_type": "match",
+    1:             "entity_id": 2,
+    1:             "notification_types": ["match_start"],
+    1:             "channels": ["web"],
+               },
+    1:         headers=user_auth_headers,
+           )
+    1:     assert create_response.status_code == status.HTTP_200_OK
+    1:     subscription_id = create_response.json()["data"]["id"]
+       
+    2:     update_response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions/{subscription_id}",
+    1:         json={"is_active": False},
+    1:         headers=user_auth_headers,
+           )
+    1:     assert update_response.status_code == status.HTTP_200_OK
+    1:     assert update_response.json()["data"]["is_active"] is False
+       
+    1:     delete_response = await async_client.delete(f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions/{subscription_id}", headers=user_auth_headers)
+    1:     assert delete_response.status_code == status.HTTP_200_OK
+    1:     assert delete_response.json()["data"]["message"] == "Subscription deleted"
+       
+       
+    1: async def test_user_notifications_flow(async_client, user_auth_headers) -> None:
+    1:     list_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/notifications", headers=user_auth_headers)
+    1:     assert list_response.status_code == status.HTTP_200_OK
+    1:     assert list_response.json()["data"][0]["title"]
+       
+    1:     read_response = await async_client.patch(f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/notifications/1/read", headers=user_auth_headers)
+    1:     assert read_response.status_code == status.HTTP_200_OK
+    1:     assert read_response.json()["data"]["status"] == "read"
+       
+    1:     read_all_response = await async_client.patch(f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/notifications/read-all", headers=user_auth_headers)
+    1:     assert read_all_response.status_code == status.HTTP_200_OK
+    1:     assert read_all_response.json()["data"]["message"] == "All notifications marked as read"
+       
+       
+    1: async def test_subscriptions_reject_invalid_channel(async_client, user_auth_headers) -> None:
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions",
+    1:         json={
+    1:             "entity_type": "match",
+    1:             "entity_id": 2,
+    1:             "notification_types": ["match_start"],
+    1:             "channels": ["sms"],
+               },
+    1:         headers=user_auth_headers,
+           )
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+       
+       
+    1: async def test_subscriptions_reject_invalid_notification_type(async_client, user_auth_headers) -> None:
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions",
+    1:         json={
+    1:             "entity_type": "match",
+    1:             "entity_id": 2,
+    1:             "notification_types": ["unknown_type"],
+    1:             "channels": ["web"],
+               },
+    1:         headers=user_auth_headers,
+           )
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

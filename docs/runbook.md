@@ -36,4 +36,5 @@
 ## Backup and restore
 - Create local runtime backup: `make backup-runtime`.
 - Restore local runtime backup: `make restore-runtime ARCHIVE=var/backups/<archive>.tar.gz`.
+- Generate service-layer coverage report: `make coverage-service`. Report is written to `var/coverage/service_coverage.json`.
 - Runtime backup includes local cache, jobs, auth state, maintenance artifacts and media files under `var/`.

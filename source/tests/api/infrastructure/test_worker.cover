@@ -1,0 +1,13 @@
+    1: import asyncio
+       
+    1: from source.tasks.worker import run_worker
+       
+       
+    1: async def test_worker_processes_loop_and_stops() -> None:
+    1:     stop_event = asyncio.Event()
+       
+    1:     async def stop_soon() -> None:
+    1:         await asyncio.sleep(0.01)
+    1:         stop_event.set()
+       
+    1:     await asyncio.gather(run_worker(stop_event), stop_soon())

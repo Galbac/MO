@@ -1,0 +1,56 @@
+    1: from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+       
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.match import MatchDetail, MatchEventItem, MatchSummary
+    1: from source.services import PublicDataService, live_hub
+       
+    1: router = APIRouter(prefix="/live", tags=["live"])
+    1: service = PublicDataService()
+       
+       
+    2: @router.get("", response_model=SuccessResponse[list[MatchSummary]])
+    2: async def get_live_matches() -> SuccessResponse[list[MatchSummary]]:
+    9:     return await service.list_live_matches()
+       
+       
+    2: @router.get("/feed", response_model=SuccessResponse[list[MatchEventItem]])
+    2: async def get_live_feed() -> SuccessResponse[list[MatchEventItem]]:
+    1:     return await service.get_live_feed()
+       
+       
+    2: @router.get("/{match_id}", response_model=SuccessResponse[MatchDetail])
+    2: async def get_live_match(match_id: int) -> SuccessResponse[MatchDetail]:
+>>>>>>     return await service.get_live_match(match_id)
+       
+       
+    2: @router.websocket("/ws/live")
+    2: async def live_ws(websocket: WebSocket) -> None:
+    1:     connection_id = await live_hub.connect(websocket)
+    1:     try:
+    2:         initial_channels = [item for item in websocket.query_params.get('channels', '').split(',') if item]
+    1:         if initial_channels:
+>>>>>>             subscribed = live_hub.subscribe(connection_id, initial_channels)
+               else:
+    1:             subscribed = []
+    1:         await websocket.send_json({"event": "connected", "channels": subscribed})
+    2:         while True:
+    2:             message = await websocket.receive_json()
+    1:             action = str(message.get('action') or '').strip().lower()
+    1:             channels = message.get('channels') or []
+    1:             if isinstance(channels, str):
+>>>>>>                 channels = [item for item in channels.split(',') if item]
+    1:             if action == 'subscribe':
+    1:                 subscribed = live_hub.subscribe(connection_id, channels)
+    1:                 await websocket.send_json({"event": "subscribed", "channels": subscribed})
+>>>>>>             elif action == 'unsubscribe':
+>>>>>>                 subscribed = live_hub.unsubscribe(connection_id, channels)
+>>>>>>                 await websocket.send_json({"event": "unsubscribed", "channels": subscribed})
+>>>>>>             elif action == 'ping':
+>>>>>>                 await websocket.send_json({"event": "pong", "channels": live_hub.channels(connection_id)})
+                   else:
+>>>>>>                 await websocket.send_json({"event": "error", "message": "Unsupported action"})
+    1:     except WebSocketDisconnect:
+    1:         live_hub.disconnect(connection_id)
+>>>>>>     except Exception:
+>>>>>>         live_hub.disconnect(connection_id)
+>>>>>>         raise

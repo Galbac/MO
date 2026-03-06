@@ -1,0 +1,18 @@
+    1: from fastapi import APIRouter, Query
+       
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.search import SearchResults, SearchSuggestion
+    1: from source.services import PublicDataService
+       
+    1: router = APIRouter(prefix="/search", tags=["search"])
+    1: service = PublicDataService()
+       
+       
+    2: @router.get("", response_model=SuccessResponse[SearchResults])
+    2: async def search(q: str = Query(..., min_length=1, max_length=120), types: list[str] | None = Query(default=None)) -> SuccessResponse[SearchResults]:
+    8:     return await service.search(q, types=types)
+       
+       
+    2: @router.get("/suggestions", response_model=SuccessResponse[list[SearchSuggestion]])
+    2: async def search_suggestions(q: str = Query(..., min_length=1, max_length=120), types: list[str] | None = Query(default=None)) -> SuccessResponse[list[SearchSuggestion]]:
+    1:     return await service.search_suggestions(q, types=types)

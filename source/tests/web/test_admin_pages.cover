@@ -1,0 +1,35 @@
+    1: from fastapi import status
+       
+       
+    1: async def test_admin_media_page_renders_html(async_client) -> None:
+    1:     response = await async_client.get("/admin/media")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     assert "text/html" in response.headers["content-type"]
+    1:     assert "Медиатека" in response.text
+       
+       
+    1: async def test_admin_notifications_page_renders_html(async_client) -> None:
+    1:     response = await async_client.get("/admin/notifications")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     assert "text/html" in response.headers["content-type"]
+    1:     assert "Шаблоны" in response.text
+       
+       
+    1: async def test_admin_live_operations_page_has_dynamic_match_selector(async_client) -> None:
+    1:     response = await async_client.get("/admin/live-operations")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     assert "admin-live-match-id" in response.text
+    1:     assert "/admin/matches/2/events" not in response.text
+       
+       
+    1: async def test_admin_media_page_uses_safe_text_defaults(async_client) -> None:
+    1:     response = await async_client.get("/admin/media")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     assert "name=\"filename\"" in response.text
+    1:     assert "note.txt" in response.text
+    1:     assert "text/plain" in response.text
+    1:     assert "name=\"content\"" in response.text

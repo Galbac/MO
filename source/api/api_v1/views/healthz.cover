@@ -1,0 +1,32 @@
+    1: from sqlalchemy import text
+       
+    1: from fastapi import APIRouter
+       
+    1: from source.db.session import db_session_manager
+    1: from source.schemas.pydantic.health import HealthResponse, ReadinessDependency, ReadinessResponse
+    1: from source.services import RuntimeStateStore
+       
+    1: router = APIRouter(prefix="/health", tags=["health"])
+       
+       
+    2: @router.get("", response_model=HealthResponse, summary="Liveness probe")
+    2: async def health() -> HealthResponse:
+    2:     return HealthResponse(status="ok")
+       
+       
+    2: @router.get("/ready", response_model=ReadinessResponse, summary="Readiness probe")
+    2: async def readiness() -> ReadinessResponse:
+    1:     dependencies: dict[str, ReadinessDependency] = {}
+       
+    1:     try:
+    2:         async with db_session_manager.session() as session:
+    1:             await session.execute(text('SELECT 1'))
+    1:         dependencies['database'] = ReadinessDependency(status='ok', detail='reachable')
+>>>>>>     except Exception as exc:  # noqa: BLE001
+>>>>>>         dependencies['database'] = ReadinessDependency(status='error', detail=str(exc))
+       
+    1:     store = RuntimeStateStore()
+    1:     dependencies['runtime_state'] = ReadinessDependency(status='ok', backend=store.backend_name(), detail='ready')
+       
+    4:     overall = 'ok' if all(item.status == 'ok' for item in dependencies.values()) else 'degraded'
+    1:     return ReadinessResponse(status=overall, dependencies=dependencies)

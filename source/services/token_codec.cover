@@ -1,0 +1,58 @@
+    1: from __future__ import annotations
+       
+    1: import base64
+    1: import hashlib
+    1: import hmac
+    1: import json
+    1: import time
+    1: import uuid
+    1: from typing import Any
+       
+    1: from fastapi import HTTPException, status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: def _b64encode(raw: bytes) -> str:
+  471:     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+       
+       
+    1: def _b64decode(raw: str) -> bytes:
+  197:     padding = "=" * (-len(raw) % 4)
+  197:     return base64.urlsafe_b64decode((raw + padding).encode())
+       
+       
+    2: class TokenCodec:
+    1:     def __init__(self, secret: str) -> None:
+    1:         self.secret = secret.encode()
+       
+    1:     def encode(self, payload: dict[str, Any]) -> str:
+  136:         body = _b64encode(json.dumps(payload, separators=(",", ":")).encode())
+  136:         signature = hmac.new(self.secret, body.encode(), hashlib.sha256).digest()
+  136:         return f"{body}.{_b64encode(signature)}"
+       
+    1:     def decode(self, token: str) -> dict[str, Any]:
+  199:         try:
+  199:             body, signature = token.split('.', 1)
+>>>>>>         except ValueError as exc:
+>>>>>>             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token') from exc
+  199:         expected = _b64encode(hmac.new(self.secret, body.encode(), hashlib.sha256).digest())
+  199:         if not hmac.compare_digest(signature, expected):
+    2:             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token signature')
+  197:         payload = json.loads(_b64decode(body))
+  197:         exp = payload.get('exp')
+  197:         if exp is not None and int(exp) < int(time.time()):
+>>>>>>             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token expired')
+  197:         return payload
+       
+    1:     def issue_access_token(self, user_id: int) -> str:
+   68:         now = int(time.time())
+   68:         return self.encode({'sub': user_id, 'typ': 'access', 'iat': now, 'exp': now + settings.auth.access_token_ttl_minutes * 60})
+       
+    1:     def issue_refresh_token(self, user_id: int) -> tuple[str, dict[str, Any]]:
+   68:         now = int(time.time())
+   68:         payload = {'sub': user_id, 'typ': 'refresh', 'iat': now, 'exp': now + settings.auth.refresh_token_ttl_minutes * 60, 'jti': uuid.uuid4().hex}
+   68:         return self.encode(payload), payload
+       
+       
+    1: token_codec = TokenCodec(settings.auth.secret_key)

@@ -1,0 +1,107 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_admin_players_crud_flow(async_client, admin_auth_headers) -> None:
+    2:     create_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/players",
+    1:         json={"first_name": "Carlos", "last_name": "Alcaraz", "full_name": "Carlos Alcaraz", "slug": "carlos-alcaraz", "country_code": "ESP", "current_rank": 3},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert create_response.status_code == status.HTTP_200_OK
+    1:     player_id = create_response.json()["data"]["id"]
+       
+    2:     patch_response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/players/{player_id}",
+    1:         json={"current_points": 7800, "status": "active"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert patch_response.status_code == status.HTTP_200_OK
+    1:     assert patch_response.json()["data"]["current_points"] == 7800
+       
+    1:     delete_response = await async_client.delete(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/players/{player_id}", headers=admin_auth_headers)
+    1:     assert delete_response.status_code == status.HTTP_200_OK
+    1:     assert delete_response.json()["data"]["message"] == "Player deleted"
+       
+       
+    1: async def test_admin_tournaments_crud_flow(async_client, admin_auth_headers) -> None:
+    2:     create_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/tournaments",
+    1:         json={"name": "Monte Carlo 2026", "slug": "monte-carlo-2026", "category": "masters_1000", "surface": "clay", "season_year": 2026, "country_code": "MCO"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert create_response.status_code == status.HTTP_200_OK
+    1:     tournament_id = create_response.json()["data"]["id"]
+       
+    2:     patch_response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/tournaments/{tournament_id}",
+    1:         json={"status": "published", "city": "Monte Carlo"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert patch_response.status_code == status.HTTP_200_OK
+    1:     assert patch_response.json()["data"]["status"] == "published"
+       
+    1:     delete_response = await async_client.delete(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/tournaments/{tournament_id}", headers=admin_auth_headers)
+    1:     assert delete_response.status_code == status.HTTP_200_OK
+    1:     assert delete_response.json()["data"]["message"] == "Tournament deleted"
+       
+       
+    1: async def test_admin_matches_crud_and_actions_flow(async_client, admin_auth_headers) -> None:
+    2:     create_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches",
+    1:         json={"slug": "test-match", "tournament_id": 1, "player1_id": 1, "player2_id": 2, "status": "scheduled", "scheduled_at": "2026-03-10T12:00:00+00:00"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert create_response.status_code == status.HTTP_200_OK
+    1:     match_id = create_response.json()["data"]["id"]
+       
+    2:     status_response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}/status",
+    1:         json={"status": "live"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert status_response.status_code == status.HTTP_200_OK
+    1:     assert status_response.json()["data"]["status"] == "live"
+       
+    2:     score_response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}/score",
+    1:         json={"score_summary": "6-4 2-1", "sets": []},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert score_response.status_code == status.HTTP_200_OK
+    1:     assert score_response.json()["data"]["score_summary"] == "6-4 2-1"
+       
+    1:     finalize_response = await async_client.post(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}/finalize", headers=admin_auth_headers)
+    1:     assert finalize_response.status_code == status.HTTP_200_OK
+    1:     assert finalize_response.json()["data"]["message"] == "Match finalized and post-processing queued"
+       
+    1:     delete_response = await async_client.delete(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}", headers=admin_auth_headers)
+    1:     assert delete_response.status_code == status.HTTP_200_OK
+    1:     assert delete_response.json()["data"]["message"] == "Match deleted"
+       
+       
+    1: async def test_admin_news_crud_and_publish_flow(async_client, admin_auth_headers) -> None:
+    2:     create_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news",
+    1:         json={"slug": "new-admin-article", "title": "Admin article", "content_html": "<p>Body</p>", "status": "draft"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert create_response.status_code == status.HTTP_200_OK
+    1:     news_id = create_response.json()["data"]["id"]
+       
+    2:     patch_response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news/{news_id}",
+    1:         json={"slug": "new-admin-article", "title": "Updated admin article", "content_html": "<p>Updated</p>", "status": "review"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert patch_response.status_code == status.HTTP_200_OK
+    1:     assert patch_response.json()["data"]["title"] == "Updated admin article"
+       
+    1:     publish_response = await async_client.post(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news/{news_id}/publish", headers=admin_auth_headers)
+    1:     assert publish_response.status_code == status.HTTP_200_OK
+    1:     assert publish_response.json()["data"]["message"] == "News published"
+       
+    1:     delete_response = await async_client.delete(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news/{news_id}", headers=admin_auth_headers)
+    1:     assert delete_response.status_code == status.HTTP_200_OK
+    1:     assert delete_response.json()["data"]["message"] == "News deleted"

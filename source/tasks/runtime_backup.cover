@@ -1,0 +1,61 @@
+    1: from __future__ import annotations
+       
+    1: import argparse
+    1: import shutil
+    1: import tarfile
+    1: from datetime import UTC, datetime
+    1: from pathlib import Path
+       
+    1: from source.config.settings import settings
+       
+       
+    1: def create_runtime_backup(destination_path: str | None = None, source_dir: str | None = None) -> Path:
+    1:     root = Path(source_dir or 'var')
+    1:     backups_dir = Path(settings.maintenance.backups_dir)
+    1:     backups_dir.mkdir(parents=True, exist_ok=True)
+    1:     target = Path(destination_path) if destination_path else backups_dir / f"runtime-backup-{datetime.now(tz=UTC).strftime('%Y%m%dT%H%M%SZ')}.tar.gz"
+    2:     with tarfile.open(target, 'w:gz') as archive:
+    1:         if root.exists():
+    1:             archive.add(root, arcname=root.name)
+    1:     return target
+       
+       
+    1: def restore_runtime_backup(archive_path: str, target_dir: str | None = None) -> Path:
+    1:     archive = Path(archive_path)
+    1:     if not archive.exists():
+>>>>>>         raise FileNotFoundError(f'Archive not found: {archive}')
+    1:     destination = Path(target_dir or '.')
+    1:     runtime_root = destination / 'var'
+    1:     if runtime_root.exists():
+>>>>>>         shutil.rmtree(runtime_root)
+    2:     with tarfile.open(archive, 'r:gz') as bundle:
+    1:         try:
+    1:             bundle.extractall(destination, filter='data')
+>>>>>>         except TypeError:
+>>>>>>             bundle.extractall(destination)
+    1:     return runtime_root
+       
+       
+    1: def main() -> None:
+>>>>>>     parser = argparse.ArgumentParser(description='Backup or restore local runtime state.')
+>>>>>>     subparsers = parser.add_subparsers(dest='command', required=True)
+       
+>>>>>>     backup = subparsers.add_parser('backup')
+>>>>>>     backup.add_argument('--output', dest='output', default=None)
+>>>>>>     backup.add_argument('--source', dest='source', default=None)
+       
+>>>>>>     restore = subparsers.add_parser('restore')
+>>>>>>     restore.add_argument('archive')
+>>>>>>     restore.add_argument('--target', dest='target', default='.')
+       
+>>>>>>     args = parser.parse_args()
+>>>>>>     if args.command == 'backup':
+>>>>>>         path = create_runtime_backup(destination_path=args.output, source_dir=args.source)
+>>>>>>         print(path)
+>>>>>>         return
+>>>>>>     restored = restore_runtime_backup(args.archive, target_dir=args.target)
+>>>>>>     print(restored)
+       
+       
+    1: if __name__ == '__main__':
+>>>>>>     main()

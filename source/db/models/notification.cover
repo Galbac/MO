@@ -1,0 +1,30 @@
+    1: from datetime import datetime
+       
+    1: from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
+    1: from sqlalchemy.orm import Mapped, mapped_column
+       
+    1: from source.db.models.base import Base
+    1: from source.db.models.mixins import IdIntPkMixin, TimestampMixin
+       
+       
+    2: class NotificationSubscription(Base, IdIntPkMixin):
+    1:     __tablename__ = "notification_subscriptions"
+       
+    1:     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    1:     entity_type: Mapped[str] = mapped_column(String(32), index=True)
+    1:     entity_id: Mapped[int] = mapped_column(Integer(), index=True)
+    1:     notification_types: Mapped[dict] = mapped_column(JSON(), default=list)
+    1:     channels: Mapped[dict] = mapped_column(JSON(), default=list)
+    1:     is_active: Mapped[bool] = mapped_column(Boolean(), default=True)
+       
+       
+    2: class Notification(Base, IdIntPkMixin, TimestampMixin):
+    1:     __tablename__ = "notifications"
+       
+    1:     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    1:     type: Mapped[str] = mapped_column(String(64), index=True)
+    1:     title: Mapped[str] = mapped_column(String(255))
+    1:     body: Mapped[str] = mapped_column(Text())
+    1:     payload_json: Mapped[dict] = mapped_column(JSON(), default=dict)
+    1:     status: Mapped[str] = mapped_column(String(32), default="unread", index=True)
+    1:     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

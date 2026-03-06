@@ -1,0 +1,41 @@
+    1: from pydantic import BaseModel, Field
+       
+       
+    2: class TournamentSummary(BaseModel):
+    1:     id: int
+    1:     slug: str
+    1:     name: str
+    1:     category: str
+    1:     surface: str
+    1:     season_year: int
+    1:     start_date: str | None = None
+    1:     end_date: str | None = None
+    1:     status: str = "scheduled"
+    1:     city: str | None = None
+       
+       
+    2: class ChampionItem(BaseModel):
+    1:     season_year: int
+    1:     player_name: str
+       
+       
+    2: class DrawMatchItem(BaseModel):
+    1:     round_code: str
+    1:     player1_name: str
+    1:     player2_name: str
+    1:     score_summary: str | None = None
+       
+       
+    2: class TournamentDetail(TournamentSummary):
+    1:     short_name: str | None = None
+    1:     indoor: bool = False
+    1:     country_code: str
+    1:     prize_money: str | None = None
+    1:     points_winner: int | None = None
+    1:     logo_url: str | None = None
+    1:     description: str | None = None
+    1:     participants: list[dict] = Field(default_factory=list)
+    1:     current_matches: list[dict] = Field(default_factory=list)
+    1:     champions: list[ChampionItem] = Field(default_factory=list)
+    1:     draw: list[DrawMatchItem] = Field(default_factory=list)
+    1:     seo: dict = Field(default_factory=dict)

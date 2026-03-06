@@ -1,0 +1,28 @@
+    1: import tarfile
+    1: from pathlib import Path
+       
+    1: from source.tasks.runtime_backup import create_runtime_backup, restore_runtime_backup
+       
+       
+    1: def test_runtime_backup_and_restore_roundtrip(tmp_path) -> None:
+    1:     source_dir = tmp_path / 'var'
+    1:     media_dir = source_dir / 'media'
+    1:     media_dir.mkdir(parents=True)
+    1:     (source_dir / 'cache_store.json').write_text('{"ok": true}')
+    1:     (media_dir / 'sample.txt').write_text('hello')
+       
+    1:     archive_path = tmp_path / 'runtime-backup.tar.gz'
+    1:     backup = create_runtime_backup(destination_path=str(archive_path), source_dir=str(source_dir))
+       
+    1:     assert backup.exists()
+    2:     with tarfile.open(backup, 'r:gz') as bundle:
+    1:         assert 'var/cache_store.json' in bundle.getnames()
+    1:         assert 'var/media/sample.txt' in bundle.getnames()
+       
+    1:     restore_target = tmp_path / 'restore-target'
+    1:     restore_target.mkdir()
+    1:     restored_root = restore_runtime_backup(str(backup), target_dir=str(restore_target))
+       
+    1:     assert restored_root.exists()
+    1:     assert (restored_root / 'cache_store.json').read_text() == '{"ok": true}'
+    1:     assert (restored_root / 'media' / 'sample.txt').read_text() == 'hello'

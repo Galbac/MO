@@ -1,0 +1,21 @@
+    1: from source.repositories.admin_support_repository import AdminSupportRepository
+    1: from source.repositories.audit_repository import AuditRepository
+    1: from source.repositories.discovery_repository import DiscoveryRepository
+    1: from source.repositories.engagement_repository import EngagementRepository
+    1: from source.repositories.match_repository import MatchRepository
+    1: from source.repositories.news_repository import NewsRepository
+    1: from source.repositories.player_repository import PlayerRepository
+    1: from source.repositories.tournament_repository import TournamentRepository
+    1: from source.repositories.user_repository import UserRepository
+       
+    1: __all__ = [
+           "AdminSupportRepository",
+           "AuditRepository",
+           "DiscoveryRepository",
+           "EngagementRepository",
+           "MatchRepository",
+           "NewsRepository",
+           "PlayerRepository",
+           "TournamentRepository",
+           "UserRepository",
+       ]

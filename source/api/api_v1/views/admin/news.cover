@@ -1,0 +1,70 @@
+    1: from fastapi import APIRouter, Request
+       
+    1: from source.schemas.pydantic.auth import MessageResponse
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.news import NewsArticleCreateRequest, NewsArticleDetail, NewsArticleSummary, NewsCategoryItem, NewsStatusRequest, TagItem
+    1: from source.services import AdminContentService, PortalQueryService
+       
+    1: router = APIRouter(prefix="/news", tags=["admin-news"])
+    1: service = AdminContentService()
+    1: query_service = PortalQueryService()
+       
+       
+    2: @router.get("", response_model=SuccessResponse[list[NewsArticleSummary]])
+    2: async def list_admin_news() -> SuccessResponse[list[NewsArticleSummary]]:
+    2:     return await service.list_admin_news()
+       
+       
+    2: @router.post("", response_model=SuccessResponse[NewsArticleDetail])
+    2: async def create_admin_news(request: Request, payload: NewsArticleCreateRequest) -> SuccessResponse[NewsArticleDetail]:
+    4:     return await service.create_admin_news(payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.get("/{news_id}", response_model=SuccessResponse[NewsArticleDetail])
+    2: async def get_admin_news(news_id: int) -> SuccessResponse[NewsArticleDetail]:
+>>>>>>     return await service.get_admin_news(news_id)
+       
+       
+    2: @router.patch("/{news_id}", response_model=SuccessResponse[NewsArticleDetail])
+    2: async def patch_admin_news(request: Request, news_id: int, payload: NewsArticleCreateRequest) -> SuccessResponse[NewsArticleDetail]:
+    1:     return await service.update_admin_news(news_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.delete("/{news_id}", response_model=MessageResponse)
+    2: async def delete_admin_news(request: Request, news_id: int) -> MessageResponse:
+    1:     return await service.delete_admin_news(news_id, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.patch("/{news_id}/status", response_model=SuccessResponse[NewsArticleDetail])
+    2: async def patch_admin_news_status(request: Request, news_id: int, payload: NewsStatusRequest) -> SuccessResponse[NewsArticleDetail]:
+>>>>>>     return await service.update_admin_news_status(news_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.post("/{news_id}/publish", response_model=MessageResponse)
+    2: async def publish_admin_news(request: Request, news_id: int) -> MessageResponse:
+    2:     return await service.publish_admin_news(news_id, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.post("/{news_id}/schedule", response_model=MessageResponse)
+    2: async def schedule_admin_news(request: Request, news_id: int, payload: NewsStatusRequest) -> MessageResponse:
+    1:     return await service.schedule_admin_news(news_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.post("/{news_id}/cover", response_model=MessageResponse)
+    2: async def upload_admin_news_cover(news_id: int) -> MessageResponse:
+>>>>>>     return MessageResponse(data={"message": f"Cover uploaded for news {news_id}"})
+       
+       
+    2: @router.post("/{news_id}/tags", response_model=SuccessResponse[list[TagItem]])
+    2: async def attach_admin_news_tags(news_id: int) -> SuccessResponse[list[TagItem]]:
+>>>>>>     return await service.attach_admin_news_tags(news_id)
+       
+       
+    2: @router.get("/categories/list", response_model=SuccessResponse[list[NewsCategoryItem]])
+    2: async def list_admin_categories() -> SuccessResponse[list[NewsCategoryItem]]:
+>>>>>>     return await query_service.get_news_categories()
+       
+       
+    2: @router.get("/tags/list", response_model=SuccessResponse[list[TagItem]])
+    2: async def list_admin_tags() -> SuccessResponse[list[TagItem]]:
+>>>>>>     return await query_service.get_news_tags()

@@ -1,0 +1,64 @@
+    1: from fastapi import APIRouter, Request
+       
+    1: from source.schemas.pydantic.auth import MessageResponse
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.match import MatchDetail, MatchEventCreateRequest, MatchEventItem, MatchScoreUpdateRequest, MatchStatsUpdateRequest, MatchStatusUpdateRequest, MatchSummary
+    1: from source.services import AdminContentService
+       
+    1: router = APIRouter(prefix="/matches", tags=["admin-matches"])
+    1: service = AdminContentService()
+       
+       
+    2: @router.get("", response_model=SuccessResponse[list[MatchSummary]])
+    2: async def list_admin_matches() -> SuccessResponse[list[MatchSummary]]:
+    1:     return await service.list_admin_matches()
+       
+       
+    2: @router.post("", response_model=SuccessResponse[MatchDetail])
+    2: async def create_admin_match(request: Request, payload: dict) -> SuccessResponse[MatchDetail]:
+    1:     return await service.create_admin_match(payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.get("/{match_id}", response_model=SuccessResponse[MatchDetail])
+    2: async def get_admin_match(match_id: int) -> SuccessResponse[MatchDetail]:
+>>>>>>     return await service.get_admin_match(match_id)
+       
+       
+    2: @router.patch("/{match_id}", response_model=SuccessResponse[MatchDetail])
+    2: async def patch_admin_match(request: Request, match_id: int, payload: dict) -> SuccessResponse[MatchDetail]:
+>>>>>>     return await service.update_admin_match(match_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.delete("/{match_id}", response_model=MessageResponse)
+    2: async def delete_admin_match(request: Request, match_id: int) -> MessageResponse:
+    1:     return await service.delete_admin_match(match_id, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.patch("/{match_id}/status", response_model=SuccessResponse[MatchDetail])
+    2: async def patch_admin_match_status(request: Request, match_id: int, payload: MatchStatusUpdateRequest) -> SuccessResponse[MatchDetail]:
+    7:     return await service.update_admin_match_status(match_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.patch("/{match_id}/score", response_model=SuccessResponse[MatchDetail])
+    2: async def patch_admin_match_score(request: Request, match_id: int, payload: MatchScoreUpdateRequest) -> SuccessResponse[MatchDetail]:
+    5:     return await service.update_admin_match_score(match_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.patch("/{match_id}/stats", response_model=SuccessResponse[MatchDetail])
+    2: async def patch_admin_match_stats(request: Request, match_id: int, payload: MatchStatsUpdateRequest) -> SuccessResponse[MatchDetail]:
+>>>>>>     return await service.update_admin_match_stats(match_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.post("/{match_id}/events", response_model=SuccessResponse[MatchEventItem])
+    2: async def create_admin_match_event(request: Request, match_id: int, payload: MatchEventCreateRequest) -> SuccessResponse[MatchEventItem]:
+>>>>>>     return await service.create_admin_match_event(match_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.post("/{match_id}/finalize", response_model=MessageResponse)
+    2: async def finalize_admin_match(request: Request, match_id: int) -> MessageResponse:
+    3:     return await service.finalize_admin_match(match_id, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.post("/{match_id}/reopen", response_model=MessageResponse)
+    2: async def reopen_admin_match(request: Request, match_id: int) -> MessageResponse:
+>>>>>>     return await service.reopen_admin_match(match_id, actor_id=getattr(request.state.current_user, 'id', None))

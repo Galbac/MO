@@ -1,0 +1,14 @@
+    1: from sqlalchemy import MetaData
+    1: from sqlalchemy.orm import DeclarativeBase
+       
+       
+    2: class Base(DeclarativeBase):
+    2:     metadata = MetaData(
+    1:         naming_convention={
+    1:             "ix": "ix_%(table_name)s_%(column_0_name)s",
+    1:             "uq": "uq_%(table_name)s_%(column_0_name)s",
+    1:             "ck": "ck_%(table_name)s_%(constraint_name)s",
+    1:             "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    1:             "pk": "pk_%(table_name)s",
+               }
+           )

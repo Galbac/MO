@@ -1,0 +1,136 @@
+    1: from __future__ import annotations
+       
+    1: from sqlalchemy import delete, func, select
+    1: from sqlalchemy.ext.asyncio import AsyncSession
+       
+    1: from source.db.models import NewsCategory, Notification, Player, RankingSnapshot, Tag, User
+       
+       
+    2: class AdminSupportRepository:
+    1:     async def list_categories(self, session: AsyncSession) -> list[NewsCategory]:
+    1:         stmt = select(NewsCategory).order_by(NewsCategory.name.asc())
+    1:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def create_category(self, session: AsyncSession, payload: dict) -> NewsCategory:
+    1:         item = NewsCategory(**payload)
+    1:         session.add(item)
+    1:         await session.commit()
+    1:         await session.refresh(item)
+    1:         return item
+       
+    1:     async def get_category(self, session: AsyncSession, category_id: int) -> NewsCategory | None:
+    1:         return await session.get(NewsCategory, category_id)
+       
+    1:     async def update_category(self, session: AsyncSession, item: NewsCategory, payload: dict) -> NewsCategory:
+    3:         for key, value in payload.items():
+    2:             setattr(item, key, value)
+    1:         await session.commit()
+    1:         await session.refresh(item)
+    1:         return item
+       
+    1:     async def delete_category(self, session: AsyncSession, item: NewsCategory) -> None:
+>>>>>>         await session.delete(item)
+>>>>>>         await session.commit()
+       
+    1:     async def list_tags(self, session: AsyncSession) -> list[Tag]:
+    1:         stmt = select(Tag).order_by(Tag.name.asc())
+    1:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def create_tag(self, session: AsyncSession, payload: dict) -> Tag:
+    1:         item = Tag(**payload)
+    1:         session.add(item)
+    1:         await session.commit()
+    1:         await session.refresh(item)
+    1:         return item
+       
+    1:     async def get_tag(self, session: AsyncSession, tag_id: int) -> Tag | None:
+    1:         return await session.get(Tag, tag_id)
+       
+    1:     async def update_tag(self, session: AsyncSession, item: Tag, payload: dict) -> Tag:
+>>>>>>         for key, value in payload.items():
+>>>>>>             setattr(item, key, value)
+>>>>>>         await session.commit()
+>>>>>>         await session.refresh(item)
+>>>>>>         return item
+       
+    1:     async def delete_tag(self, session: AsyncSession, item: Tag) -> None:
+    1:         await session.delete(item)
+    1:         await session.commit()
+       
+    1:     async def list_notifications(self, session: AsyncSession) -> list[Notification]:
+    4:         stmt = select(Notification).order_by(Notification.created_at.desc())
+    4:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def create_notification(self, session: AsyncSession, payload: dict) -> Notification:
+    1:         item = Notification(**payload)
+    1:         session.add(item)
+    1:         await session.commit()
+    1:         await session.refresh(item)
+    1:         return item
+       
+    1:     async def get_first_active_user(self, session: AsyncSession) -> User | None:
+    1:         stmt = select(User).where(User.status == 'active').order_by(User.id.asc())
+    1:         return await session.scalar(stmt)
+       
+    1:     async def list_ranking_snapshots(self, session: AsyncSession) -> list[RankingSnapshot]:
+    2:         stmt = select(RankingSnapshot).order_by(RankingSnapshot.ranking_date.desc(), RankingSnapshot.rank_position.asc())
+    2:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def get_latest_ranking_type(self, session: AsyncSession) -> str | None:
+    2:         stmt = select(RankingSnapshot.ranking_type).order_by(RankingSnapshot.ranking_date.desc()).limit(1)
+    2:         return await session.scalar(stmt)
+       
+    1:     async def count_rankings_for_date(self, session: AsyncSession, ranking_type: str, ranking_date: str) -> int:
+>>>>>>         stmt = select(func.count()).select_from(RankingSnapshot).where(RankingSnapshot.ranking_type == ranking_type, RankingSnapshot.ranking_date == ranking_date)
+>>>>>>         return int((await session.scalar(stmt)) or 0)
+       
+    1:     async def find_players_by_names(self, session: AsyncSession, names: list[str]) -> list[Player]:
+    1:         if not names:
+>>>>>>             return []
+    1:         stmt = select(Player).where(Player.full_name.in_(names))
+    1:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def get_previous_rankings(self, session: AsyncSession, ranking_type: str, ranking_date: str) -> list[RankingSnapshot]:
+    1:         previous_date_stmt = (
+    1:             select(RankingSnapshot.ranking_date)
+    1:             .where(RankingSnapshot.ranking_type == ranking_type, RankingSnapshot.ranking_date < ranking_date)
+    1:             .order_by(RankingSnapshot.ranking_date.desc())
+    1:             .limit(1)
+               )
+    1:         previous_date = await session.scalar(previous_date_stmt)
+    1:         if previous_date is None:
+>>>>>>             return []
+    1:         stmt = select(RankingSnapshot).where(RankingSnapshot.ranking_type == ranking_type, RankingSnapshot.ranking_date == previous_date)
+    1:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def replace_rankings(self, session: AsyncSession, *, ranking_type: str, ranking_date: str, rows: list[dict]) -> list[RankingSnapshot]:
+    1:         await session.execute(delete(RankingSnapshot).where(RankingSnapshot.ranking_type == ranking_type, RankingSnapshot.ranking_date == ranking_date))
+    3:         items = [RankingSnapshot(**row) for row in rows]
+    1:         session.add_all(items)
+    1:         await session.flush()
+    1:         return items
+       
+    1:     async def clear_player_current_rankings(self, session: AsyncSession, player_ids: list[int]) -> None:
+    1:         if not player_ids:
+>>>>>>             return
+    1:         stmt = select(Player).where(Player.id.in_(player_ids))
+    1:         players = list((await session.scalars(stmt)).all())
+    3:         for player in players:
+    2:             player.current_rank = None
+    2:             player.current_points = None
+       
+    1:     async def apply_player_current_rankings(self, session: AsyncSession, ranking_rows: list[dict]) -> None:
+    1:         if not ranking_rows:
+>>>>>>             return
+    3:         player_ids = [int(row['player_id']) for row in ranking_rows]
+    1:         stmt = select(Player).where(Player.id.in_(player_ids))
+    3:         players = {item.id: item for item in list((await session.scalars(stmt)).all())}
+    3:         for row in ranking_rows:
+    2:             player = players.get(int(row['player_id']))
+    2:             if player is None:
+>>>>>>                 continue
+    2:             player.current_rank = int(row['rank_position'])
+    2:             player.current_points = int(row['points'])
+       
+    1:     async def commit(self, session: AsyncSession) -> None:
+    1:         await session.commit()

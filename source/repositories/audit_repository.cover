@@ -1,0 +1,45 @@
+    1: from __future__ import annotations
+       
+    1: from datetime import date, datetime
+       
+    1: from sqlalchemy import select
+    1: from sqlalchemy.ext.asyncio import AsyncSession
+       
+    1: from source.db.models import AuditLog
+       
+       
+    1: def _json_ready(value):
+ 1390:     if isinstance(value, datetime):
+  198:         return value.isoformat()
+ 1192:     if isinstance(value, date):
+>>>>>>         return value.isoformat()
+ 1192:     if isinstance(value, dict):
+ 1384:         return {key: _json_ready(item) for key, item in value.items()}
+ 1087:     if isinstance(value, list):
+   17:         return [_json_ready(item) for item in value]
+ 1073:     if isinstance(value, tuple):
+>>>>>>         return [_json_ready(item) for item in value]
+ 1073:     return value
+       
+       
+    2: class AuditRepository:
+    1:     async def create(self, session: AsyncSession, payload: dict) -> AuditLog:
+  108:         item = AuditLog(
+   54:             user_id=payload.get('user_id'),
+   54:             action=payload.get('action'),
+   54:             entity_type=payload.get('entity_type'),
+   54:             entity_id=payload.get('entity_id'),
+   54:             before_json=_json_ready(payload.get('before_json')),
+   54:             after_json=_json_ready(payload.get('after_json')),
+               )
+   54:         session.add(item)
+   54:         await session.commit()
+   54:         await session.refresh(item)
+   54:         return item
+       
+    1:     async def list(self, session: AsyncSession) -> list[AuditLog]:
+    4:         stmt = select(AuditLog).order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+    4:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def get(self, session: AsyncSession, log_id: int) -> AuditLog | None:
+    1:         return await session.get(AuditLog, log_id)

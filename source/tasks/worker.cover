@@ -1,0 +1,31 @@
+    1: from __future__ import annotations
+       
+    1: import asyncio
+    1: import contextlib
+       
+    1: from source.config.settings import settings
+    1: from source.tasks import process_due_jobs
+       
+       
+    1: async def run_worker(stop_event: asyncio.Event | None = None) -> None:
+    1:     local_stop = stop_event or asyncio.Event()
+    2:     while not local_stop.is_set():
+    1:         await process_due_jobs()
+    1:         try:
+    1:             await asyncio.wait_for(local_stop.wait(), timeout=settings.jobs.poll_interval_seconds)
+>>>>>>         except TimeoutError:
+>>>>>>             continue
+       
+       
+    1: def main() -> None:
+>>>>>>     stop_event = asyncio.Event()
+>>>>>>     try:
+>>>>>>         asyncio.run(run_worker(stop_event))
+>>>>>>     except KeyboardInterrupt:
+>>>>>>         stop_event.set()
+>>>>>>         with contextlib.suppress(RuntimeError):
+>>>>>>             asyncio.run(process_due_jobs())
+       
+       
+    1: if __name__ == '__main__':
+>>>>>>     main()

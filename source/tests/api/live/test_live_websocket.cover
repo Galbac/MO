@@ -1,0 +1,44 @@
+    1: import asyncio
+    1: from unittest.mock import AsyncMock
+       
+    1: from fastapi.testclient import TestClient
+       
+    1: from source.main import create_app
+    1: from source.services import live_hub
+       
+       
+    1: def test_live_websocket_supports_subscribe_and_manual_broadcast() -> None:
+    1:     app = create_app()
+    2:     with TestClient(app) as client:
+    2:         with client.websocket_connect('/api/v1/live/ws/live') as websocket:
+    1:             connected = websocket.receive_json()
+    1:             assert connected['event'] == 'connected'
+       
+    1:             websocket.send_json({'action': 'subscribe', 'channels': ['live:match:2']})
+    1:             subscribed = websocket.receive_json()
+    1:             assert subscribed['event'] == 'subscribed'
+    1:             assert 'live:match:2' in subscribed['channels']
+       
+    1:             asyncio.run(live_hub.broadcast(channels=['live:match:2'], payload={'event': 'score_updated', 'match_id': 2, 'data': {'score_summary': '6-4 4-6 4-2'}}))
+    1:             payload = websocket.receive_json()
+    1:             assert payload['event'] == 'score_updated'
+    1:             assert payload['match_id'] == 2
+    1:             assert payload['data']['score_summary'] == '6-4 4-6 4-2'
+       
+       
+    1: async def test_score_update_triggers_live_broadcast(async_client, admin_auth_headers, monkeypatch) -> None:
+    1:     broadcast = AsyncMock()
+    1:     monkeypatch.setattr(live_hub, 'broadcast', broadcast)
+       
+    2:     response = await async_client.patch(
+    1:         '/api/v1/admin/matches/2/score',
+    1:         headers=admin_auth_headers,
+    1:         json={'score_summary': '6-4 4-6 4-2', 'sets': []},
+           )
+    1:     assert response.status_code == 200
+       
+    1:     broadcast.assert_awaited()
+    1:     kwargs = broadcast.await_args.kwargs
+    1:     assert 'live:match:2' in kwargs['channels']
+    1:     assert kwargs['payload']['event'] == 'score_updated'
+    1:     assert kwargs['payload']['match_id'] == 2

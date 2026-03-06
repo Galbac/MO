@@ -1,0 +1,227 @@
+    1: from __future__ import annotations
+       
+    1: import json
+    1: from datetime import UTC, datetime
+    1: from pathlib import Path
+    1: from typing import Any
+       
+    1: from fastapi import HTTPException, status
+       
+    1: from source.db.session import db_session_manager
+    1: from source.integrations import ProviderPayloadMapper
+    1: from source.repositories import AdminSupportRepository
+    1: from source.schemas.pydantic.admin import AdminNotificationBroadcast, AdminNotificationTemplate
+    1: from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.news import NewsCategoryItem, TagItem
+    1: from source.schemas.pydantic.ranking import RankingImportJob
+    1: from source.services.cache_service import CacheService
+       
+       
+    2: class AdminSupportService:
+    1:     def __init__(self) -> None:
+    4:         self.repo = AdminSupportRepository()
+    4:         self.storage_dir = Path('var')
+    4:         self.cache = CacheService()
+    4:         self.mapper = ProviderPayloadMapper()
+    4:         self.settings_file = self.storage_dir / 'admin_settings.json'
+    4:         self.jobs_file = self.storage_dir / 'ranking_import_jobs.json'
+       
+    2:     @staticmethod
+    2:     def _require(payload: dict[str, Any], field: str) -> str:
+    6:         value = str(payload.get(field, '')).strip()
+    6:         if not value:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'{field} is required')
+    6:         return value
+       
+    1:     def _read_json(self, path: Path) -> Any:
+    6:         if not path.exists():
+    4:             return None
+    2:         return json.loads(path.read_text())
+       
+    1:     def _write_json(self, path: Path, payload: Any) -> None:
+    4:         self.storage_dir.mkdir(parents=True, exist_ok=True)
+    4:         path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+       
+    1:     def _invalidate_cache(self, *prefixes: str) -> None:
+    8:         self.cache.invalidate_prefixes(*prefixes)
+       
+    1:     async def get_settings(self) -> SuccessResponse[dict]:
+    1:         payload = self._read_json(self.settings_file)
+    1:         return SuccessResponse(data=payload or {})
+       
+    1:     async def update_settings(self, payload: dict[str, Any]) -> SuccessResponse[dict]:
+    1:         current = self._read_json(self.settings_file) or {}
+    3:         merged = current | {key: value for key, value in payload.items() if value not in (None, '')}
+    1:         self._write_json(self.settings_file, merged)
+    1:         self._invalidate_cache('news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:')
+    1:         return SuccessResponse(data=merged)
+       
+    1:     async def list_notification_templates(self) -> SuccessResponse[list[AdminNotificationTemplate]]:
+    2:         async with db_session_manager.session() as session:
+    1:             notifications = await self.repo.list_notifications(session)
+    1:             grouped: dict[str, Any] = {}
+    3:             for item in notifications:
+    2:                 bucket = grouped.get(item.type)
+    2:                 if bucket is None or item.created_at > bucket.created_at:
+    2:                     grouped[item.type] = item
+    3:             data = [AdminNotificationTemplate(id=item.id, code=item.type, title=item.title, channel='web', is_active=True, updated_at=item.created_at) for item in grouped.values()]
+    3:             data.sort(key=lambda item: item.code)
+    1:             return SuccessResponse(data=data)
+       
+    1:     async def list_notification_history(self) -> SuccessResponse[list[AdminNotificationBroadcast]]:
+    4:         async with db_session_manager.session() as session:
+    2:             notifications = await self.repo.list_notifications(session)
+    2:             grouped: dict[tuple[str, str], list[Any]] = {}
+    7:             for item in notifications:
+    5:                 grouped.setdefault((item.type, item.title), []).append(item)
+    2:             data = []
+   19:             for index, ((_, title), items) in enumerate(sorted(grouped.items(), key=lambda value: max(item.created_at for item in value[1]), reverse=True), start=1):
+    9:                 latest = max(items, key=lambda item: item.created_at)
+   10:                 status_value = 'sent' if all(item.status == 'read' for item in items) else 'queued'
+    4:                 data.append(AdminNotificationBroadcast(id=index, title=title, status=status_value, sent_count=len(items), created_at=latest.created_at))
+    2:             return SuccessResponse(data=data)
+       
+    1:     async def send_test_notification(self) -> MessageResponse:
+    2:         async with db_session_manager.session() as session:
+    1:             user = await self.repo.get_first_active_user(session)
+    1:             if user is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Active user not found')
+    1:             notifications = await self.repo.list_notifications(session)
+    1:             latest = notifications[0] if notifications else None
+    1:             payload = {
+    1:                 'user_id': user.id,
+    1:                 'type': latest.type if latest else 'system',
+    1:                 'title': latest.title if latest else 'Notification',
+    1:                 'body': latest.body if latest else 'Notification queued.',
+    1:                 'payload_json': {'source': 'admin-test'},
+    1:                 'status': 'unread',
+    1:                 'read_at': None,
+                   }
+    1:             await self.repo.create_notification(session, payload)
+    1:             return MessageResponse(data=SimpleMessage(message='Test notification sent'))
+       
+    1:     async def list_categories(self) -> SuccessResponse[list[NewsCategoryItem]]:
+    2:         async with db_session_manager.session() as session:
+    1:             items = await self.repo.list_categories(session)
+    3:             return SuccessResponse(data=[NewsCategoryItem(id=item.id, slug=item.slug, name=item.name) for item in items])
+       
+    1:     async def create_category(self, payload: dict[str, Any]) -> MessageResponse:
+    2:         async with db_session_manager.session() as session:
+    1:             await self.repo.create_category(session, {'name': self._require(payload, 'name'), 'slug': self._require(payload, 'slug')})
+    1:             self._invalidate_cache('news:', 'search:')
+    1:             return MessageResponse(data=SimpleMessage(message='News category created'))
+       
+    1:     async def update_category(self, category_id: int, payload: dict[str, Any]) -> MessageResponse:
+    2:         async with db_session_manager.session() as session:
+    1:             item = await self.repo.get_category(session, category_id)
+    1:             if item is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Category not found')
+    1:             await self.repo.update_category(session, item, {'name': self._require(payload | {'name': payload.get('name', item.name)}, 'name'), 'slug': self._require(payload | {'slug': payload.get('slug', item.slug)}, 'slug')})
+    1:             self._invalidate_cache('news:', 'search:')
+    1:             return MessageResponse(data=SimpleMessage(message='News category updated'))
+       
+    1:     async def delete_category(self, category_id: int) -> MessageResponse:
+>>>>>>         async with db_session_manager.session() as session:
+>>>>>>             item = await self.repo.get_category(session, category_id)
+>>>>>>             if item is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Category not found')
+>>>>>>             await self.repo.delete_category(session, item)
+>>>>>>             self._invalidate_cache('news:', 'search:')
+>>>>>>             return MessageResponse(data=SimpleMessage(message='News category deleted'))
+       
+    1:     async def list_tags(self) -> SuccessResponse[list[TagItem]]:
+    2:         async with db_session_manager.session() as session:
+    1:             items = await self.repo.list_tags(session)
+    4:             return SuccessResponse(data=[TagItem(id=item.id, slug=item.slug, name=item.name) for item in items])
+       
+    1:     async def create_tag(self, payload: dict[str, Any]) -> MessageResponse:
+    2:         async with db_session_manager.session() as session:
+    1:             await self.repo.create_tag(session, {'name': self._require(payload, 'name'), 'slug': self._require(payload, 'slug')})
+    1:             self._invalidate_cache('news:', 'search:')
+    1:             return MessageResponse(data=SimpleMessage(message='Tag created'))
+       
+    1:     async def update_tag(self, tag_id: int, payload: dict[str, Any]) -> MessageResponse:
+>>>>>>         async with db_session_manager.session() as session:
+>>>>>>             item = await self.repo.get_tag(session, tag_id)
+>>>>>>             if item is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tag not found')
+>>>>>>             await self.repo.update_tag(session, item, {'name': self._require(payload | {'name': payload.get('name', item.name)}, 'name'), 'slug': self._require(payload | {'slug': payload.get('slug', item.slug)}, 'slug')})
+>>>>>>             self._invalidate_cache('news:', 'search:')
+>>>>>>             return MessageResponse(data=SimpleMessage(message='Tag updated'))
+       
+    1:     async def delete_tag(self, tag_id: int) -> MessageResponse:
+    2:         async with db_session_manager.session() as session:
+    1:             item = await self.repo.get_tag(session, tag_id)
+    1:             if item is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tag not found')
+    1:             await self.repo.delete_tag(session, item)
+    1:             self._invalidate_cache('news:', 'search:')
+    1:             return MessageResponse(data=SimpleMessage(message='Tag deleted'))
+       
+    1:     async def list_ranking_jobs(self) -> SuccessResponse[list[RankingImportJob]]:
+    2:         async with db_session_manager.session() as session:
+    1:             snapshots = await self.repo.list_ranking_snapshots(session)
+    1:         grouped: dict[tuple[str, str], int] = {}
+    8:         for item in snapshots:
+    7:             grouped[(item.ranking_type, item.ranking_date)] = grouped.get((item.ranking_type, item.ranking_date), 0) + 1
+    1:         stored = self._read_json(self.jobs_file) or []
+    7:         data = [RankingImportJob(id=index + 1, ranking_type=ranking_type, status='finished', imported_at=f'{ranking_date}T00:00:00+00:00', processed_rows=rows) for index, ((ranking_type, ranking_date), rows) in enumerate(sorted(grouped.items(), key=lambda item: item[0][1], reverse=True))]
+    1:         next_id = len(data) + 1
+    2:         for entry in stored:
+    1:             data.append(RankingImportJob(id=next_id, ranking_type=entry['ranking_type'], status=entry['status'], imported_at=entry['imported_at'], processed_rows=entry['processed_rows']))
+    1:             next_id += 1
+    1:         return SuccessResponse(data=data)
+       
+    1:     async def import_rankings(self, payload: dict[str, Any]) -> MessageResponse:
+    3:         provider = str(payload.get('provider') or '').strip()
+    3:         provider_payload = payload.get('provider_payload')
+    3:         if provider and isinstance(provider_payload, dict):
+    1:             rows = self.mapper.parse_rankings(provider, provider_payload)
+    3:             names = [row.player_name for row in rows]
+    2:             async with db_session_manager.session() as session:
+    3:                 players = {item.full_name: item for item in await self.repo.find_players_by_names(session, names)}
+    1:                 if len(players) != len(set(names)):
+>>>>>>                     missing = sorted(set(names) - set(players))
+>>>>>>                     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'Players not found for rankings import: {", ".join(missing)}')
+    8:                 existing_snapshots = [item for item in await self.repo.list_ranking_snapshots(session) if item.ranking_type == rows[0].ranking_type]
+    7:                 latest_existing_date = max((item.ranking_date for item in existing_snapshots), default=None)
+    5:                 previous = {item.player_id: item for item in await self.repo.get_previous_rankings(session, rows[0].ranking_type, rows[0].ranking_date)}
+    1:                 ranking_rows: list[dict[str, Any]] = []
+    3:                 for row in rows:
+    2:                     player = players[row.player_name]
+    2:                     movement = row.movement
+    2:                     if movement is None:
+    2:                         previous_entry = previous.get(player.id)
+    2:                         movement = 0 if previous_entry is None else int(previous_entry.rank_position) - int(row.position)
+    4:                     ranking_rows.append({
+    2:                         'ranking_type': row.ranking_type,
+    2:                         'ranking_date': row.ranking_date,
+    2:                         'player_id': player.id,
+    2:                         'rank_position': row.position,
+    2:                         'points': row.points,
+    2:                         'movement': movement,
+                           })
+    1:                 await self.repo.replace_rankings(session, ranking_type=rows[0].ranking_type, ranking_date=rows[0].ranking_date, rows=ranking_rows)
+    1:                 if latest_existing_date is None or rows[0].ranking_date >= latest_existing_date:
+    6:                     affected_player_ids = [item.player_id for item in existing_snapshots]
+    3:                     await self.repo.clear_player_current_rankings(session, sorted(set(affected_player_ids) - {row['player_id'] for row in ranking_rows}))
+    1:                     await self.repo.apply_player_current_rankings(session, ranking_rows)
+    1:                 await self.repo.commit(session)
+    1:             jobs = self._read_json(self.jobs_file) or []
+    1:             jobs.append({'ranking_type': rows[0].ranking_type, 'status': 'finished', 'imported_at': datetime.now(tz=UTC).isoformat(), 'processed_rows': len(ranking_rows), 'source_file': str(payload.get('source_file') or provider)})
+    1:             self._write_json(self.jobs_file, jobs)
+    1:             self._invalidate_cache('rankings:', 'players:', 'search:')
+    1:             return MessageResponse(data=SimpleMessage(message=f'Imported {len(ranking_rows)} ranking rows from {provider}'))
+       
+    4:         async with db_session_manager.session() as session:
+    2:             ranking_type = await self.repo.get_latest_ranking_type(session) or 'unknown'
+    2:         jobs = self._read_json(self.jobs_file) or []
+    2:         jobs.append({'ranking_type': str(payload.get('ranking_type') or ranking_type), 'status': 'queued', 'imported_at': datetime.now(tz=UTC).isoformat(), 'processed_rows': 0, 'source_file': str(payload.get('source_file') or '')})
+    2:         self._write_json(self.jobs_file, jobs)
+    2:         self._invalidate_cache('rankings:', 'players:')
+    2:         return MessageResponse(data=SimpleMessage(message='Ranking import queued'))
+       
+    1:     async def recalculate_ranking_movements(self) -> MessageResponse:
+>>>>>>         self._invalidate_cache('rankings:', 'players:')
+>>>>>>         return MessageResponse(data=SimpleMessage(message='Ranking movement recalculation queued'))

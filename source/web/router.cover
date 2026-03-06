@@ -1,0 +1,400 @@
+    1: import json
+    1: from pathlib import Path
+       
+    1: from fastapi import APIRouter, Request
+    1: from fastapi.responses import PlainTextResponse, Response
+    1: from fastapi.templating import Jinja2Templates
+       
+    1: from source.services import PortalQueryService
+       
+    1: router = APIRouter()
+       
+    1: TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+    1: templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+    1: query_service = PortalQueryService()
+       
+       
+    1: def _absolute_url(request: Request, value: str | None) -> str:
+   20:     if not value:
+   16:         return ""
+    4:     if value.startswith("http://") or value.startswith("https://"):
+>>>>>>         return value
+    4:     return f"{request.base_url}{value.lstrip('/')}"
+       
+       
+    8: def _seo_defaults(
+    1:     request: Request,
+    1:     page_title: str,
+    2:     description: str | None = None,
+    2:     image_url: str | None = None,
+           *,
+    2:     og_type: str = "website",
+    1: ) -> dict[str, object]:
+   18:     canonical_url = str(request.url)
+   18:     description_value = description or page_title
+   18:     return {
+   18:         "canonical_url": canonical_url,
+   18:         "meta_description": description_value,
+   18:         "og_title": page_title,
+   18:         "og_description": description_value,
+   18:         "og_type": og_type,
+   18:         "og_image": _absolute_url(request, image_url),
+   18:         "robots": "index,follow",
+   18:         "schema_json": "",
+           }
+       
+       
+   12: def render(
+    1:     request: Request,
+    1:     template_name: str,
+           *,
+    1:     page_title: str,
+    1:     page_name: str,
+    1:     section: str,
+    2:     description: str | None = None,
+    2:     image_url: str | None = None,
+    2:     robots: str = "index,follow",
+    2:     og_type: str = "website",
+    2:     schema_json: dict | list | None = None,
+    1:     **extra: object,
+       ):
+   54:     context = {
+   18:         "request": request,
+   18:         "page_title": page_title,
+   18:         "page_name": page_name,
+   18:         "section": section,
+   18:         **_seo_defaults(request, page_title, description=description, image_url=image_url, og_type=og_type),
+   18:         **extra,
+           }
+   18:     context["robots"] = robots
+   18:     context["schema_json"] = json.dumps(schema_json, ensure_ascii=False) if schema_json else ""
+   18:     return templates.TemplateResponse(request, template_name, context)
+       
+       
+    1: async def _player_context(request: Request, player_slug: str) -> dict[str, object]:
+    1:     players = (await query_service.list_players(None, None, None, None, None, None, 1, 300)).data
+    3:     player = next((item for item in players if item.slug == player_slug), None)
+    1:     if player is None:
+>>>>>>         return {"entity_slug": player_slug}
+    1:     detail = (await query_service.get_player(player.id)).data
+    1:     page_title = detail.seo.title if detail.seo and detail.seo.title else detail.full_name
+    1:     description = detail.seo.description if detail.seo and detail.seo.description else (detail.biography or detail.full_name)
+    1:     return {
+    1:         "page_title": page_title,
+    1:         "description": description,
+    1:         "image_url": detail.photo_url,
+    1:         "schema_json": {
+    1:             "@context": "https://schema.org",
+    1:             "@type": "Person",
+    1:             "name": detail.full_name,
+    1:             "description": detail.biography or detail.full_name,
+    1:             "image": _absolute_url(request, detail.photo_url),
+    1:             "nationality": detail.country_name or detail.country_code,
+    1:             "url": str(request.url),
+               },
+    1:         "entity_slug": player_slug,
+           }
+       
+       
+    1: async def _tournament_context(request: Request, tournament_slug: str) -> dict[str, object]:
+>>>>>>     tournaments = (await query_service.list_tournaments(1, 300)).data
+>>>>>>     tournament = next((item for item in tournaments if item.slug == tournament_slug), None)
+>>>>>>     if tournament is None:
+>>>>>>         return {"entity_slug": tournament_slug}
+>>>>>>     detail = (await query_service.get_tournament(tournament.id)).data
+>>>>>>     description = detail.description or detail.name
+>>>>>>     return {
+>>>>>>         "page_title": detail.name,
+>>>>>>         "description": description,
+>>>>>>         "image_url": detail.logo_url,
+>>>>>>         "schema_json": {
+>>>>>>             "@context": "https://schema.org",
+>>>>>>             "@type": "SportsEvent",
+>>>>>>             "name": detail.name,
+>>>>>>             "description": description,
+>>>>>>             "startDate": detail.start_date,
+>>>>>>             "endDate": detail.end_date,
+>>>>>>             "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+>>>>>>             "location": {
+>>>>>>                 "@type": "Place",
+>>>>>>                 "name": detail.city or detail.name,
+>>>>>>                 "address": detail.country_code or "",
+                   },
+>>>>>>             "image": _absolute_url(request, detail.logo_url),
+>>>>>>             "url": str(request.url),
+               },
+>>>>>>         "entity_slug": tournament_slug,
+           }
+       
+       
+    1: async def _match_context(request: Request, match_slug: str) -> dict[str, object]:
+    1:     matches = (await query_service.list_matches(1, 300, None)).data
+    3:     match = next((item for item in matches if item.slug == match_slug), None)
+    1:     if match is None:
+>>>>>>         return {"entity_slug": match_slug}
+    1:     detail = (await query_service.get_match(match.id)).data
+    1:     title = f"{detail.player1_name} vs {detail.player2_name}"
+    1:     description = f"{detail.tournament_name}, {detail.round_code or detail.status}. Счет: {detail.score.current_game or detail.score_summary or detail.status}."
+    1:     return {
+    1:         "page_title": title,
+    1:         "description": description,
+    1:         "schema_json": {
+    1:             "@context": "https://schema.org",
+    1:             "@type": "SportsEvent",
+    1:             "name": title,
+    1:             "description": description,
+    1:             "startDate": detail.scheduled_at.isoformat(),
+    1:             "competitor": [
+    1:                 {"@type": "Person", "name": detail.player1_name},
+    1:                 {"@type": "Person", "name": detail.player2_name},
+                   ],
+    1:             "eventStatus": detail.status,
+    1:             "location": {"@type": "Place", "name": detail.court_name or detail.tournament_name},
+    1:             "url": str(request.url),
+               },
+    1:         "entity_slug": match_slug,
+           }
+       
+       
+    1: async def _news_context(request: Request, slug: str) -> dict[str, object]:
+    1:     article = (await query_service.get_news_article(slug)).data
+    1:     page_title = article.seo_title or article.title
+    1:     description = article.seo_description or article.lead or article.subtitle or article.title
+    1:     return {
+    1:         "page_title": page_title,
+    1:         "description": description,
+    1:         "image_url": article.cover_image_url,
+    1:         "og_type": "article",
+    1:         "schema_json": {
+    1:             "@context": "https://schema.org",
+    1:             "@type": "NewsArticle",
+    1:             "headline": article.title,
+    1:             "description": description,
+    1:             "datePublished": article.published_at,
+    1:             "image": _absolute_url(request, article.cover_image_url),
+    1:             "url": str(request.url),
+    1:             "author": {"@type": "Person", "name": "Makhachkala Open Editorial"},
+               },
+    1:         "entity_slug": slug,
+           }
+       
+       
+    2: @router.get("/robots.txt", include_in_schema=False)
+    2: async def robots_txt(request: Request) -> PlainTextResponse:
+    1:     sitemap_url = f"{request.base_url}sitemap.xml"
+    1:     return PlainTextResponse(f"User-agent: *\nAllow: /\nSitemap: {sitemap_url}\n")
+       
+       
+    2: @router.get("/sitemap.xml", include_in_schema=False)
+    2: async def sitemap_xml(request: Request) -> Response:
+    1:     base_url = str(request.base_url).rstrip("/")
+    1:     static_paths = ["/", "/players", "/tournaments", "/matches", "/live", "/rankings", "/news", "/search", "/h2h"]
+    1:     dynamic_paths: list[str] = []
+       
+    1:     players = (await query_service.list_players(None, None, None, None, None, None, 1, 200)).data
+    1:     tournaments = (await query_service.list_tournaments(1, 200)).data
+    1:     matches = (await query_service.list_matches(1, 200, None)).data
+    1:     news = (await query_service.list_news(1, 200)).data
+       
+    7:     dynamic_paths.extend([f"/players/{item.slug}" for item in players])
+    3:     dynamic_paths.extend([f"/tournaments/{item.slug}" for item in tournaments])
+    3:     dynamic_paths.extend([f"/matches/{item.slug}" for item in matches])
+    3:     dynamic_paths.extend([f"/news/{item.slug}" for item in news])
+       
+   22:     urls = "\n".join([f"  <url><loc>{base_url}{path}</loc></url>" for path in [*static_paths, *dynamic_paths]])
+    1:     xml = f"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n{urls}\n</urlset>\n"
+    1:     return Response(content=xml, media_type="application/xml")
+       
+       
+    2: @router.get("/", include_in_schema=False)
+    2: async def home(request: Request):
+    2:     return render(request, "public/index.html", page_title="Makhachkala Open", page_name="home", section="public", description="Лайв-счета, рейтинги, новости, игроки и турниры Makhachkala Open.", schema_json={"@context": "https://schema.org", "@type": "WebSite", "name": "Makhachkala Open", "url": str(request.base_url).rstrip("/")})
+       
+       
+    2: @router.get("/players", include_in_schema=False)
+    2: async def players_page(request: Request):
+    1:     return render(request, "public/players.html", page_title="Игроки", page_name="players-list", section="public", description="Игроки, рейтинг, форма, статистика и последние матчи.")
+       
+       
+    2: @router.get("/players/{player_slug}", include_in_schema=False)
+    2: async def player_detail_page(request: Request, player_slug: str):
+    1:     context = await _player_context(request, player_slug)
+    1:     return render(request, "public/player-detail.html", page_title=str(context.pop("page_title", f"Игрок - {player_slug}")), page_name="player-detail", section="public", **context)
+       
+       
+    2: @router.get("/tournaments", include_in_schema=False)
+    2: async def tournaments_page(request: Request):
+>>>>>>     return render(request, "public/tournaments.html", page_title="Турниры", page_name="tournaments-list", section="public", description="Календарь турниров, сетки, игроки и результаты.")
+       
+       
+    2: @router.get("/tournaments/{tournament_slug}", include_in_schema=False)
+    2: async def tournament_detail_page(request: Request, tournament_slug: str):
+>>>>>>     context = await _tournament_context(request, tournament_slug)
+>>>>>>     return render(request, "public/tournament-detail.html", page_title=str(context.pop("page_title", f"Турнир - {tournament_slug}")), page_name="tournament-detail", section="public", **context)
+       
+       
+    2: @router.get("/matches", include_in_schema=False)
+    2: async def matches_page(request: Request):
+>>>>>>     return render(request, "public/matches.html", page_title="Матчи", page_name="matches-list", section="public", description="Предстоящие, лайв и завершенные матчи со счетом и статистикой.")
+       
+       
+    2: @router.get("/matches/{match_slug}", include_in_schema=False)
+    2: async def match_detail_page(request: Request, match_slug: str):
+    1:     context = await _match_context(request, match_slug)
+    1:     return render(request, "public/match-detail.html", page_title=str(context.pop("page_title", f"Матч - {match_slug}")), page_name="match-detail", section="public", **context)
+       
+       
+    2: @router.get("/live", include_in_schema=False)
+    2: async def live_page(request: Request):
+>>>>>>     return render(request, "public/live.html", page_title="Лайв-центр", page_name="live-center", section="public", description="Матчи, лента событий и счет в реальном времени.")
+       
+       
+    2: @router.get("/rankings", include_in_schema=False)
+    2: async def rankings_page(request: Request):
+    1:     return render(request, "public/rankings.html", page_title="Рейтинги", page_name="rankings", section="public", description="Актуальные рейтинги, история позиций и движения.")
+       
+       
+    2: @router.get("/h2h", include_in_schema=False)
+    2: async def h2h_page(request: Request):
+    1:     return render(request, "public/h2h.html", page_title="Личные встречи", page_name="h2h", section="public", description="Сравнение двух игроков и история их личных встреч.")
+       
+       
+    2: @router.get("/news", include_in_schema=False)
+    2: async def news_page(request: Request):
+>>>>>>     return render(request, "public/news.html", page_title="Новости", page_name="news-list", section="public", description="Последние новости, аналитика и редакционные материалы.")
+       
+       
+    2: @router.get("/news/{slug}", include_in_schema=False)
+    2: async def news_detail_page(request: Request, slug: str):
+    1:     context = await _news_context(request, slug)
+    1:     return render(request, "public/news-detail.html", page_title=str(context.pop("page_title", f"Новость - {slug}")), page_name="news-detail", section="public", **context)
+       
+       
+    2: @router.get("/search", include_in_schema=False)
+    2: async def search_page(request: Request):
+    1:     return render(request, "public/search.html", page_title="Поиск", page_name="search", section="public", description="Поиск по игрокам, турнирам, матчам и новостям.")
+       
+       
+    2: @router.get("/account", include_in_schema=False)
+    2: async def account_page(request: Request):
+>>>>>>     return render(request, "public/account.html", page_title="Профиль", page_name="account", section="public", description="Личные настройки, избранное, подписки и уведомления.", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/notifications", include_in_schema=False)
+    2: async def notifications_page(request: Request):
+    1:     return render(request, "public/notifications.html", page_title="Уведомления", page_name="notifications", section="public", description="История уведомлений и непрочитанные события.", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/404", include_in_schema=False)
+    2: async def not_found_page(request: Request):
+    1:     return render(request, "public/404.html", page_title="404", page_name="404", section="public", description="Страница не найдена.", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/500", include_in_schema=False)
+    2: async def server_error_page(request: Request):
+    1:     return render(request, "public/500.html", page_title="500", page_name="500", section="public", description="Страница внутренней ошибки сервера.", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin", include_in_schema=False)
+    2: async def admin_dashboard_page(request: Request):
+    2:     return render(request, "admin/dashboard.html", page_title="Админка - Панель", page_name="admin-dashboard", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/login", include_in_schema=False)
+    2: async def admin_login_page(request: Request):
+>>>>>>     return render(request, "admin/login.html", page_title="Админка - Вход", page_name="admin-login", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/users", include_in_schema=False)
+    2: async def admin_users_page(request: Request):
+>>>>>>     return render(request, "admin/users.html", page_title="Админка - Пользователи", page_name="admin-users", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/users/{user_id}", include_in_schema=False)
+    2: async def admin_user_detail_page(request: Request, user_id: int):
+>>>>>>     return render(request, "admin/user-detail.html", page_title=f"Админка - Пользователь {user_id}", page_name="admin-user-detail", section="admin", robots="noindex,nofollow", entity_id=user_id)
+       
+       
+    2: @router.get("/admin/players", include_in_schema=False)
+    2: async def admin_players_page(request: Request):
+>>>>>>     return render(request, "admin/players.html", page_title="Админка - Игроки", page_name="admin-players", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/players/new", include_in_schema=False)
+    2: async def admin_player_create_page(request: Request):
+>>>>>>     return render(request, "admin/player-form.html", page_title="Админка - Новый игрок", page_name="admin-player-form", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/tournaments", include_in_schema=False)
+    2: async def admin_tournaments_page(request: Request):
+>>>>>>     return render(request, "admin/tournaments.html", page_title="Админка - Турниры", page_name="admin-tournaments", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/tournaments/new", include_in_schema=False)
+    2: async def admin_tournament_create_page(request: Request):
+>>>>>>     return render(request, "admin/tournament-form.html", page_title="Админка - Новый турнир", page_name="admin-tournament-form", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/matches", include_in_schema=False)
+    2: async def admin_matches_page(request: Request):
+>>>>>>     return render(request, "admin/matches.html", page_title="Админка - Матчи", page_name="admin-matches", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/matches/{match_id}", include_in_schema=False)
+    2: async def admin_match_detail_page(request: Request, match_id: int):
+>>>>>>     return render(request, "admin/match-detail.html", page_title=f"Админка - Матч {match_id}", page_name="admin-match-detail", section="admin", robots="noindex,nofollow", entity_id=match_id)
+       
+       
+    2: @router.get("/admin/live-operations", include_in_schema=False)
+    2: async def admin_live_operations_page(request: Request):
+    1:     return render(request, "admin/live-operations.html", page_title="Админка - Лайв-операции", page_name="admin-live-operations", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/rankings", include_in_schema=False)
+    2: async def admin_rankings_page(request: Request):
+>>>>>>     return render(request, "admin/rankings.html", page_title="Админка - Рейтинги", page_name="admin-rankings", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/news", include_in_schema=False)
+    2: async def admin_news_page(request: Request):
+>>>>>>     return render(request, "admin/news.html", page_title="Админка - Новости", page_name="admin-news", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/news/new", include_in_schema=False)
+    2: async def admin_news_form_page(request: Request):
+>>>>>>     return render(request, "admin/news-form.html", page_title="Админка - Новая новость", page_name="admin-news-form", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/categories", include_in_schema=False)
+    2: async def admin_categories_page(request: Request):
+>>>>>>     return render(request, "admin/categories.html", page_title="Админка - Категории", page_name="admin-categories", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/tags", include_in_schema=False)
+    2: async def admin_tags_page(request: Request):
+>>>>>>     return render(request, "admin/tags.html", page_title="Админка - Теги", page_name="admin-tags", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/media", include_in_schema=False)
+    2: async def admin_media_page(request: Request):
+    2:     return render(request, "admin/media.html", page_title="Админка - Медиа", page_name="admin-media", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/notifications", include_in_schema=False)
+    2: async def admin_notifications_page(request: Request):
+    1:     return render(request, "admin/notifications.html", page_title="Админка - Уведомления", page_name="admin-notifications", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/integrations", include_in_schema=False)
+    2: async def admin_integrations_page(request: Request):
+>>>>>>     return render(request, "admin/integrations.html", page_title="Админка - Интеграции", page_name="admin-integrations", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/audit", include_in_schema=False)
+    2: async def admin_audit_page(request: Request):
+>>>>>>     return render(request, "admin/audit.html", page_title="Админка - Аудит", page_name="admin-audit", section="admin", robots="noindex,nofollow")
+       
+       
+    2: @router.get("/admin/settings", include_in_schema=False)
+    2: async def admin_settings_page(request: Request):
+>>>>>>     return render(request, "admin/settings.html", page_title="Админка - Настройки", page_name="admin-settings", section="admin", robots="noindex,nofollow")

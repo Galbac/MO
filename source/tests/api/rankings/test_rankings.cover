@@ -1,0 +1,30 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_current_rankings_use_database_data(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/rankings/current")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["data"][0]["player_name"] == "Novak Djokovic"
+    1:     assert payload["data"][0]["ranking_type"] == "atp"
+       
+       
+    1: async def test_rankings_history_returns_snapshots(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/rankings/atp/history")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["data"]
+    1:     assert payload["data"][0]["entries"]
+       
+       
+    1: async def test_current_wta_rankings_are_available(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/rankings/current?ranking_type=wta")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["data"]
+    1:     assert payload["data"][0]["ranking_type"] == "wta"

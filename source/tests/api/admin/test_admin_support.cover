@@ -1,0 +1,97 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_admin_settings_persist(async_client, admin_auth_headers) -> None:
+    2:     patch_response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/settings",
+    1:         json={"seo_title": "Portal SEO", "support_email": "support@example.com"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert patch_response.status_code == status.HTTP_200_OK
+    1:     assert patch_response.json()["data"]["seo_title"] == "Portal SEO"
+       
+    1:     get_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/settings", headers=admin_auth_headers)
+    1:     assert get_response.status_code == status.HTTP_200_OK
+    1:     assert get_response.json()["data"]["support_email"] == "support@example.com"
+       
+       
+    1: async def test_admin_taxonomy_crud(async_client, admin_auth_headers) -> None:
+    2:     create_category = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news-categories",
+    1:         json={"name": "Features", "slug": "features"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert create_category.status_code == status.HTTP_200_OK
+       
+    1:     categories_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news-categories", headers=admin_auth_headers)
+    3:     category_id = next(item["id"] for item in categories_response.json()["data"] if item["slug"] == "features")
+       
+    2:     update_category = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news-categories/{category_id}",
+    1:         json={"name": "Deep Features", "slug": "deep-features"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert update_category.status_code == status.HTTP_200_OK
+       
+    2:     create_tag = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/tags",
+    1:         json={"name": "Live Blog", "slug": "live-blog"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert create_tag.status_code == status.HTTP_200_OK
+       
+    1:     tags_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/tags", headers=admin_auth_headers)
+    4:     tag_id = next(item["id"] for item in tags_response.json()["data"] if item["slug"] == "live-blog")
+       
+    1:     delete_tag = await async_client.delete(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/tags/{tag_id}", headers=admin_auth_headers)
+    1:     assert delete_tag.status_code == status.HTTP_200_OK
+       
+       
+    1: async def test_admin_notifications_and_rankings(async_client, admin_auth_headers) -> None:
+    1:     templates_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/notifications/templates", headers=admin_auth_headers)
+    1:     assert templates_response.status_code == status.HTTP_200_OK
+    1:     assert templates_response.json()["data"]
+       
+    1:     test_notification = await async_client.post(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/notifications/test", headers=admin_auth_headers)
+    1:     assert test_notification.status_code == status.HTTP_200_OK
+       
+    1:     history_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/notifications", headers=admin_auth_headers)
+    1:     assert history_response.status_code == status.HTTP_200_OK
+    1:     assert history_response.json()["data"]
+       
+    2:     import_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/rankings/import",
+    1:         json={"source_file": "ranking_snapshot.csv"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert import_response.status_code == status.HTTP_200_OK
+       
+    1:     jobs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/rankings/import-jobs", headers=admin_auth_headers)
+    1:     assert jobs_response.status_code == status.HTTP_200_OK
+    1:     assert jobs_response.json()["data"]
+       
+       
+    1: async def test_admin_rankings_provider_import_updates_current_snapshot(async_client, admin_auth_headers) -> None:
+    2:     import_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/rankings/import",
+    1:         json={
+    1:             'provider': 'rankings-provider',
+    1:             'provider_payload': {
+    1:                 'ranking_type': 'atp',
+    1:                 'ranking_date': '2026-03-10',
+    1:                 'entries': [
+    1:                     {'position': 1, 'player_name': 'Jannik Sinner', 'country_code': 'IT', 'points': 9100},
+    1:                     {'position': 2, 'player_name': 'Novak Djokovic', 'country_code': 'RS', 'points': 8700},
+                       ],
+                   },
+               },
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert import_response.status_code == status.HTTP_200_OK
+       
+    1:     rankings_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/rankings/current?ranking_type=atp")
+    1:     assert rankings_response.status_code == status.HTTP_200_OK
+    1:     assert rankings_response.json()['data'][0]['player_name'] == 'Jannik Sinner'
+    1:     assert rankings_response.json()['data'][0]['ranking_date'] == '2026-03-10'

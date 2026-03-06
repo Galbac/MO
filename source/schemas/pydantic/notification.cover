@@ -1,0 +1,18 @@
+    1: from datetime import datetime
+       
+    1: from pydantic import BaseModel, Field
+       
+       
+    2: class NotificationItem(BaseModel):
+    1:     id: int
+    1:     type: str
+    1:     title: str
+    1:     body: str
+    1:     payload_json: dict = Field(default_factory=dict)
+    1:     status: str = "unread"
+    1:     read_at: datetime | None = None
+    1:     created_at: datetime
+       
+       
+    2: class NotificationUnreadCount(BaseModel):
+    1:     unread_count: int

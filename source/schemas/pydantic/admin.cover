@@ -1,0 +1,46 @@
+    1: from datetime import datetime
+       
+    1: from pydantic import BaseModel, EmailStr
+       
+       
+    2: class AdminUserItem(BaseModel):
+    1:     id: int
+    1:     email: EmailStr
+    1:     username: str
+    1:     role: str
+    1:     status: str
+    1:     created_at: datetime
+       
+       
+    2: class AdminIntegrationItem(BaseModel):
+    1:     provider: str
+    1:     status: str
+    1:     last_sync_at: datetime | None = None
+    1:     last_error: str | None = None
+       
+       
+    2: class AuditLogItem(BaseModel):
+    1:     id: int
+    1:     action: str
+    1:     entity_type: str
+    1:     entity_id: int | None = None
+    1:     before_json: dict | None = None
+    1:     after_json: dict | None = None
+    1:     created_at: datetime
+       
+       
+    2: class AdminNotificationTemplate(BaseModel):
+    1:     id: int
+    1:     code: str
+    1:     title: str
+    1:     channel: str
+    1:     is_active: bool
+    1:     updated_at: datetime
+       
+       
+    2: class AdminNotificationBroadcast(BaseModel):
+    1:     id: int
+    1:     title: str
+    1:     status: str
+    1:     sent_count: int
+    1:     created_at: datetime

@@ -1,0 +1,49 @@
+    1: from fastapi import APIRouter
+       
+    1: from source.schemas.pydantic.auth import MessageResponse
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.news import NewsCategoryItem, TagItem
+    1: from source.services import AdminSupportService
+       
+    1: router = APIRouter(tags=["admin-taxonomy"])
+    1: service = AdminSupportService()
+       
+       
+    2: @router.get("/news-categories", response_model=SuccessResponse[list[NewsCategoryItem]])
+    2: async def get_admin_news_categories() -> SuccessResponse[list[NewsCategoryItem]]:
+    1:     return await service.list_categories()
+       
+       
+    2: @router.post("/news-categories", response_model=MessageResponse)
+    2: async def create_admin_news_category(payload: dict) -> MessageResponse:
+    1:     return await service.create_category(payload)
+       
+       
+    2: @router.patch("/news-categories/{category_id}", response_model=MessageResponse)
+    2: async def patch_admin_news_category(category_id: int, payload: dict) -> MessageResponse:
+    1:     return await service.update_category(category_id, payload)
+       
+       
+    2: @router.delete("/news-categories/{category_id}", response_model=MessageResponse)
+    2: async def delete_admin_news_category(category_id: int) -> MessageResponse:
+>>>>>>     return await service.delete_category(category_id)
+       
+       
+    2: @router.get("/tags", response_model=SuccessResponse[list[TagItem]])
+    2: async def get_admin_tags() -> SuccessResponse[list[TagItem]]:
+    1:     return await service.list_tags()
+       
+       
+    2: @router.post("/tags", response_model=MessageResponse)
+    2: async def create_admin_tag(payload: dict) -> MessageResponse:
+    1:     return await service.create_tag(payload)
+       
+       
+    2: @router.patch("/tags/{tag_id}", response_model=MessageResponse)
+    2: async def patch_admin_tag(tag_id: int, payload: dict) -> MessageResponse:
+>>>>>>     return await service.update_tag(tag_id, payload)
+       
+       
+    2: @router.delete("/tags/{tag_id}", response_model=MessageResponse)
+    2: async def delete_admin_tag(tag_id: int) -> MessageResponse:
+    1:     return await service.delete_tag(tag_id)

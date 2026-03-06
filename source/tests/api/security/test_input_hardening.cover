@@ -1,0 +1,84 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_public_media_rejects_unsupported_content_type(async_client) -> None:
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
+    1:         files={"file": ("malware.exe", b"binary", "application/octet-stream")},
+           )
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+       
+       
+    1: async def test_admin_media_rejects_oversized_payload(async_client, admin_auth_headers) -> None:
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/media/upload",
+    1:         json={"filename": "huge.txt", "content_type": "text/plain", "size": settings.media.max_upload_size_bytes + 1, "content": "x"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+       
+       
+    1: async def test_news_html_is_sanitized(async_client, admin_auth_headers) -> None:
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news",
+    1:         json={
+    1:             "slug": "sanitized-article",
+    1:             "title": "Sanitized article",
+    1:             "content_html": '<p onclick="alert(1)">Safe</p><script>alert(2)</script><a href="javascript:alert(3)">link</a>',
+    1:             "status": "draft",
+               },
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     content_html = response.json()["data"]["content_html"]
+    1:     assert '<script' not in content_html.lower()
+    1:     assert 'onclick=' not in content_html.lower()
+    1:     assert 'javascript:' not in content_html.lower()
+       
+       
+    1: async def test_public_media_rejects_unsafe_filename(async_client) -> None:
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
+    1:         files={"file": ("../escape.txt", b"payload", "text/plain")},
+           )
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+       
+       
+    1: async def test_media_rejects_mismatched_extension(async_client) -> None:
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
+    1:         files={"file": ("cover.jpg", b"plain text", "text/plain")},
+           )
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+       
+       
+    1: async def test_media_rejects_forbidden_extension(async_client, admin_auth_headers) -> None:
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/media/upload",
+    1:         json={"filename": "payload.html", "content_type": "text/plain", "content": "x"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+       
+    1: async def test_media_rejects_invalid_jpeg_signature(async_client) -> None:
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
+    1:         files={"file": ("cover.jpg", b"not-a-jpeg", "image/jpeg")},
+           )
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+       
+       
+    1: async def test_admin_media_accepts_base64_png(async_client, admin_auth_headers) -> None:
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/media/upload",
+    1:         json={
+    1:             "filename": "cover.png",
+    1:             "content_type": "image/png",
+    1:             "content_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jk6sAAAAASUVORK5CYII=",
+               },
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert response.status_code == status.HTTP_201_CREATED
+    1:     assert response.json()["data"]["filename"] == "cover.png"

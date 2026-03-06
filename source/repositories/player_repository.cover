@@ -1,0 +1,72 @@
+    1: from __future__ import annotations
+       
+    1: from sqlalchemy import func, or_, select
+    1: from sqlalchemy.ext.asyncio import AsyncSession
+       
+    1: from source.db.models import HeadToHead, Match, NewsArticle, Player, RankingSnapshot
+       
+       
+    2: class PlayerRepository:
+    1:     async def create(self, session: AsyncSession, payload: dict) -> Player:
+    3:         item = Player(**payload)
+    3:         session.add(item)
+    3:         await session.commit()
+    3:         await session.refresh(item)
+    3:         return item
+       
+    1:     async def update(self, session: AsyncSession, player: Player, payload: dict) -> Player:
+   17:         for key, value in payload.items():
+   16:             setattr(player, key, value)
+    1:         await session.commit()
+    1:         await session.refresh(player)
+    1:         return player
+       
+    1:     async def delete(self, session: AsyncSession, player: Player) -> None:
+    1:         await session.delete(player)
+    1:         await session.commit()
+       
+    1:     async def list(self, session: AsyncSession, *, search: str | None, country_code: str | None, hand: str | None, status: str | None, rank_from: int | None, rank_to: int | None, page: int, per_page: int) -> tuple[list[Player], int]:
+   11:         stmt = select(Player)
+   11:         count_stmt = select(func.count()).select_from(Player)
+       
+   11:         filters = []
+   11:         if search:
+>>>>>>             filters.append(or_(Player.full_name.ilike(f"%{search}%"), Player.last_name.ilike(f"%{search}%")))
+   11:         if country_code:
+>>>>>>             filters.append(Player.country_code == country_code)
+   11:         if hand:
+>>>>>>             filters.append(Player.hand == hand)
+   11:         if status:
+>>>>>>             filters.append(Player.status == status)
+   11:         if rank_from is not None:
+>>>>>>             filters.append(Player.current_rank >= rank_from)
+   11:         if rank_to is not None:
+>>>>>>             filters.append(Player.current_rank <= rank_to)
+   11:         for condition in filters:
+>>>>>>             stmt = stmt.where(condition)
+>>>>>>             count_stmt = count_stmt.where(condition)
+       
+   11:         stmt = stmt.order_by(Player.current_rank.asc().nullslast(), Player.full_name.asc()).offset((page - 1) * per_page).limit(per_page)
+   11:         items = list((await session.scalars(stmt)).all())
+   11:         total = int((await session.scalar(count_stmt)) or 0)
+   11:         return items, total
+       
+    1:     async def get(self, session: AsyncSession, player_id: int) -> Player | None:
+  107:         return await session.get(Player, player_id)
+       
+    1:     async def get_matches(self, session: AsyncSession, player_id: int) -> list[Match]:
+   61:         stmt = select(Match).where(or_(Match.player1_id == player_id, Match.player2_id == player_id)).order_by(Match.scheduled_at.desc())
+   61:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def get_ranking_history(self, session: AsyncSession, player_id: int) -> list[RankingSnapshot]:
+    7:         stmt = select(RankingSnapshot).where(RankingSnapshot.player_id == player_id).order_by(RankingSnapshot.ranking_date.asc())
+    7:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def get_h2h(self, session: AsyncSession, player1_id: int, player2_id: int) -> HeadToHead | None:
+    1:         left, right = sorted((player1_id, player2_id))
+    1:         stmt = select(HeadToHead).where(HeadToHead.player1_id == left, HeadToHead.player2_id == right)
+    1:         return await session.scalar(stmt)
+       
+    1:     async def get_news(self, session: AsyncSession, limit: int = 5) -> list[NewsArticle]:
+>>>>>>         stmt = select(NewsArticle).order_by(NewsArticle.published_at.desc()).limit(limit)
+>>>>>>         return list((await session.scalars(stmt)).all())

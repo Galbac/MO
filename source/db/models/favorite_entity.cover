@@ -1,0 +1,13 @@
+    1: from sqlalchemy import ForeignKey, Integer, String
+    1: from sqlalchemy.orm import Mapped, mapped_column
+       
+    1: from source.db.models.base import Base
+    1: from source.db.models.mixins import IdIntPkMixin
+       
+       
+    2: class FavoriteEntity(Base, IdIntPkMixin):
+    1:     __tablename__ = "favorite_entities"
+       
+    1:     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    1:     entity_type: Mapped[str] = mapped_column(String(32), index=True)
+    1:     entity_id: Mapped[int] = mapped_column(Integer(), index=True)

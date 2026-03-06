@@ -1,0 +1,58 @@
+    1: import httpx
+       
+    1: from source.integrations import IntegrationSyncError, LiveScoreProviderClient, RankingsProviderClient
+       
+       
+    1: def _transport(handler):
+    3:     return httpx.MockTransport(handler)
+       
+       
+    1: async def test_live_provider_client_fetches_and_normalizes() -> None:
+    1:     async def handler(request: httpx.Request) -> httpx.Response:
+    2:         return httpx.Response(200, json={
+    2:             'events': [
+    1:                 {
+    1:                     'type': 'score_updated',
+    1:                     'timestamp': '2026-03-06T10:00:00Z',
+    1:                     'match': {'slug': 'novak-djokovic-vs-jannik-sinner', 'status': 'live', 'tournament_name': 'Australian Open'},
+    1:                     'players': [{'name': 'Novak Djokovic'}, {'name': 'Jannik Sinner'}],
+                       }
+                   ]
+               })
+       
+    1:     client = LiveScoreProviderClient('live-provider', transport=_transport(handler))
+    1:     events = await client.fetch_events('https://provider.test/live')
+    1:     assert len(events) == 1
+    1:     assert events[0].event_type == 'score_updated'
+       
+       
+    1: async def test_rankings_provider_client_retries_and_fetches() -> None:
+    1:     attempts = {'count': 0}
+       
+    1:     async def handler(request: httpx.Request) -> httpx.Response:
+    2:         attempts['count'] += 1
+    2:         if attempts['count'] == 1:
+    1:             return httpx.Response(503, json={'error': 'temporary'})
+    2:         return httpx.Response(200, json={
+    1:             'ranking_type': 'atp',
+    1:             'ranking_date': '2026-03-06',
+    1:             'entries': [{'position': 1, 'player_name': 'Novak Djokovic', 'country_code': 'RS', 'points': 9000}],
+               })
+       
+    1:     client = RankingsProviderClient('rankings-provider', transport=_transport(handler))
+    1:     rows = await client.fetch_rankings('https://provider.test/rankings')
+    1:     assert attempts['count'] == 2
+    1:     assert rows[0].player_name == 'Novak Djokovic'
+       
+       
+    1: async def test_provider_client_maps_failure() -> None:
+    1:     async def handler(request: httpx.Request) -> httpx.Response:
+    2:         return httpx.Response(500, json={'error': 'boom'})
+       
+    1:     client = LiveScoreProviderClient('live-provider', transport=_transport(handler), max_attempts=2)
+    1:     try:
+    1:         await client.fetch_events('https://provider.test/live')
+    1:     except IntegrationSyncError as exc:
+    1:         assert 'server error 500' in str(exc)
+           else:
+>>>>>>         raise AssertionError('Expected IntegrationSyncError')

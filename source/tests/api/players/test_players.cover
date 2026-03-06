@@ -1,0 +1,22 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_players_list_returns_success_envelope(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/players")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["success"] is True
+    1:     assert isinstance(payload["data"], list)
+    1:     assert payload["errors"] is None
+       
+       
+    1: async def test_players_endpoint_uses_seeded_database_data(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/players")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    7:     slugs = {item["slug"] for item in payload["data"]}
+    1:     assert {"novak-djokovic", "iga-swiatek"}.issubset(slugs)

@@ -1,0 +1,48 @@
+    1: from __future__ import annotations
+       
+    1: import time
+    1: from typing import Any, Awaitable, Callable
+       
+    1: from pydantic import TypeAdapter
+       
+    1: from source.config.settings import settings
+    1: from source.services.runtime_state_store import RuntimeStateStore
+       
+       
+    2: class CacheService:
+    1:     def __init__(self) -> None:
+   51:         self.store = RuntimeStateStore()
+       
+    6:     async def get_or_set(
+               self,
+               *,
+    1:         key: str,
+    1:         schema: Any,
+    1:         loader: Callable[[], Awaitable[Any]],
+    2:         ttl_seconds: int | None = None,
+    1:     ) -> Any:
+  142:         if not settings.cache.enabled:
+>>>>>>             return await loader()
+       
+  142:         adapter = TypeAdapter(schema)
+  142:         entry = self.store.get_cache_entry(key)
+  142:         if entry is not None:
+   42:             return adapter.validate_python(entry.get('payload'))
+       
+  100:         value = await loader()
+  200:         self.store.set_cache_entry(key, {
+  100:             'expires_at': time.time() + float(ttl_seconds or settings.cache.default_ttl_seconds),
+  100:             'payload': adapter.dump_python(value, mode='json'),
+               })
+  100:         return value
+       
+    1:     def invalidate_prefixes(self, *prefixes: str) -> None:
+   45:         if not settings.cache.enabled:
+>>>>>>             return
+   45:         self.store.invalidate_cache_prefixes(*prefixes)
+       
+    1:     def clear(self) -> None:
+>>>>>>         self.store.clear_cache()
+       
+    1:     def backend_name(self) -> str:
+    1:         return self.store.backend_name()

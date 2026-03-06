@@ -1,0 +1,17 @@
+    1: from sqlalchemy import Boolean, ForeignKey, Integer
+    1: from sqlalchemy.orm import Mapped, mapped_column
+       
+    1: from source.db.models.base import Base
+    1: from source.db.models.mixins import IdIntPkMixin
+       
+       
+    2: class MatchSet(Base, IdIntPkMixin):
+    1:     __tablename__ = "match_sets"
+       
+    1:     match_id: Mapped[int] = mapped_column(ForeignKey("matches.id"), index=True)
+    1:     set_number: Mapped[int] = mapped_column(Integer(), index=True)
+    1:     player1_games: Mapped[int] = mapped_column(Integer())
+    1:     player2_games: Mapped[int] = mapped_column(Integer())
+    1:     tiebreak_player1_points: Mapped[int | None] = mapped_column(Integer(), nullable=True)
+    1:     tiebreak_player2_points: Mapped[int | None] = mapped_column(Integer(), nullable=True)
+    1:     is_finished: Mapped[bool] = mapped_column(Boolean(), default=True)

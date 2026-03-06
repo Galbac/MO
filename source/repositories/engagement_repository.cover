@@ -1,0 +1,116 @@
+    1: from __future__ import annotations
+       
+    1: from datetime import datetime
+       
+    1: from sqlalchemy import and_, func, or_, select, update
+    1: from sqlalchemy.ext.asyncio import AsyncSession
+       
+    1: from source.db.models import FavoriteEntity, Notification, NotificationSubscription
+       
+       
+    2: class EngagementRepository:
+    1:     async def list_favorites(self, session: AsyncSession, user_id: int) -> list[FavoriteEntity]:
+    1:         stmt = select(FavoriteEntity).where(FavoriteEntity.user_id == user_id).order_by(FavoriteEntity.id.asc())
+    1:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def get_favorite(self, session: AsyncSession, favorite_id: int, user_id: int) -> FavoriteEntity | None:
+    1:         stmt = select(FavoriteEntity).where(FavoriteEntity.id == favorite_id, FavoriteEntity.user_id == user_id)
+    1:         return await session.scalar(stmt)
+       
+    1:     async def find_favorite(self, session: AsyncSession, user_id: int, entity_type: str, entity_id: int) -> FavoriteEntity | None:
+    2:         stmt = select(FavoriteEntity).where(FavoriteEntity.user_id == user_id, FavoriteEntity.entity_type == entity_type, FavoriteEntity.entity_id == entity_id)
+    2:         return await session.scalar(stmt)
+       
+    1:     async def create_favorite(self, session: AsyncSession, payload: dict) -> FavoriteEntity:
+    2:         item = FavoriteEntity(**payload)
+    2:         session.add(item)
+    2:         await session.commit()
+    2:         await session.refresh(item)
+    2:         return item
+       
+    1:     async def delete_favorite(self, session: AsyncSession, favorite: FavoriteEntity) -> None:
+    1:         await session.delete(favorite)
+    1:         await session.commit()
+       
+    1:     async def list_subscriptions(self, session: AsyncSession, user_id: int) -> list[NotificationSubscription]:
+    1:         stmt = select(NotificationSubscription).where(NotificationSubscription.user_id == user_id).order_by(NotificationSubscription.id.asc())
+    1:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def get_subscription(self, session: AsyncSession, subscription_id: int, user_id: int) -> NotificationSubscription | None:
+    2:         stmt = select(NotificationSubscription).where(NotificationSubscription.id == subscription_id, NotificationSubscription.user_id == user_id)
+    2:         return await session.scalar(stmt)
+       
+    1:     async def find_subscription(self, session: AsyncSession, user_id: int, entity_type: str, entity_id: int) -> NotificationSubscription | None:
+    6:         stmt = select(NotificationSubscription).where(NotificationSubscription.user_id == user_id, NotificationSubscription.entity_type == entity_type, NotificationSubscription.entity_id == entity_id)
+    6:         return await session.scalar(stmt)
+       
+    1:     async def list_matching_subscriptions(self, session: AsyncSession, *, entities: list[tuple[str, int]], notification_type: str) -> list[NotificationSubscription]:
+    9:         if not entities:
+>>>>>>             return []
+   45:         conditions = [and_(NotificationSubscription.entity_type == entity_type, NotificationSubscription.entity_id == entity_id) for entity_type, entity_id in entities]
+    9:         stmt = select(NotificationSubscription).where(NotificationSubscription.is_active.is_(True), or_(*conditions)).order_by(NotificationSubscription.id.asc())
+    9:         items = list((await session.scalars(stmt)).all())
+    9:         matched: list[NotificationSubscription] = []
+   17:         for item in items:
+    8:             types = list(item.notification_types or [])
+    8:             if not types or notification_type in types:
+    5:                 matched.append(item)
+    9:         return matched
+       
+    1:     async def create_subscription(self, session: AsyncSession, payload: dict) -> NotificationSubscription:
+    6:         item = NotificationSubscription(**payload)
+    6:         session.add(item)
+    6:         await session.commit()
+    6:         await session.refresh(item)
+    6:         return item
+       
+    1:     async def update_subscription(self, session: AsyncSession, subscription: NotificationSubscription, payload: dict) -> NotificationSubscription:
+    2:         for key, value in payload.items():
+    1:             setattr(subscription, key, value)
+    1:         await session.commit()
+    1:         await session.refresh(subscription)
+    1:         return subscription
+       
+    1:     async def delete_subscription(self, session: AsyncSession, subscription: NotificationSubscription) -> None:
+    1:         await session.delete(subscription)
+    1:         await session.commit()
+       
+    1:     async def list_notifications(self, session: AsyncSession, user_id: int) -> list[Notification]:
+   17:         stmt = select(Notification).where(Notification.user_id == user_id).order_by(Notification.created_at.desc(), Notification.id.desc())
+   17:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def get_notification(self, session: AsyncSession, notification_id: int, user_id: int) -> Notification | None:
+    1:         stmt = select(Notification).where(Notification.id == notification_id, Notification.user_id == user_id)
+    1:         return await session.scalar(stmt)
+       
+    1:     async def count_unread_notifications(self, session: AsyncSession, user_id: int) -> int:
+    7:         stmt = select(func.count()).select_from(Notification).where(Notification.user_id == user_id, Notification.status == 'unread')
+    7:         return int((await session.scalar(stmt)) or 0)
+       
+    1:     async def mark_notification_read(self, session: AsyncSession, notification: Notification, now: datetime) -> Notification:
+    1:         notification.status = 'read'
+    1:         notification.read_at = now
+    1:         await session.commit()
+    1:         await session.refresh(notification)
+    1:         return notification
+       
+    1:     async def mark_all_notifications_read(self, session: AsyncSession, user_id: int, now: datetime) -> None:
+    1:         await session.execute(update(Notification).where(Notification.user_id == user_id, Notification.status == 'unread').values(status='read', read_at=now))
+    1:         await session.commit()
+       
+    1:     async def create_notification(self, session: AsyncSession, payload: dict) -> Notification:
+    4:         item = Notification(**payload)
+    4:         session.add(item)
+    4:         await session.commit()
+    4:         await session.refresh(item)
+    4:         return item
+       
+    1:     async def find_duplicate_notification(self, session: AsyncSession, *, user_id: int, type_: str, title: str, entity_type: str | None, entity_id: int | None) -> Notification | None:
+    3:         notifications = await self.list_notifications(session, user_id)
+    9:         for item in notifications:
+    6:             if item.type != type_ or item.title != title:
+    6:                 continue
+>>>>>>             payload = item.payload_json or {}
+>>>>>>             if payload.get('entity_type') == entity_type and payload.get('entity_id') == entity_id:
+>>>>>>                 return item
+    3:         return None

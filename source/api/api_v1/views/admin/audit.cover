@@ -1,0 +1,18 @@
+    1: from fastapi import APIRouter
+       
+    1: from source.schemas.pydantic.admin import AuditLogItem
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.services import OperationsService
+       
+    1: router = APIRouter(prefix="/audit-logs", tags=["admin-audit"])
+    1: service = OperationsService()
+       
+       
+    2: @router.get("", response_model=SuccessResponse[list[AuditLogItem]])
+    2: async def list_audit_logs() -> SuccessResponse[list[AuditLogItem]]:
+    4:     return await service.list_audit_logs()
+       
+       
+    2: @router.get("/{log_id}", response_model=SuccessResponse[AuditLogItem])
+    2: async def get_audit_log(log_id: int) -> SuccessResponse[AuditLogItem]:
+    1:     return await service.get_audit_log(log_id)

@@ -1,0 +1,17 @@
+    1: from fastapi import APIRouter
+       
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.services import AdminSupportService
+       
+    1: router = APIRouter(prefix="/settings", tags=["admin-settings"])
+    1: service = AdminSupportService()
+       
+       
+    2: @router.get("", response_model=SuccessResponse[dict])
+    2: async def get_admin_settings() -> SuccessResponse[dict]:
+    1:     return await service.get_settings()
+       
+       
+    2: @router.patch("", response_model=SuccessResponse[dict])
+    2: async def patch_admin_settings(payload: dict) -> SuccessResponse[dict]:
+    1:     return await service.update_settings(payload)

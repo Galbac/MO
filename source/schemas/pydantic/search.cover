@@ -1,0 +1,18 @@
+    1: from pydantic import BaseModel, Field
+       
+    1: from source.schemas.pydantic.match import MatchSummary
+    1: from source.schemas.pydantic.news import NewsArticleSummary
+    1: from source.schemas.pydantic.player import PlayerSummary
+    1: from source.schemas.pydantic.tournament import TournamentSummary
+       
+       
+    2: class SearchResults(BaseModel):
+    1:     players: list[PlayerSummary] = Field(default_factory=list)
+    1:     tournaments: list[TournamentSummary] = Field(default_factory=list)
+    1:     matches: list[MatchSummary] = Field(default_factory=list)
+    1:     news: list[NewsArticleSummary] = Field(default_factory=list)
+       
+       
+    2: class SearchSuggestion(BaseModel):
+    1:     text: str
+    1:     entity_type: str

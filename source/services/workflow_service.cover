@@ -1,0 +1,228 @@
+    1: from __future__ import annotations
+       
+    1: from datetime import UTC, datetime, time as clock_time
+    1: import json
+    1: from pathlib import Path
+    1: from zoneinfo import ZoneInfo
+       
+    1: from fastapi import HTTPException, status
+       
+    1: from source.config.settings import settings
+    1: from source.db.models import Match, NewsArticle, Tournament
+    1: from source.db.session import db_session_manager
+    1: from source.repositories import EngagementRepository, MatchRepository, NewsRepository, PlayerRepository, TournamentRepository, UserRepository
+    1: from source.services.cache_service import CacheService
+       
+       
+    2: class WorkflowService:
+    2:     @staticmethod
+    2:     def _in_quiet_hours(user, now_utc: datetime) -> bool:
+    5:         start = getattr(user, 'quiet_hours_start', None)
+    5:         end = getattr(user, 'quiet_hours_end', None)
+    5:         if not start or not end:
+    4:             return False
+    1:         try:
+    1:             user_tz = ZoneInfo(getattr(user, 'timezone', 'UTC') or 'UTC')
+    1:             local_time = now_utc.astimezone(user_tz).time()
+    1:             start_time = clock_time.fromisoformat(start)
+    1:             end_time = clock_time.fromisoformat(end)
+>>>>>>         except Exception:
+>>>>>>             return False
+    1:         if start_time == end_time:
+>>>>>>             return True
+    1:         if start_time < end_time:
+    1:             return start_time <= local_time < end_time
+>>>>>>         return local_time >= start_time or local_time < end_time
+       
+    1:     def __init__(self) -> None:
+   15:         self.matches = MatchRepository()
+   15:         self.engagement = EngagementRepository()
+   15:         self.news = NewsRepository()
+   15:         self.players = PlayerRepository()
+   15:         self.tournaments = TournamentRepository()
+   15:         self.users = UserRepository()
+   15:         self.cache = CacheService()
+   15:         self.artifacts_dir = Path(settings.maintenance.artifacts_dir)
+       
+    1:     def _artifact_path(self, filename: str) -> Path:
+    2:         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
+    2:         return self.artifacts_dir / filename
+       
+    1:     async def process_finalized_match(self, match_id: int) -> None:
+    6:         async with db_session_manager.session() as session:
+    3:             match = await self.matches.get(session, match_id)
+    3:             if match is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
+    3:             if match.status not in {'finished', 'retired', 'walkover'} or not match.winner_id:
+    1:                 return
+    2:             tournament = await self.tournaments.get(session, match.tournament_id)
+    2:             if tournament is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+    4:             await self.matches.upsert_h2h(
+    2:                 session,
+    2:                 player1_id=match.player1_id,
+    2:                 player2_id=match.player2_id,
+    2:                 winner_id=match.winner_id,
+    2:                 surface=tournament.surface,
+    2:                 match_id=match.id,
+                   )
+    2:             await self._send_match_notifications(session, match=match, tournament=tournament)
+    2:         self.cache.invalidate_prefixes('matches:', 'players:', 'tournaments:', 'live:', 'search:', 'news:')
+       
+    1:     async def process_match_status_change(self, match_id: int, status_value: str) -> int:
+   14:         notification_type = {
+    7:             'about_to_start': 'match_soon',
+    7:             'live': 'match_start',
+    7:         }.get(status_value)
+    7:         if notification_type is None:
+>>>>>>             return 0
+       
+   14:         async with db_session_manager.session() as session:
+    7:             match = await self.matches.get(session, match_id)
+    7:             if match is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
+    7:             tournament = await self.tournaments.get(session, match.tournament_id)
+    7:             if tournament is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+    7:             player1 = await self.players.get(session, match.player1_id)
+    7:             player2 = await self.players.get(session, match.player2_id)
+    7:             player1_name = player1.full_name if player1 else 'Player 1'
+    7:             player2_name = player2.full_name if player2 else 'Player 2'
+    7:             entities = [('match', match.id), ('player', match.player1_id), ('player', match.player2_id), ('tournament', tournament.id)]
+    7:             subscriptions = await self.engagement.list_matching_subscriptions(session, entities=entities, notification_type=notification_type)
+    7:             title = f'{player1_name} vs {player2_name}'
+    7:             body = 'Match is starting soon.' if notification_type == 'match_soon' else 'Match is now live.'
+    7:             created = 0
+    7:             now = datetime.now(tz=UTC)
+   11:             for subscription in subscriptions:
+    4:                 subscription_user = await self.users.get(session, subscription.user_id)
+    4:                 if subscription_user is None or self._in_quiet_hours(subscription_user, now):
+    1:                     continue
+    7:                 if not any(channel in settings.notifications.active_channels for channel in list(subscription.channels or [])):
+    1:                     continue
+    4:                 duplicate = await self.engagement.find_duplicate_notification(
+    2:                     session,
+    2:                     user_id=subscription.user_id,
+    2:                     type_=notification_type,
+    2:                     title=title,
+    2:                     entity_type='match',
+    2:                     entity_id=match.id,
+                       )
+    2:                 if duplicate is not None:
+>>>>>>                     continue
+    4:                 await self.engagement.create_notification(session, {
+    2:                     'user_id': subscription.user_id,
+    2:                     'type': notification_type,
+    2:                     'title': title,
+    2:                     'body': body,
+    2:                     'payload_json': {'entity_type': 'match', 'entity_id': match.id, 'status': status_value, 'tournament_id': tournament.id},
+    2:                     'status': 'unread',
+    2:                     'read_at': None,
+                       })
+    2:                 created += 1
+    7:         return created
+       
+    1:     async def _send_match_notifications(self, session, *, match: Match, tournament: Tournament) -> None:
+    2:         entities = [('match', match.id), ('player', match.player1_id), ('player', match.player2_id), ('tournament', tournament.id)]
+    2:         subscriptions = await self.engagement.list_matching_subscriptions(session, entities=entities, notification_type='match_finished')
+    2:         now = datetime.now(tz=UTC)
+    2:         winner_name = 'Player'
+    2:         if match.winner_id == match.player1_id:
+    2:             winner_name = 'player1'
+>>>>>>         elif match.winner_id == match.player2_id:
+>>>>>>             winner_name = 'player2'
+    2:         title = f'Match finished: {match.slug}'
+    2:         body = f'{title}. Winner recorded as {winner_name}.'
+    3:         for subscription in subscriptions:
+    1:             subscription_user = await self.users.get(session, subscription.user_id)
+    1:             if subscription_user is None or self._in_quiet_hours(subscription_user, now):
+>>>>>>                 continue
+    2:             if not any(channel in settings.notifications.active_channels for channel in list(subscription.channels or [])):
+>>>>>>                 continue
+    2:             duplicate = await self.engagement.find_duplicate_notification(
+    1:                 session,
+    1:                 user_id=subscription.user_id,
+    1:                 type_='match_finished',
+    1:                 title=title,
+    1:                 entity_type='match',
+    1:                 entity_id=match.id,
+                   )
+    1:             if duplicate is not None:
+>>>>>>                 continue
+    2:             await self.engagement.create_notification(session, {
+    1:                 'user_id': subscription.user_id,
+    1:                 'type': 'match_finished',
+    1:                 'title': title,
+    1:                 'body': body,
+    1:                 'payload_json': {'entity_type': 'match', 'entity_id': match.id, 'winner_id': match.winner_id, 'tournament_id': tournament.id},
+    1:                 'status': 'unread',
+    1:                 'read_at': None,
+                   })
+       
+    1:     async def publish_due_scheduled_news(self, news_id: int | None = None) -> int:
+    2:         async with db_session_manager.session() as session:
+    1:             now = datetime.now(tz=UTC)
+    1:             due_articles = await self.news.list_due_scheduled(session, now)
+    1:             if news_id is not None:
+    2:                 due_articles = [item for item in due_articles if item.id == news_id]
+    1:             published = 0
+    2:             for article in due_articles:
+    1:                 if article.status == 'published':
+>>>>>>                     continue
+    1:                 await self.news.update(session, article, {'status': 'published'})
+    1:                 published += 1
+    1:         if published:
+    1:             self.cache.invalidate_prefixes('news:', 'search:', 'players:', 'tournaments:')
+    1:         return published
+       
+    1:     async def generate_sitemap_snapshot(self, base_url: str | None = None) -> dict[str, object]:
+    1:         base = (base_url or '').rstrip('/')
+    2:         async with db_session_manager.session() as session:
+    1:             players, _ = await self.players.list(session, search=None, country_code=None, hand=None, status=None, rank_from=None, rank_to=None, page=1, per_page=500)
+    1:             tournaments, _ = await self.tournaments.list(session, page=1, per_page=500)
+    1:             matches, _ = await self.matches.list(session, page=1, per_page=500, status=None)
+    1:             articles, _ = await self.news.list(session, page=1, per_page=500)
+    1:         urls = ['/', '/players', '/tournaments', '/matches', '/news', '/rankings', '/live', '/h2h', '/search']
+    8:         urls.extend(f'/players/{item.slug}' for item in players if item.slug)
+    4:         urls.extend(f'/tournaments/{item.slug}' for item in tournaments if item.slug)
+    4:         urls.extend(f'/matches/{item.slug}' for item in matches if item.slug)
+    4:         urls.extend(f'/news/{item.slug}' for item in articles if item.slug)
+    1:         unique_urls = sorted(set(urls))
+    1:         payload = {
+    1:             'generated_at': datetime.now(tz=UTC).isoformat(),
+    1:             'base_url': base,
+    1:             'url_count': len(unique_urls),
+   22:             'urls': [f'{base}{url}' if base else url for url in unique_urls],
+               }
+    1:         self._artifact_path('sitemap_snapshot.json').write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+    1:         return payload
+       
+    1:     async def rebuild_search_index(self) -> dict[str, object]:
+    2:         async with db_session_manager.session() as session:
+    1:             players, _ = await self.players.list(session, search=None, country_code=None, hand=None, status=None, rank_from=None, rank_to=None, page=1, per_page=500)
+    1:             tournaments, _ = await self.tournaments.list(session, page=1, per_page=500)
+    1:             matches, _ = await self.matches.list(session, page=1, per_page=500, status=None)
+    1:             articles, _ = await self.news.list(session, page=1, per_page=500)
+    1:         index = {
+    1:             'generated_at': datetime.now(tz=UTC).isoformat(),
+    2:             'players': [
+    6:                 {'id': item.id, 'slug': item.slug, 'title': item.full_name, 'keywords': [item.full_name, item.country_code or '', item.country_name or '']}
+    8:                 for item in players
+                   ],
+    2:             'tournaments': [
+    2:                 {'id': item.id, 'slug': item.slug, 'title': item.name, 'keywords': [item.name, item.city or '', item.surface or '', item.category or '']}
+    4:                 for item in tournaments
+                   ],
+    2:             'matches': [
+    2:                 {'id': item.id, 'slug': item.slug, 'title': item.slug.replace('-', ' '), 'keywords': [item.slug, item.status or '', item.score_summary or '']}
+    4:                 for item in matches
+                   ],
+    2:             'news': [
+    2:                 {'id': item.id, 'slug': item.slug, 'title': item.title, 'keywords': [item.title, item.lead or '', item.subtitle or '']}
+    4:                 for item in articles
+                   ],
+               }
+    6:         index['total_documents'] = sum(len(index[key]) for key in ('players', 'tournaments', 'matches', 'news'))
+    1:         self._artifact_path('search_index.json').write_text(json.dumps(index, ensure_ascii=True, indent=2, sort_keys=True))
+    1:         return index
+       

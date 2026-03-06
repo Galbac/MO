@@ -1,0 +1,20 @@
+    1: from sqlalchemy import ForeignKey, Integer, Numeric
+    1: from sqlalchemy.orm import Mapped, mapped_column
+       
+    1: from source.db.models.base import Base
+    1: from source.db.models.mixins import IdIntPkMixin
+       
+       
+    2: class MatchStats(Base, IdIntPkMixin):
+    1:     __tablename__ = "match_stats"
+       
+    1:     match_id: Mapped[int] = mapped_column(ForeignKey("matches.id"), unique=True, index=True)
+    1:     player1_aces: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     player2_aces: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     player1_double_faults: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     player2_double_faults: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     player1_first_serve_pct: Mapped[float] = mapped_column(Numeric(5, 2), default=0)
+    1:     player2_first_serve_pct: Mapped[float] = mapped_column(Numeric(5, 2), default=0)
+    1:     player1_break_points_saved: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     player2_break_points_saved: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     duration_minutes: Mapped[int] = mapped_column(Integer(), default=0)

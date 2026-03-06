@@ -1,0 +1,54 @@
+    1: from __future__ import annotations
+       
+    1: import asyncio
+    1: from typing import Any
+       
+    1: import httpx
+       
+    1: from source.integrations.provider_contracts import ProviderLiveEvent, ProviderPayloadMapper, ProviderRankingRow
+       
+       
+    2: class IntegrationSyncError(RuntimeError):
+    1:     pass
+       
+       
+    2: class BaseProviderClient:
+    1:     def __init__(self, provider: str, *, timeout_seconds: float = 5.0, max_attempts: int = 3, transport: httpx.AsyncBaseTransport | None = None) -> None:
+    3:         self.provider = provider
+    3:         self.timeout_seconds = timeout_seconds
+    3:         self.max_attempts = max_attempts
+    3:         self.transport = transport
+    3:         self.mapper = ProviderPayloadMapper()
+       
+    1:     async def _request_json(self, endpoint: str, headers: dict[str, str] | None = None) -> dict[str, Any]:
+    3:         last_error: Exception | None = None
+    6:         async with httpx.AsyncClient(timeout=self.timeout_seconds, transport=self.transport) as client:
+    5:             for attempt in range(1, self.max_attempts + 1):
+    5:                 try:
+    5:                     response = await client.get(endpoint, headers=headers)
+    5:                     if response.status_code >= 500:
+    3:                         raise IntegrationSyncError(f'Provider responded with server error {response.status_code}')
+    2:                     if response.status_code >= 400:
+>>>>>>                         raise IntegrationSyncError(f'Provider responded with client error {response.status_code}')
+    2:                     payload = response.json()
+    2:                     if not isinstance(payload, dict):
+>>>>>>                         raise IntegrationSyncError('Provider returned non-object JSON payload')
+    2:                     return payload
+    3:                 except (httpx.RequestError, httpx.TimeoutException, ValueError, IntegrationSyncError) as exc:
+    3:                     last_error = exc
+    3:                     if attempt >= self.max_attempts:
+    1:                         break
+    2:                     await asyncio.sleep(min(0.05 * attempt, 0.15))
+    1:         raise IntegrationSyncError(str(last_error or 'Provider request failed'))
+       
+       
+    2: class LiveScoreProviderClient(BaseProviderClient):
+    1:     async def fetch_events(self, endpoint: str, headers: dict[str, str] | None = None) -> list[ProviderLiveEvent]:
+    2:         payload = await self._request_json(endpoint, headers=headers)
+    1:         return self.mapper.parse_live_events(self.provider, payload)
+       
+       
+    2: class RankingsProviderClient(BaseProviderClient):
+    1:     async def fetch_rankings(self, endpoint: str, headers: dict[str, str] | None = None) -> list[ProviderRankingRow]:
+    1:         payload = await self._request_json(endpoint, headers=headers)
+    1:         return self.mapper.parse_rankings(self.provider, payload)

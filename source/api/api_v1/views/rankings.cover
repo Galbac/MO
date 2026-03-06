@@ -1,0 +1,33 @@
+    1: from fastapi import APIRouter
+       
+    1: from source.schemas.pydantic.common import PaginatedResponse, SuccessResponse
+    1: from source.schemas.pydantic.ranking import RankingEntry, RankingSnapshotItem
+    1: from source.services import PublicDataService
+       
+    1: router = APIRouter(prefix="/rankings", tags=["rankings"])
+    1: service = PublicDataService()
+       
+       
+    2: @router.get("", response_model=PaginatedResponse[RankingEntry])
+    2: async def get_rankings(page: int = 1, per_page: int = 100, ranking_type: str | None = None, date: str | None = None) -> PaginatedResponse[RankingEntry]:
+>>>>>>     return await service.get_rankings(page=page, per_page=per_page, ranking_type=ranking_type, ranking_date=date)
+       
+       
+    2: @router.get("/current", response_model=SuccessResponse[list[RankingEntry]])
+    2: async def get_current_rankings(ranking_type: str = 'atp') -> SuccessResponse[list[RankingEntry]]:
+   13:     return await service.get_current_rankings(ranking_type)
+       
+       
+    2: @router.get("/{ranking_type}/history", response_model=SuccessResponse[list[RankingSnapshotItem]])
+    2: async def get_rankings_history(ranking_type: str) -> SuccessResponse[list[RankingSnapshotItem]]:
+    1:     return await service.get_rankings_history(ranking_type)
+       
+       
+    2: @router.get("/player/{player_id}", response_model=SuccessResponse[list[dict]])
+    2: async def get_player_rankings(player_id: int) -> SuccessResponse[list[dict]]:
+>>>>>>     return await service.get_player_rankings(player_id)
+       
+       
+    2: @router.get("/race", response_model=SuccessResponse[list[RankingEntry]])
+    2: async def get_race_rankings() -> SuccessResponse[list[RankingEntry]]:
+>>>>>>     return await service.get_race_rankings()

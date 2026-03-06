@@ -1,0 +1,21 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_healthz_returns_ok(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/health")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     assert response.json() == {"status": "ok"}
+       
+       
+    1: async def test_readiness_returns_dependency_status(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/health/ready")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload['status'] in {'ok', 'degraded'}
+    1:     assert payload['dependencies']['database']['status'] == 'ok'
+    1:     assert payload['dependencies']['runtime_state']['status'] == 'ok'
+    1:     assert payload['dependencies']['runtime_state']['backend'] in {'local', 'redis'}

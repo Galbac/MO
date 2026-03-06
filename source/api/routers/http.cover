@@ -1,0 +1,7 @@
+    1: from fastapi import APIRouter
+       
+    1: from source.api.api_v1 import public_router
+    1: from source.config.settings import settings
+       
+    1: router = APIRouter(prefix=settings.api.prefix)
+    1: router.include_router(public_router)

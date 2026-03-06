@@ -1,0 +1,44 @@
+    1: from fastapi import APIRouter, Request
+       
+    1: from source.schemas.pydantic.auth import MessageResponse
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.tournament import TournamentDetail, TournamentSummary
+    1: from source.services import AdminContentService
+       
+    1: router = APIRouter(prefix="/tournaments", tags=["admin-tournaments"])
+    1: service = AdminContentService()
+       
+       
+    2: @router.get("", response_model=SuccessResponse[list[TournamentSummary]])
+    2: async def list_admin_tournaments() -> SuccessResponse[list[TournamentSummary]]:
+>>>>>>     return await service.list_admin_tournaments()
+       
+       
+    2: @router.post("", response_model=SuccessResponse[TournamentDetail])
+    2: async def create_admin_tournament(request: Request, payload: dict) -> SuccessResponse[TournamentDetail]:
+    1:     return await service.create_admin_tournament(payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.get("/{tournament_id}", response_model=SuccessResponse[TournamentDetail])
+    2: async def get_admin_tournament(tournament_id: int) -> SuccessResponse[TournamentDetail]:
+>>>>>>     return await service.get_admin_tournament(tournament_id)
+       
+       
+    2: @router.patch("/{tournament_id}", response_model=SuccessResponse[TournamentDetail])
+    2: async def patch_admin_tournament(request: Request, tournament_id: int, payload: dict) -> SuccessResponse[TournamentDetail]:
+    1:     return await service.update_admin_tournament(tournament_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.delete("/{tournament_id}", response_model=MessageResponse)
+    2: async def delete_admin_tournament(request: Request, tournament_id: int) -> MessageResponse:
+    1:     return await service.delete_admin_tournament(tournament_id, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.post("/{tournament_id}/draw/generate", response_model=MessageResponse)
+    2: async def generate_admin_tournament_draw(tournament_id: int) -> MessageResponse:
+>>>>>>     return MessageResponse(data={"message": f"Draw generation started for tournament {tournament_id}"})
+       
+       
+    2: @router.post("/{tournament_id}/publish", response_model=MessageResponse)
+    2: async def publish_admin_tournament(tournament_id: int) -> MessageResponse:
+>>>>>>     return MessageResponse(data={"message": f"Tournament {tournament_id} published"})

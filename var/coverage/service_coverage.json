@@ -1,0 +1,94 @@
+{
+  "coverage_pct": 63.39,
+  "covered_lines": 1524,
+  "files": [
+    {
+      "coverage_pct": 0.0,
+      "covered_lines": 0,
+      "lines": 14,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/__init__.py"
+    },
+    {
+      "coverage_pct": 65.19,
+      "covered_lines": 264,
+      "lines": 405,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/admin_content_service.py"
+    },
+    {
+      "coverage_pct": 69.5,
+      "covered_lines": 139,
+      "lines": 200,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/admin_support_service.py"
+    },
+    {
+      "coverage_pct": 59.49,
+      "covered_lines": 141,
+      "lines": 237,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/auth_user_service.py"
+    },
+    {
+      "coverage_pct": 42.86,
+      "covered_lines": 15,
+      "lines": 35,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/cache_service.py"
+    },
+    {
+      "coverage_pct": 66.27,
+      "covered_lines": 55,
+      "lines": 83,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/job_service.py"
+    },
+    {
+      "coverage_pct": 67.39,
+      "covered_lines": 31,
+      "lines": 46,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/live_hub.py"
+    },
+    {
+      "coverage_pct": 62.67,
+      "covered_lines": 183,
+      "lines": 292,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/operations_service.py"
+    },
+    {
+      "coverage_pct": 52.07,
+      "covered_lines": 189,
+      "lines": 363,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/portal_query_service.py"
+    },
+    {
+      "coverage_pct": 66.29,
+      "covered_lines": 116,
+      "lines": 175,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/public_data_service.py"
+    },
+    {
+      "coverage_pct": 61.43,
+      "covered_lines": 86,
+      "lines": 140,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/runtime_state_store.py"
+    },
+    {
+      "coverage_pct": 54.55,
+      "covered_lines": 24,
+      "lines": 44,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/token_codec.py"
+    },
+    {
+      "coverage_pct": 70.06,
+      "covered_lines": 117,
+      "lines": 167,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/user_engagement_service.py"
+    },
+    {
+      "coverage_pct": 80.79,
+      "covered_lines": 164,
+      "lines": 203,
+      "path": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services/workflow_service.py"
+    }
+  ],
+  "passed": false,
+  "service_root": "/Users/zidansaparbegov/PyCharmMiscProject/makhachkala_open/source/services",
+  "threshold_pct": 80.0,
+  "total_lines": 2404
+}

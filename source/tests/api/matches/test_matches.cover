@@ -1,0 +1,13 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_match_detail_returns_score_and_stats(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/matches/1")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["success"] is True
+    1:     assert payload["data"]["score"]["sets"]
+    1:     assert payload["data"]["stats"]["duration_minutes"] == 196

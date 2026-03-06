@@ -1,0 +1,72 @@
+    1: import json
+    1: from pathlib import Path
+       
+    1: from source.config.settings import settings
+       
+       
+    1: def _cache_payload() -> dict:
+    5:     cache_path = Path(settings.cache.storage_path)
+    5:     if not cache_path.exists():
+>>>>>>         return {}
+    5:     return json.loads(cache_path.read_text())
+       
+       
+    1: async def test_public_read_side_populates_cache(async_client) -> None:
+    1:     players_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/players")
+    1:     assert players_response.status_code == 200
+       
+    1:     player_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/players/1")
+    1:     assert player_response.status_code == 200
+       
+    1:     rankings_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/rankings/current")
+    1:     assert rankings_response.status_code == 200
+       
+    1:     cache_payload = _cache_payload()
+    3:     assert any(key.startswith('players:list:') for key in cache_payload)
+    1:     assert 'players:detail:1' in cache_payload
+    4:     assert any(key.startswith('rankings:current:') for key in cache_payload)
+       
+       
+    1: async def test_admin_mutation_invalidates_related_cache(async_client, admin_auth_headers) -> None:
+    1:     players_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/players")
+    1:     assert players_response.status_code == 200
+    1:     warm_cache = _cache_payload()
+    2:     warm_list_keys = {key for key in warm_cache if key.startswith('players:list:')}
+    1:     assert warm_list_keys
+       
+    2:     create_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/players",
+    1:         headers=admin_auth_headers,
+    1:         json={
+    1:             'slug': 'cache-player',
+    1:             'first_name': 'Cache',
+    1:             'last_name': 'Player',
+    1:             'full_name': 'Cache Player',
+    1:             'country_code': 'US',
+    1:             'country_name': 'United States',
+    1:             'status': 'active',
+    1:             'current_rank': 77,
+    1:             'current_points': 900,
+               },
+           )
+    1:     assert create_response.status_code == 200
+       
+    1:     cache_payload = _cache_payload()
+    3:     assert not any(key in cache_payload for key in warm_list_keys)
+    2:     assert any(key.startswith('players:detail:') for key in cache_payload)
+       
+       
+    1: async def test_ranking_admin_operations_invalidate_rankings_cache(async_client, admin_auth_headers) -> None:
+    1:     rankings_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/rankings/current")
+    1:     assert rankings_response.status_code == 200
+    2:     assert any(key.startswith('rankings:') for key in _cache_payload())
+       
+    2:     import_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/rankings/import",
+    1:         headers=admin_auth_headers,
+    1:         json={'ranking_type': 'atp', 'source_file': 'rankings.csv'},
+           )
+    1:     assert import_response.status_code == 200
+       
+    1:     cache_payload = _cache_payload()
+    2:     assert not any(key.startswith('rankings:') for key in cache_payload)

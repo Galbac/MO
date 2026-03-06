@@ -1,0 +1,94 @@
+    1: from __future__ import annotations
+       
+    1: from datetime import UTC, datetime
+    1: from typing import Any
+       
+    1: from source.config.settings import settings
+    1: from source.services.cache_service import CacheService
+    1: from source.services.runtime_state_store import RuntimeStateStore
+    1: from source.services.workflow_service import WorkflowService
+       
+       
+    2: class JobService:
+    1:     def __init__(self) -> None:
+   11:         self.cache = CacheService()
+   11:         self.store = RuntimeStateStore()
+   11:         self.workflows = WorkflowService()
+   11:         self.namespace = 'jobs'
+       
+    1:     def _read_jobs(self) -> list[dict[str, Any]]:
+   15:         payload = self.store.read_namespace(self.namespace, [])
+   15:         return payload if isinstance(payload, list) else []
+       
+    1:     def _write_jobs(self, payload: list[dict[str, Any]]) -> None:
+   15:         self.store.write_namespace(self.namespace, payload)
+       
+    1:     async def enqueue(self, *, job_type: str, payload: dict[str, Any] | None = None, run_at: datetime | None = None) -> dict[str, Any]:
+    6:         jobs = self._read_jobs()
+    6:         now = datetime.now(tz=UTC)
+    6:         record = {
+   13:             'id': max((item.get('id', 0) for item in jobs), default=0) + 1,
+    6:             'job_type': job_type,
+    6:             'status': 'pending',
+    6:             'payload': payload or {},
+    6:             'run_at': (run_at or now).isoformat(),
+    6:             'created_at': now.isoformat(),
+    6:             'updated_at': now.isoformat(),
+    6:             'attempts': 0,
+    6:             'error': None,
+               }
+    6:         jobs.append(record)
+    6:         self._write_jobs(jobs)
+    6:         return record
+       
+    1:     async def process_due_jobs(self) -> int:
+    9:         if not settings.jobs.enabled:
+>>>>>>             return 0
+    9:         jobs = self._read_jobs()
+    9:         now = datetime.now(tz=UTC)
+    9:         processed = 0
+   15:         for job in jobs:
+    6:             if job.get('status') != 'pending':
+>>>>>>                 continue
+    6:             run_at = datetime.fromisoformat(job['run_at'])
+    6:             if run_at > now:
+>>>>>>                 continue
+    6:             job['attempts'] = int(job.get('attempts', 0)) + 1
+    6:             job['updated_at'] = now.isoformat()
+    6:             try:
+    6:                 await self._run_job(job['job_type'], job.get('payload') or {})
+    6:                 job['status'] = 'finished'
+    6:                 job['error'] = None
+    6:                 processed += 1
+>>>>>>             except Exception as exc:  # noqa: BLE001
+>>>>>>                 job['status'] = 'failed'
+>>>>>>                 job['error'] = str(exc)
+    6:             job['updated_at'] = datetime.now(tz=UTC).isoformat()
+    9:         self._write_jobs(jobs)
+    9:         return processed
+       
+    1:     async def _run_job(self, job_type: str, payload: dict[str, Any]) -> None:
+    6:         if job_type == 'finalize_match_postprocess':
+    3:             await self.workflows.process_finalized_match(int(payload['match_id']))
+    3:             return
+    3:         if job_type == 'publish_scheduled_news':
+    1:             news_id = payload.get('news_id')
+    1:             await self.workflows.publish_due_scheduled_news(int(news_id) if news_id is not None else None)
+    1:             return
+    2:         if job_type == 'clear_cache':
+>>>>>>             prefixes = payload.get('prefixes') or []
+>>>>>>             if prefixes:
+>>>>>>                 self.cache.invalidate_prefixes(*[str(item) for item in prefixes])
+                   else:
+>>>>>>                 self.cache.clear()
+>>>>>>             return
+    2:         if job_type == 'generate_sitemap':
+    1:             await self.workflows.generate_sitemap_snapshot(payload.get('base_url'))
+    1:             return
+    1:         if job_type == 'rebuild_search_index':
+    1:             await self.workflows.rebuild_search_index()
+    1:             return
+>>>>>>         raise ValueError(f'Unsupported job type: {job_type}')
+       
+    1:     def backend_name(self) -> str:
+    1:         return self.store.backend_name()

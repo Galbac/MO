@@ -1,0 +1,54 @@
+    1: from fastapi.testclient import TestClient
+       
+    1: from source.config.settings import settings
+    1: from source.main import create_app
+       
+       
+    1: def test_security_headers_present() -> None:
+    1:     app = create_app()
+    2:     with TestClient(app) as client:
+    1:         response = client.get('/api/v1/health')
+    1:         assert response.status_code == 200
+    1:         assert response.headers['x-content-type-options'] == 'nosniff'
+    1:         assert response.headers['x-frame-options'] == 'DENY'
+    1:         assert 'content-security-policy' in response.headers
+       
+       
+    1: def test_api_rate_limit_returns_429(monkeypatch) -> None:
+    1:     monkeypatch.setattr(settings.security, 'api_rate_limit_requests', 1)
+    1:     monkeypatch.setattr(settings.security, 'api_rate_limit_window_seconds', 60)
+    1:     app = create_app()
+    2:     with TestClient(app) as client:
+    1:         first = client.get('/api/v1/players')
+    1:         second = client.get('/api/v1/players')
+    1:         assert first.status_code == 200
+    1:         assert second.status_code == 429
+    1:         assert second.json()['errors'][0]['code'] == 'RATE_LIMITED'
+       
+       
+    1: async def test_invalid_bearer_token_returns_401(async_client) -> None:
+    1:     response = await async_client.get('/api/v1/users/me', headers={'Authorization': 'Bearer invalid.token.value'})
+    1:     assert response.status_code == 401
+       
+       
+    1: async def test_sql_injection_like_queries_do_not_break_search(async_client) -> None:
+    1:     payloads = [
+               "' OR 1=1 --",
+               "\"; DROP TABLE players; --",
+               "novak' UNION SELECT * FROM users --",
+           ]
+    4:     for query in payloads:
+    3:         response = await async_client.get('/api/v1/search', params={'q': query})
+    3:         assert response.status_code == 200
+       
+    1:     players_response = await async_client.get('/api/v1/players')
+    1:     assert players_response.status_code == 200
+       
+    1: async def test_private_integration_endpoint_is_rejected(async_client, admin_auth_headers) -> None:
+    2:     response = await async_client.patch(
+    1:         '/api/v1/admin/integrations/live-provider',
+    1:         headers=admin_auth_headers,
+    1:         json={'endpoint': 'http://192.168.1.15/feed'},
+           )
+    1:     assert response.status_code == 422
+       

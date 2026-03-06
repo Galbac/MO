@@ -1,0 +1,116 @@
+    1: from __future__ import annotations
+       
+    1: from datetime import UTC, datetime
+    1: from typing import Any
+       
+    1: from fastapi import HTTPException, status
+    1: from pydantic import BaseModel
+       
+       
+    2: class ProviderRankingRow(BaseModel):
+    1:     ranking_type: str
+    1:     ranking_date: str
+    1:     position: int
+    1:     player_name: str
+    1:     country_code: str
+    1:     points: int
+    1:     movement: int | None = None
+       
+       
+    2: class ProviderLiveEvent(BaseModel):
+    1:     provider: str
+    1:     event_type: str
+    1:     match_slug: str
+    1:     tournament_name: str
+    1:     player1_name: str
+    1:     player2_name: str
+    1:     status: str
+    1:     score_summary: str | None = None
+    1:     occurred_at: datetime
+    1:     payload: dict[str, Any]
+       
+       
+    2: class ProviderPayloadMapper:
+    1:     def parse_rankings(self, provider: str, payload: dict[str, Any]) -> list[ProviderRankingRow]:
+    3:         provider_name = provider.strip().lower()
+    3:         if provider_name not in {'rankings-provider', 'rankings_provider', 'rankings'}:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsupported rankings provider')
+       
+    3:         ranking_type = str(payload.get('ranking_type') or 'atp').strip().lower()
+    3:         ranking_date = str(payload.get('ranking_date') or '').strip()
+    3:         entries = payload.get('entries') or payload.get('rows') or []
+    3:         if not ranking_date or not isinstance(entries, list) or not entries:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid rankings payload')
+       
+    3:         normalized: list[ProviderRankingRow] = []
+    8:         for entry in entries:
+    5:             if not isinstance(entry, dict):
+>>>>>>                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid rankings entry')
+    5:             position = entry.get('position', entry.get('rank'))
+    5:             player_name = entry.get('player_name', entry.get('player'))
+    5:             country_code = entry.get('country_code', entry.get('country', 'UNK'))
+    5:             points = entry.get('points')
+    5:             if position in (None, '') or not player_name or points in (None, ''):
+>>>>>>                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Incomplete rankings entry')
+    5:             movement = entry.get('movement')
+   10:             normalized.append(
+   10:                 ProviderRankingRow(
+    5:                     ranking_type=ranking_type,
+    5:                     ranking_date=ranking_date,
+    5:                     position=int(position),
+    5:                     player_name=str(player_name).strip(),
+    5:                     country_code=str(country_code).strip().upper() or 'UNK',
+    5:                     points=int(points),
+    5:                     movement=int(movement) if movement not in (None, '') else None,
+                       )
+                   )
+    8:         normalized.sort(key=lambda item: item.position)
+    3:         return normalized
+       
+    1:     def parse_live_events(self, provider: str, payload: dict[str, Any]) -> list[ProviderLiveEvent]:
+    4:         provider_name = provider.strip().lower()
+    4:         if provider_name not in {'live-provider', 'live_score_provider', 'live-score-provider', 'live'}:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsupported live provider')
+       
+    4:         raw_items = payload.get('events') or [payload]
+    4:         if not isinstance(raw_items, list) or not raw_items:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid live payload')
+       
+    4:         normalized: list[ProviderLiveEvent] = []
+    7:         for item in raw_items:
+    4:             if not isinstance(item, dict):
+>>>>>>                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid live event')
+    4:             match_payload = item.get('match') or {}
+    4:             tournament_name = str(match_payload.get('tournament_name') or item.get('tournament_name') or '').strip()
+    4:             slug = str(match_payload.get('slug') or item.get('match_slug') or '').strip()
+    4:             status_value = str(match_payload.get('status') or item.get('status') or 'live').strip()
+    4:             event_type = str(item.get('event_type') or item.get('type') or '').strip()
+    4:             players = item.get('players') or []
+    4:             player1_name = ''
+    4:             player2_name = ''
+    4:             if isinstance(players, list) and len(players) >= 2:
+    3:                 player1_name = str(players[0].get('name') or '').strip()
+    3:                 player2_name = str(players[1].get('name') or '').strip()
+                   else:
+    1:                 player1_name = str(item.get('player1_name') or '').strip()
+    1:                 player2_name = str(item.get('player2_name') or '').strip()
+    4:             timestamp = item.get('occurred_at') or item.get('timestamp')
+    4:             if not slug or not tournament_name or not player1_name or not player2_name or not event_type:
+    1:                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Incomplete live event')
+    3:             occurred_at = datetime.fromisoformat(str(timestamp).replace('Z', '+00:00')) if timestamp else datetime.now(tz=UTC)
+    6:             normalized.append(
+    6:                 ProviderLiveEvent(
+    3:                     provider=provider_name,
+    3:                     event_type=event_type,
+    3:                     match_slug=slug,
+    3:                     tournament_name=tournament_name,
+    3:                     player1_name=player1_name,
+    3:                     player2_name=player2_name,
+    3:                     status=status_value,
+    3:                     score_summary=(match_payload.get('score_summary') or item.get('score_summary')),
+    3:                     occurred_at=occurred_at,
+    3:                     payload=item,
+                       )
+                   )
+    6:         normalized.sort(key=lambda event: event.occurred_at)
+    3:         return normalized

@@ -1,0 +1,16 @@
+    1: from sqlalchemy import ForeignKey, Integer, String
+    1: from sqlalchemy.orm import Mapped, mapped_column
+       
+    1: from source.db.models.base import Base
+    1: from source.db.models.mixins import IdIntPkMixin, TimestampMixin
+       
+       
+    2: class RankingSnapshot(Base, IdIntPkMixin, TimestampMixin):
+    1:     __tablename__ = "ranking_snapshots"
+       
+    1:     ranking_type: Mapped[str] = mapped_column(String(32), index=True)
+    1:     ranking_date: Mapped[str] = mapped_column(String(16), index=True)
+    1:     player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), index=True)
+    1:     rank_position: Mapped[int] = mapped_column(Integer(), index=True)
+    1:     points: Mapped[int] = mapped_column(Integer())
+    1:     movement: Mapped[int] = mapped_column(Integer(), default=0)

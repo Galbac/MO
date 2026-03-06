@@ -1,0 +1,59 @@
+    1: from __future__ import annotations
+       
+    1: import time
+       
+    1: from fastapi import Request, status
+    1: from fastapi.responses import JSONResponse
+    1: from starlette.middleware.base import BaseHTTPMiddleware
+       
+    1: from source.config.settings import settings
+    1: from source.services.runtime_state_store import RuntimeStateStore
+       
+       
+    2: class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    1:     async def dispatch(self, request: Request, call_next):
+  315:         response = await call_next(request)
+  315:         response.headers['X-Content-Type-Options'] = 'nosniff'
+  315:         response.headers['X-Frame-Options'] = 'DENY'
+  315:         response.headers['Referrer-Policy'] = 'same-origin'
+  315:         response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+  315:         response.headers['Content-Security-Policy'] = "default-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' ws: wss:; font-src 'self' https://cdn.jsdelivr.net; object-src 'none'; frame-ancestors 'none'; base-uri 'self'"
+  315:         return response
+       
+       
+    2: class ApiRateLimitMiddleware(BaseHTTPMiddleware):
+    1:     def __init__(self, app) -> None:
+  103:         super().__init__(app)
+  103:         self.store = RuntimeStateStore()
+  103:         self.namespace = 'api_rate_limits'
+       
+    1:     async def dispatch(self, request: Request, call_next):
+  315:         if not settings.security.api_rate_limit_enabled:
+>>>>>>             return await call_next(request)
+  315:         if request.url.path.startswith('/static') or request.url.path.startswith('/docs'):
+>>>>>>             return await call_next(request)
+  315:         if not request.url.path.startswith('/api/'):
+   20:             return await call_next(request)
+  295:         if request.url.path.startswith('/api/v1/health'):
+    3:             return await call_next(request)
+       
+  292:         client_ip = request.client.host if request.client and request.client.host else 'unknown'
+  292:         now = int(time.time())
+  292:         window = settings.security.api_rate_limit_window_seconds
+  292:         limit = settings.security.api_rate_limit_requests
+  292:         state = self.store.read_namespace(self.namespace, {})
+ 1313:         timestamps = [int(item) for item in state.get(client_ip, []) if now - int(item) < window]
+  292:         if len(timestamps) >= limit:
+    2:             return JSONResponse(
+    1:                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+    1:                 content={
+    1:                     'success': False,
+    1:                     'data': None,
+    1:                     'meta': {},
+    1:                     'errors': [{'code': 'RATE_LIMITED', 'message': 'Too many requests', 'field': None}],
+                       },
+                   )
+  291:         timestamps.append(now)
+  291:         state[client_ip] = timestamps
+  291:         self.store.write_namespace(self.namespace, state)
+  291:         return await call_next(request)

@@ -1,0 +1,25 @@
+    1: from pathlib import Path
+       
+    1: from source.tasks.service_coverage import parse_trace_summary
+       
+       
+    1: SAMPLE_TRACE_OUTPUT = '''
+         120    90%   source.services.auth_user_service   (/workspace/source/services/auth_user_service.py)
+          80    75%   source.services.user_engagement_service   (/workspace/source/services/user_engagement_service.py)
+         999    12%   unrelated.module   (/workspace/.venv/lib/python/site-packages/unrelated.py)
+       '''
+       
+       
+    1: def test_parse_trace_summary_aggregates_only_service_modules() -> None:
+    1:     report = parse_trace_summary(SAMPLE_TRACE_OUTPUT)
+       
+    1:     assert report['total_lines'] == 200
+    1:     assert report['covered_lines_estimate'] == 168
+    1:     assert report['coverage_pct'] == 84.0
+    1:     assert len(report['files']) == 2
+    4:     assert all('/source/services/' in item['path'] for item in report['files'])
+       
+       
+    1: def test_makefile_exposes_coverage_service_target() -> None:
+    1:     content = Path('Makefile').read_text()
+    1:     assert 'coverage-service:' in content

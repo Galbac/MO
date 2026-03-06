@@ -1,0 +1,446 @@
+    1: from __future__ import annotations
+       
+    1: from datetime import date, datetime
+    1: from typing import Any, Awaitable, Callable
+       
+    1: from fastapi import HTTPException, status
+       
+    1: from source.config.settings import settings
+    1: from source.db.models import HeadToHead, Match, MatchEvent, MatchSet, MatchStats, NewsArticle, NewsCategory, Player, RankingSnapshot, Tournament
+    1: from source.db.session import db_session_manager
+    1: from source.repositories import MatchRepository, NewsRepository, PlayerRepository, TournamentRepository
+    1: from source.schemas.pydantic.common import PaginatedResponse, PaginationMeta, SuccessResponse
+    1: from source.schemas.pydantic.match import MatchDetail, MatchEventItem, MatchPreview, MatchScore, MatchSetItem, MatchStats as MatchStatsSchema, MatchSummary
+    1: from source.schemas.pydantic.news import NewsArticleDetail, NewsArticleSummary, NewsCategoryItem, TagItem
+    1: from source.schemas.pydantic.player import H2HResponse, PlayerComparison, PlayerDetail, PlayerNewsItem, PlayerStats, PlayerSummary, RankingHistoryPoint, SeoMeta, TitleItem, UpcomingMatchItem
+    1: from source.schemas.pydantic.tournament import ChampionItem, DrawMatchItem, TournamentDetail, TournamentSummary
+    1: from source.services.cache_service import CacheService
+       
+       
+    2: class PortalQueryService:
+    1:     def __init__(self) -> None:
+   13:         self.players = PlayerRepository()
+   13:         self.tournaments = TournamentRepository()
+   13:         self.matches = MatchRepository()
+   13:         self.news = NewsRepository()
+   13:         self.cache = CacheService()
+       
+    1:     async def _cached(self, key: str, schema: Any, loader: Callable[[], Awaitable[Any]], ttl_seconds: int | None = None) -> Any:
+  110:         return await self.cache.get_or_set(key=key, schema=schema, loader=loader, ttl_seconds=ttl_seconds)
+       
+    2:     @staticmethod
+    2:     def _paginate_meta(page: int, per_page: int, total: int) -> PaginationMeta:
+   16:         total_pages = max((total + per_page - 1) // per_page, 1) if per_page else 1
+   16:         return PaginationMeta(page=page, per_page=per_page, total=total, total_pages=total_pages)
+       
+    2:     @staticmethod
+    2:     def _player_form(matches: list[Match], player_id: int) -> list[str]:
+  102:         ordered = sorted(matches, key=lambda item: item.scheduled_at or datetime.min, reverse=True)[:5]
+  102:         return ['W' if item.winner_id == player_id else 'L' for item in ordered if item.winner_id is not None]
+       
+    1:     def _player_summary(self, player: Player, matches: list[Match] | None = None) -> PlayerSummary:
+  126:         return PlayerSummary(
+   63:             id=player.id,
+   63:             slug=player.slug,
+   63:             full_name=player.full_name,
+   63:             country_code=player.country_code,
+   63:             current_rank=player.current_rank,
+   63:             current_points=player.current_points,
+   63:             photo_url=player.photo_url,
+   63:             form=self._player_form(matches or [], player.id),
+               )
+       
+    2:     @staticmethod
+    2:     def _player_stats(matches: list[Match], player_id: int) -> PlayerStats:
+   10:         completed = [item for item in matches if item.winner_id is not None]
+   17:         wins = sum(1 for item in completed if item.winner_id == player_id)
+   17:         losses = sum(1 for item in completed if item.winner_id and item.winner_id != player_id)
+   17:         season = max((item.scheduled_at.year for item in matches if item.scheduled_at), default=date.today().year)
+   14:         return PlayerStats(
+    7:             season=season,
+    7:             matches_played=len(completed),
+    7:             wins=wins,
+    7:             losses=losses,
+    7:             win_rate=round((wins / len(completed)) * 100, 1) if completed else 0.0,
+    7:             hard_record=f"{wins}-{losses}",
+    7:             clay_record="0-0",
+    7:             grass_record="0-0",
+               )
+       
+    2:     @staticmethod
+    2:     def _ranking_points(snapshots: list[RankingSnapshot]) -> list[RankingHistoryPoint]:
+   13:         return [RankingHistoryPoint(ranking_date=item.ranking_date, rank_position=item.rank_position, points=item.points, movement=item.movement) for item in snapshots]
+       
+    2:     @staticmethod
+    2:     def _news_category_item(category: NewsCategory | None) -> NewsCategoryItem | None:
+   44:         if category is None:
+    4:             return None
+   40:         return NewsCategoryItem(id=category.id, slug=category.slug, name=category.name)
+       
+    2:     @staticmethod
+    2:     def _news_summary(article: NewsArticle, category: NewsCategory | None = None) -> NewsArticleSummary:
+   88:         return NewsArticleSummary(
+   44:             id=article.id,
+   44:             slug=article.slug,
+   44:             title=article.title,
+   44:             subtitle=article.subtitle,
+   44:             lead=article.lead,
+   44:             cover_image_url=article.cover_image_url,
+   44:             status=article.status,
+   44:             published_at=article.published_at.isoformat() if article.published_at else None,
+   44:             category=PortalQueryService._news_category_item(category),
+   44:             tags=[],
+               )
+       
+    2:     @staticmethod
+    2:     def _tournament_summary(tournament: Tournament) -> TournamentSummary:
+   10:         return TournamentSummary(
+    5:             id=tournament.id,
+    5:             slug=tournament.slug,
+    5:             name=tournament.name,
+    5:             category=tournament.category,
+    5:             surface=tournament.surface,
+    5:             season_year=tournament.season_year,
+    5:             start_date=tournament.start_date.isoformat() if tournament.start_date else None,
+    5:             end_date=tournament.end_date.isoformat() if tournament.end_date else None,
+    5:             status=tournament.status,
+    5:             city=tournament.city,
+               )
+       
+    2:     @staticmethod
+    2:     def _event_item(item: MatchEvent) -> MatchEventItem:
+   21:         return MatchEventItem(id=item.id, event_type=item.event_type, set_number=item.set_number, game_number=item.game_number, player_id=item.player_id, payload_json=item.payload_json or {}, created_at=item.created_at)
+       
+    2:     @staticmethod
+    2:     def _set_item(item: MatchSet) -> MatchSetItem:
+   57:         return MatchSetItem(set_number=item.set_number, player1_games=item.player1_games, player2_games=item.player2_games, tiebreak_player1_points=item.tiebreak_player1_points, tiebreak_player2_points=item.tiebreak_player2_points, is_finished=item.is_finished)
+       
+    2:     @staticmethod
+    2:     def _stats_item(item: MatchStats | None) -> MatchStatsSchema:
+   22:         if item is None:
+    4:             return MatchStatsSchema()
+   18:         return MatchStatsSchema(player1_aces=item.player1_aces, player2_aces=item.player2_aces, player1_double_faults=item.player1_double_faults, player2_double_faults=item.player2_double_faults, player1_first_serve_pct=float(item.player1_first_serve_pct), player2_first_serve_pct=float(item.player2_first_serve_pct), player1_break_points_saved=item.player1_break_points_saved, player2_break_points_saved=item.player2_break_points_saved, duration_minutes=item.duration_minutes)
+       
+    2:     @staticmethod
+    2:     def _h2h_item(item: HeadToHead | None) -> dict:
+   22:         return H2HResponse.model_validate(item, from_attributes=True).model_dump() if item else {}
+       
+    2:     @staticmethod
+    2:     def _match_score(sets: list[MatchSet], summary: str | None, serving_player_id: int | None) -> MatchScore:
+   79:         return MatchScore(sets=[f"{item.player1_games}-{item.player2_games}" for item in sets], current_game=summary, serving_player_id=serving_player_id)
+       
+    2:     @staticmethod
+    2:     def _resolve_opponent(match: Match, player_id: int, players: dict[int, Player]) -> Player | None:
+>>>>>>         opponent_id = match.player2_id if match.player1_id == player_id else match.player1_id
+>>>>>>         return players.get(opponent_id)
+       
+    1:     def _match_summary(self, match: Match, tournament: Tournament, players: dict[int, Player]) -> MatchSummary:
+   33:         player1 = players.get(match.player1_id)
+   33:         player2 = players.get(match.player2_id)
+   33:         if player1 is None or player2 is None:
+>>>>>>             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Match players are missing')
+   33:         return MatchSummary(id=match.id, slug=match.slug, status=match.status, scheduled_at=match.scheduled_at, actual_start_at=match.actual_start_at, actual_end_at=match.actual_end_at, player1_id=match.player1_id, player2_id=match.player2_id, player1_name=player1.full_name, player2_name=player2.full_name, tournament_id=tournament.id, tournament_name=tournament.name, round_code=match.round_code, court_name=match.court_name, score_summary=match.score_summary)
+       
+    1:     async def _players_map(self, session, player_ids: set[int]) -> dict[int, Player]:
+  102:         items = [await self.players.get(session, player_id) for player_id in sorted(player_ids)]
+  102:         return {item.id: item for item in items if item is not None}
+       
+    1:     async def list_players(self, search, country_code, hand, status, rank_from, rank_to, page, per_page):
+   16:         async def loader() -> PaginatedResponse[PlayerSummary]:
+   18:             async with db_session_manager.session() as session:
+    9:                 items, total = await self.players.list(session, search=search, country_code=country_code, hand=hand, status=status, rank_from=rank_from, rank_to=rank_to, page=page, per_page=per_page)
+   63:                 player_matches = {item.id: await self.players.get_matches(session, item.id) for item in items}
+   63:                 return PaginatedResponse(data=[self._player_summary(item, player_matches.get(item.id, [])) for item in items], meta=self._paginate_meta(page, per_page, total))
+       
+   16:         key = f'players:list:{search or ""}:{country_code or ""}:{hand or ""}:{status or ""}:{rank_from or ""}:{rank_to or ""}:{page}:{per_page}'
+   16:         return await self._cached(key, PaginatedResponse[PlayerSummary], loader)
+       
+    1:     async def get_player(self, player_id: int):
+    7:         async def loader() -> SuccessResponse[PlayerDetail]:
+   14:             async with db_session_manager.session() as session:
+    7:                 player = await self.players.get(session, player_id)
+    7:                 if player is None:
+>>>>>>                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Player not found')
+    7:                 matches = await self.players.get_matches(session, player_id)
+    7:                 rankings = await self.players.get_ranking_history(session, player_id)
+   16:                 player_ids = {value for match in matches for value in (match.player1_id, match.player2_id)}
+    7:                 players = await self._players_map(session, player_ids)
+   10:                 tournaments = {match.tournament_id: await self.tournaments.get(session, match.tournament_id) for match in matches}
+   13:                 recent_matches = [self._match_summary(match, tournaments[match.tournament_id], players).model_dump() for match in sorted(matches, key=lambda item: item.scheduled_at or datetime.min, reverse=True)[:5] if tournaments.get(match.tournament_id)]
+   20:                 upcoming = next((item for item in sorted(matches, key=lambda m: m.scheduled_at or datetime.max) if item.status in {'scheduled', 'about_to_start', 'live'}), None)
+    7:                 upcoming_match = None
+    7:                 if upcoming and tournaments.get(upcoming.tournament_id):
+>>>>>>                     opponent = self._resolve_opponent(upcoming, player_id, players)
+>>>>>>                     upcoming_match = UpcomingMatchItem(match_id=upcoming.id, slug=upcoming.slug, tournament_name=tournaments[upcoming.tournament_id].name, opponent_name=opponent.full_name if opponent else '', scheduled_at=upcoming.scheduled_at.isoformat(), status=upcoming.status)
+    7:                 titles = []
+   10:                 for match in matches:
+    3:                     if match.winner_id == player_id and match.round_code == 'F' and tournaments.get(match.tournament_id):
+    3:                         tournament = tournaments[match.tournament_id]
+    3:                         titles.append(TitleItem(tournament_name=tournament.name, season_year=tournament.season_year, surface=tournament.surface, category=tournament.category))
+    7:                 detail = PlayerDetail(**self._player_summary(player, matches).model_dump(), first_name=player.first_name, last_name=player.last_name, country_name=player.country_name, birth_date=player.birth_date, height_cm=player.height_cm, weight_kg=player.weight_kg, hand=player.hand, backhand=player.backhand, biography=player.biography, status=player.status, stats=self._player_stats(matches, player_id), recent_matches=recent_matches, upcoming_match=upcoming_match, ranking_history=self._ranking_points(rankings), titles=titles, seo=SeoMeta(title=player.full_name, description=player.biography or player.full_name, canonical_url=f'/players/{player.slug}'))
+    7:                 return SuccessResponse(data=detail)
+       
+    7:         return await self._cached(f'players:detail:{player_id}', SuccessResponse[PlayerDetail], loader)
+       
+    1:     async def get_player_stats(self, player_id: int):
+>>>>>>         return SuccessResponse(data=(await self.get_player(player_id)).data.stats)
+       
+    1:     async def get_player_matches(self, player_id: int, page: int, per_page: int):
+>>>>>>         async def loader() -> PaginatedResponse[MatchSummary]:
+>>>>>>             async with db_session_manager.session() as session:
+>>>>>>                 matches = await self.players.get_matches(session, player_id)
+>>>>>>                 player_ids = {value for match in matches for value in (match.player1_id, match.player2_id)}
+>>>>>>                 players = await self._players_map(session, player_ids)
+>>>>>>                 tournaments = {match.tournament_id: await self.tournaments.get(session, match.tournament_id) for match in matches}
+>>>>>>                 items = [self._match_summary(match, tournaments[match.tournament_id], players) for match in matches if tournaments.get(match.tournament_id)]
+>>>>>>                 total = len(items)
+>>>>>>                 start = (page - 1) * per_page
+>>>>>>                 return PaginatedResponse(data=items[start:start + per_page], meta=self._paginate_meta(page, per_page, total))
+       
+>>>>>>         return await self._cached(f'players:matches:{player_id}:{page}:{per_page}', PaginatedResponse[MatchSummary], loader)
+       
+    1:     async def get_player_ranking_history(self, player_id: int):
+>>>>>>         async def loader() -> SuccessResponse[list[RankingHistoryPoint]]:
+>>>>>>             async with db_session_manager.session() as session:
+>>>>>>                 rankings = await self.players.get_ranking_history(session, player_id)
+>>>>>>                 return SuccessResponse(data=self._ranking_points(rankings))
+       
+>>>>>>         return await self._cached(f'players:ranking-history:{player_id}', SuccessResponse[list[RankingHistoryPoint]], loader, ttl_seconds=settings.cache.rankings_ttl_seconds)
+       
+    1:     async def get_player_titles(self, player_id: int):
+>>>>>>         return SuccessResponse(data=(await self.get_player(player_id)).data.titles)
+       
+    1:     async def get_player_news(self, player_id: int):
+>>>>>>         async def loader() -> SuccessResponse[list[PlayerNewsItem]]:
+>>>>>>             async with db_session_manager.session() as session:
+>>>>>>                 player = await self.players.get(session, player_id)
+>>>>>>                 if player is None:
+>>>>>>                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Player not found')
+>>>>>>                 items, _ = await self.news.list(session, page=1, per_page=100)
+>>>>>>                 related = [item for item in items if player.full_name.lower() in ' '.join(filter(None, [item.title, item.subtitle, item.lead, item.content_html])).lower()]
+>>>>>>                 return SuccessResponse(data=[PlayerNewsItem(id=item.id, slug=item.slug, title=item.title, published_at=item.published_at.isoformat() if item.published_at else None) for item in related])
+       
+>>>>>>         return await self._cached(f'players:news:{player_id}', SuccessResponse[list[PlayerNewsItem]], loader)
+       
+    1:     async def get_player_upcoming_matches(self, player_id: int):
+>>>>>>         return SuccessResponse(data=[(await self.get_player(player_id)).data.upcoming_match] if (await self.get_player(player_id)).data.upcoming_match else [])
+       
+    1:     async def get_h2h(self, player1_id: int, player2_id: int):
+    1:         left, right = sorted((player1_id, player2_id))
+       
+    1:         async def loader() -> SuccessResponse[H2HResponse]:
+    2:             async with db_session_manager.session() as session:
+    1:                 h2h = await self.players.get_h2h(session, player1_id, player2_id)
+    1:                 if h2h is None:
+>>>>>>                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='H2H not found')
+    1:                 return SuccessResponse(data=H2HResponse.model_validate(h2h, from_attributes=True))
+       
+    1:         return await self._cached(f'players:h2h:{left}:{right}', SuccessResponse[H2HResponse], loader)
+       
+    1:     async def compare_players(self, player1_id: int, player2_id: int):
+>>>>>>         left, right = sorted((player1_id, player2_id))
+       
+>>>>>>         async def loader() -> SuccessResponse[PlayerComparison]:
+>>>>>>             player1 = (await self.get_player(player1_id)).data
+>>>>>>             player2 = (await self.get_player(player2_id)).data
+>>>>>>             h2h = (await self.get_h2h(player1_id, player2_id)).data.model_dump()
+>>>>>>             comparison = {'rank_delta': (player1.current_rank or 0) - (player2.current_rank or 0), 'points_delta': (player1.current_points or 0) - (player2.current_points or 0)}
+>>>>>>             return SuccessResponse(data=PlayerComparison(player1=player1, player2=player2, h2h=h2h, comparison=comparison))
+       
+>>>>>>         return await self._cached(f'players:compare:{left}:{right}', SuccessResponse[PlayerComparison], loader)
+       
+    1:     async def list_tournaments(self, page, per_page):
+    1:         async def loader() -> PaginatedResponse[TournamentSummary]:
+    2:             async with db_session_manager.session() as session:
+    1:                 items, total = await self.tournaments.list(session, page=page, per_page=per_page)
+    3:                 return PaginatedResponse(data=[self._tournament_summary(item) for item in items], meta=self._paginate_meta(page, per_page, total))
+       
+    1:         return await self._cached(f'tournaments:list:{page}:{per_page}', PaginatedResponse[TournamentSummary], loader)
+       
+    1:     async def get_tournament(self, tournament_id: int):
+    2:         async def loader() -> SuccessResponse[TournamentDetail]:
+    4:             async with db_session_manager.session() as session:
+    2:                 tournament = await self.tournaments.get(session, tournament_id)
+    2:                 if tournament is None:
+>>>>>>                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+    2:                 matches = await self.tournaments.get_matches(session, tournament_id)
+    2:                 player_ids = {value for match in matches for value in (match.player1_id, match.player2_id)}
+    2:                 players = await self._players_map(session, player_ids)
+    2:                 participants = [self._player_summary(item, []).model_dump() for item in players.values()]
+    2:                 current_matches = [self._match_summary(match, tournament, players).model_dump() for match in matches]
+    2:                 champions = []
+    4:                 final_match = next((item for item in matches if item.round_code == 'F' and item.winner_id and players.get(item.winner_id)), None)
+    2:                 if final_match:
+>>>>>>                     winner = players.get(final_match.winner_id)
+>>>>>>                     if winner is not None:
+>>>>>>                         champions.append(ChampionItem(player_id=winner.id, player_name=winner.full_name, season_year=tournament.season_year))
+    2:                 data = TournamentDetail(**self._tournament_summary(tournament).model_dump(), short_name=tournament.short_name, indoor=tournament.indoor, country_code=tournament.country_code, prize_money=tournament.prize_money, points_winner=tournament.points_winner, logo_url=tournament.logo_url, description=tournament.description, matches=current_matches, draw=[DrawMatchItem(match_id=match.id, round_code=match.round_code, player1_name=players.get(match.player1_id).full_name if players.get(match.player1_id) else '', player2_name=players.get(match.player2_id).full_name if players.get(match.player2_id) else '', score_summary=match.score_summary) for match in matches], players=participants, champions=champions)
+    2:                 return SuccessResponse(data=data)
+       
+    2:         return await self._cached(f'tournaments:detail:{tournament_id}', SuccessResponse[TournamentDetail], loader)
+       
+    1:     async def get_tournament_matches(self, tournament_id: int):
+>>>>>>         return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.matches)
+       
+    1:     async def get_tournament_draw(self, tournament_id: int):
+>>>>>>         return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.draw)
+       
+    1:     async def get_tournament_players(self, tournament_id: int):
+>>>>>>         return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.players)
+       
+    1:     async def get_tournament_champions(self, tournament_id: int):
+>>>>>>         return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.champions)
+       
+    1:     async def get_tournament_news(self, tournament_id: int):
+   22:         async def loader() -> SuccessResponse[list[NewsArticleSummary]]:
+   44:             async with db_session_manager.session() as session:
+   22:                 tournament = await self.tournaments.get(session, tournament_id)
+   22:                 if tournament is None:
+>>>>>>                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+   22:                 items, _ = await self.news.list(session, page=1, per_page=100)
+   44:                 categories = {item.id: item for item in await self.news.list_categories(session)}
+   69:                 related = [item for item in items if tournament.name.lower() in ' '.join(filter(None, [item.title, item.subtitle, item.lead, item.content_html])).lower()]
+   29:                 return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id)) for item in related])
+       
+   22:         return await self._cached(f'tournaments:news:{tournament_id}', SuccessResponse[list[NewsArticleSummary]], loader)
+       
+    1:     async def get_tournament_calendar(self):
+>>>>>>         async def loader() -> SuccessResponse[list[TournamentSummary]]:
+>>>>>>             payload = await self.list_tournaments(1, 100)
+>>>>>>             return SuccessResponse(data=payload.data)
+       
+>>>>>>         return await self._cached('tournaments:calendar', SuccessResponse[list[TournamentSummary]], loader)
+       
+    1:     async def list_matches(self, page: int, per_page: int, status: str | None):
+    3:         async def loader() -> PaginatedResponse[MatchSummary]:
+    6:             async with db_session_manager.session() as session:
+    3:                 items, total = await self.matches.list(session, page=page, per_page=per_page, status=status)
+    9:                 tournaments = {match.tournament_id: await self.tournaments.get(session, match.tournament_id) for match in items}
+   21:                 player_ids = {value for match in items for value in (match.player1_id, match.player2_id)}
+    3:                 players = await self._players_map(session, player_ids)
+    9:                 data = [self._match_summary(match, tournaments[match.tournament_id], players) for match in items if tournaments.get(match.tournament_id)]
+    3:                 return PaginatedResponse(data=data, meta=self._paginate_meta(page, per_page, total))
+       
+    3:         return await self._cached(f'matches:list:{status or ""}:{page}:{per_page}', PaginatedResponse[MatchSummary], loader)
+       
+    1:     async def get_match(self, match_id: int):
+   42:         async def loader() -> SuccessResponse[MatchDetail]:
+   44:             async with db_session_manager.session() as session:
+   22:                 match = await self.matches.get(session, match_id)
+   22:                 if match is None:
+>>>>>>                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
+   22:                 tournament = await self.tournaments.get(session, match.tournament_id)
+   22:                 if tournament is None:
+>>>>>>                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+   22:                 players = await self._players_map(session, {match.player1_id, match.player2_id})
+   22:                 sets = await self.matches.get_sets(session, match_id)
+   22:                 stats = await self.matches.get_stats(session, match_id)
+   22:                 events = await self.matches.get_events(session, match_id)
+   22:                 h2h = await self.matches.get_h2h(session, match.player1_id, match.player2_id)
+   22:                 related_news = await self.get_tournament_news(match.tournament_id)
+  100:                 data = MatchDetail(**self._match_summary(match, tournament, players).model_dump(), best_of_sets=match.best_of_sets, winner_id=match.winner_id, score=self._match_score(sets, match.score_summary, match.player1_id), sets=[self._set_item(item) for item in sets], stats=self._stats_item(stats), timeline=[self._event_item(item) for item in events], h2h=self._h2h_item(h2h), related_news=related_news.data[:2])
+   22:                 return SuccessResponse(data=data)
+       
+   42:         return await self._cached(f'matches:detail:{match_id}', SuccessResponse[MatchDetail], loader)
+       
+    1:     async def get_match_score(self, match_id: int):
+>>>>>>         return SuccessResponse(data=(await self.get_match(match_id)).data.score)
+       
+    1:     async def get_match_stats(self, match_id: int):
+>>>>>>         return SuccessResponse(data=(await self.get_match(match_id)).data.stats or MatchStatsSchema())
+       
+    1:     async def get_match_timeline(self, match_id: int):
+>>>>>>         return SuccessResponse(data=(await self.get_match(match_id)).data.timeline)
+       
+    1:     async def get_match_h2h(self, match_id: int):
+>>>>>>         return SuccessResponse(data=H2HResponse.model_validate((await self.get_match(match_id)).data.h2h))
+       
+    1:     async def get_match_preview(self, match_id: int):
+>>>>>>         async def loader() -> SuccessResponse[MatchPreview]:
+>>>>>>             detail = (await self.get_match(match_id)).data
+>>>>>>             async with db_session_manager.session() as session:
+>>>>>>                 player1_matches = await self.players.get_matches(session, detail.player1_id or 0) if detail.player1_id else []
+>>>>>>                 player2_matches = await self.players.get_matches(session, detail.player2_id or 0) if detail.player2_id else []
+>>>>>>             return SuccessResponse(data=MatchPreview(h2h_summary=detail.h2h, player1_form=self._player_form(player1_matches, detail.player1_id or 0), player2_form=self._player_form(player2_matches, detail.player2_id or 0), notes=[detail.status, str(detail.best_of_sets)]))
+       
+>>>>>>         return await self._cached(f'matches:preview:{match_id}', SuccessResponse[MatchPreview], loader)
+       
+    1:     async def get_match_point_by_point(self, match_id: int):
+>>>>>>         return await self.get_match_timeline(match_id)
+       
+    1:     async def get_upcoming_matches(self):
+    1:         async def loader() -> SuccessResponse[list[MatchSummary]]:
+    2:             async with db_session_manager.session() as session:
+    1:                 items = await self.matches.get_upcoming(session)
+    2:                 tournaments = {match.tournament_id: await self.tournaments.get(session, match.tournament_id) for match in items}
+    4:                 players = await self._players_map(session, {value for match in items for value in (match.player1_id, match.player2_id)})
+    2:                 return SuccessResponse(data=[self._match_summary(match, tournaments[match.tournament_id], players) for match in items if tournaments.get(match.tournament_id)])
+       
+    1:         return await self._cached('matches:upcoming', SuccessResponse[list[MatchSummary]], loader, ttl_seconds=settings.cache.live_ttl_seconds)
+       
+    1:     async def get_match_results(self):
+    1:         async def loader() -> SuccessResponse[list[MatchSummary]]:
+    2:             async with db_session_manager.session() as session:
+    1:                 items = await self.matches.get_results(session)
+    2:                 tournaments = {match.tournament_id: await self.tournaments.get(session, match.tournament_id) for match in items}
+    4:                 players = await self._players_map(session, {value for match in items for value in (match.player1_id, match.player2_id)})
+    2:                 return SuccessResponse(data=[self._match_summary(match, tournaments[match.tournament_id], players) for match in items if tournaments.get(match.tournament_id)])
+       
+    1:         return await self._cached('matches:results', SuccessResponse[list[MatchSummary]], loader)
+       
+    1:     async def list_news(self, page: int, per_page: int):
+    3:         async def loader() -> PaginatedResponse[NewsArticleSummary]:
+    6:             async with db_session_manager.session() as session:
+    3:                 items, total = await self.news.list(session, page=page, per_page=per_page)
+    6:                 categories = {category.id: category for category in await self.news.list_categories(session)}
+    9:                 data = [self._news_summary(item, categories.get(item.category_id)) for item in items]
+    3:                 return PaginatedResponse(data=data, meta=self._paginate_meta(page, per_page, total))
+       
+    3:         return await self._cached(f'news:list:{page}:{per_page}', PaginatedResponse[NewsArticleSummary], loader)
+       
+    1:     async def get_news_categories(self):
+>>>>>>         async def loader() -> SuccessResponse[list[NewsCategoryItem]]:
+>>>>>>             async with db_session_manager.session() as session:
+>>>>>>                 categories = await self.news.list_categories(session)
+>>>>>>                 return SuccessResponse(data=[NewsCategoryItem(id=item.id, slug=item.slug, name=item.name) for item in categories])
+       
+>>>>>>         return await self._cached('news:categories', SuccessResponse[list[NewsCategoryItem]], loader)
+       
+    1:     async def get_news_tags(self):
+>>>>>>         async def loader() -> SuccessResponse[list[TagItem]]:
+>>>>>>             async with db_session_manager.session() as session:
+>>>>>>                 tags = await self.news.list_tags(session)
+>>>>>>                 return SuccessResponse(data=[TagItem(id=item.id, slug=item.slug, name=item.name) for item in tags])
+       
+>>>>>>         return await self._cached('news:tags', SuccessResponse[list[TagItem]], loader)
+       
+    1:     async def get_featured_news(self):
+>>>>>>         async def loader() -> SuccessResponse[list[NewsArticleSummary]]:
+>>>>>>             async with db_session_manager.session() as session:
+>>>>>>                 items = await self.news.list_featured(session)
+>>>>>>                 categories = {category.id: category for category in await self.news.list_categories(session)}
+>>>>>>                 return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id)) for item in items])
+       
+>>>>>>         return await self._cached('news:featured', SuccessResponse[list[NewsArticleSummary]], loader)
+       
+    1:     async def get_related_news(self, slug: str | None = None):
+>>>>>>         async def loader() -> SuccessResponse[list[NewsArticleSummary]]:
+>>>>>>             async with db_session_manager.session() as session:
+>>>>>>                 items = await self.news.list_related(session, slug=slug)
+>>>>>>                 categories = {category.id: category for category in await self.news.list_categories(session)}
+>>>>>>                 return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id)) for item in items])
+       
+>>>>>>         return await self._cached(f'news:related:{slug or ""}', SuccessResponse[list[NewsArticleSummary]], loader)
+       
+    1:     async def get_news_article(self, slug: str):
+   11:         async def loader() -> SuccessResponse[NewsArticleDetail]:
+   20:             async with db_session_manager.session() as session:
+   10:                 article = await self.news.get_by_slug(session, slug)
+   10:                 if article is None:
+>>>>>>                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Article not found')
+   20:                 categories = {category.id: category for category in await self.news.list_categories(session)}
+   10:                 related = await self.news.list_related(session, slug=slug)
+   29:                 data = NewsArticleDetail(**self._news_summary(article, categories.get(article.category_id)).model_dump(), content_html=article.content_html, seo_title=article.seo_title, seo_description=article.seo_description, related_news=[self._news_summary(item, categories.get(item.category_id)) for item in related])
+   10:                 return SuccessResponse(data=data)
+       
+   11:         return await self._cached(f'news:detail:{slug}', SuccessResponse[NewsArticleDetail], loader)

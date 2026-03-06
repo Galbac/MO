@@ -1,0 +1,24 @@
+    1: from fastapi import APIRouter
+       
+    1: from source.schemas.pydantic.auth import MessageResponse
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.ranking import RankingImportJob
+    1: from source.services import AdminSupportService
+       
+    1: router = APIRouter(prefix="/rankings", tags=["admin-rankings"])
+    1: service = AdminSupportService()
+       
+       
+    2: @router.get("/import-jobs", response_model=SuccessResponse[list[RankingImportJob]])
+    2: async def get_admin_ranking_jobs() -> SuccessResponse[list[RankingImportJob]]:
+    1:     return await service.list_ranking_jobs()
+       
+       
+    2: @router.post("/import", response_model=MessageResponse)
+    2: async def import_admin_rankings(payload: dict | None = None) -> MessageResponse:
+    3:     return await service.import_rankings(payload or {})
+       
+       
+    2: @router.post("/recalculate-movements", response_model=MessageResponse)
+    2: async def recalculate_admin_ranking_movements() -> MessageResponse:
+>>>>>>     return await service.recalculate_ranking_movements()

@@ -1,0 +1,51 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_user_end_to_end_journey(async_client) -> None:
+    2:     register_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/auth/register",
+    1:         json={
+    1:             'email': 'journey@example.com',
+    1:             'username': 'journey_user',
+    1:             'password': 'JourneyPass123',
+    1:             'locale': 'en',
+    1:             'timezone': 'UTC',
+               },
+           )
+    1:     assert register_response.status_code == status.HTTP_201_CREATED
+       
+    2:     login_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/auth/login",
+    1:         json={'email_or_username': 'journey_user', 'password': 'JourneyPass123'},
+           )
+    1:     assert login_response.status_code == status.HTTP_200_OK
+    1:     token = login_response.json()['data']['access_token']
+    1:     headers = {'Authorization': f'Bearer {token}'}
+       
+    1:     home_response = await async_client.get('/')
+    1:     players_page = await async_client.get('/players')
+    1:     player_api = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/players/1")
+    1:     assert home_response.status_code == status.HTTP_200_OK
+    1:     assert players_page.status_code == status.HTTP_200_OK
+    1:     assert player_api.status_code == status.HTTP_200_OK
+       
+    2:     favorite_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/favorites",
+    1:         json={'entity_type': 'player', 'entity_id': 1},
+    1:         headers=headers,
+           )
+    1:     assert favorite_response.status_code == status.HTTP_200_OK
+       
+    2:     subscription_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions",
+    1:         json={'entity_type': 'match', 'entity_id': 2, 'notification_types': ['match_start'], 'channels': ['web']},
+    1:         headers=headers,
+           )
+    1:     assert subscription_response.status_code == status.HTTP_200_OK
+       
+    1:     notifications_page = await async_client.get('/notifications')
+    1:     notifications_api = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/notifications", headers=headers)
+    1:     assert notifications_page.status_code == status.HTTP_200_OK
+    1:     assert notifications_api.status_code == status.HTTP_200_OK

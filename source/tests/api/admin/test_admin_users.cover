@@ -1,0 +1,25 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_admin_users_returns_list(async_client, admin_auth_headers) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/users", headers=admin_auth_headers)
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["success"] is True
+    1:     assert payload["data"][0]["role"] == "admin"
+       
+       
+    1: async def test_admin_user_update_persists_changes(async_client, admin_auth_headers) -> None:
+    2:     response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/users/2",
+    1:         json={"role": "editor", "status": "blocked"},
+    1:         headers=admin_auth_headers,
+           )
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["data"]["role"] == "editor"
+    1:     assert payload["data"]["status"] == "blocked"

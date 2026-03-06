@@ -1,0 +1,102 @@
+    1: from __future__ import annotations
+       
+    1: from datetime import date
+       
+    1: from sqlalchemy import case, func, or_, select
+    1: from sqlalchemy.ext.asyncio import AsyncSession
+       
+    1: from source.db.models import Match, MatchEvent, NewsArticle, Player, RankingSnapshot, Tournament
+       
+       
+    2: class DiscoveryRepository:
+    2:     @staticmethod
+    2:     def _query_variants(query: str) -> list[str]:
+   40:         normalized = ' '.join(query.lower().replace('-', ' ').replace('_', ' ').split())
+   40:         compact = normalized.replace(' ', '')
+   40:         variants = [normalized]
+   40:         if compact and compact != normalized:
+   16:             variants.append(compact)
+   40:         if normalized.endswith('s') and len(normalized) > 4:
+    5:             variants.append(normalized[:-1])
+  101:         return [item for item in variants if item]
+       
+    1:     async def list_rankings(self, session: AsyncSession, *, ranking_type: str | None = None, ranking_date: str | None = None) -> list[RankingSnapshot]:
+    9:         stmt = select(RankingSnapshot)
+    9:         if ranking_type:
+    9:             stmt = stmt.where(RankingSnapshot.ranking_type == ranking_type)
+    9:         if ranking_date:
+    8:             stmt = stmt.where(RankingSnapshot.ranking_date == ranking_date)
+    9:         stmt = stmt.order_by(RankingSnapshot.rank_position.asc(), RankingSnapshot.player_id.asc())
+    9:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def list_ranking_dates(self, session: AsyncSession, *, ranking_type: str | None = None) -> list[str]:
+    7:         stmt = select(RankingSnapshot.ranking_date)
+    7:         if ranking_type:
+    7:             stmt = stmt.where(RankingSnapshot.ranking_type == ranking_type)
+    7:         stmt = stmt.distinct().order_by(RankingSnapshot.ranking_date.desc())
+   21:         return [item for item in (await session.scalars(stmt)).all()]
+       
+    1:     async def list_players_by_ids(self, session: AsyncSession, player_ids: list[int]) -> list[Player]:
+    7:         if not player_ids:
+>>>>>>             return []
+    7:         stmt = select(Player).where(Player.id.in_(player_ids))
+    7:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def search_players(self, session: AsyncSession, query: str, *, limit: int = 5) -> list[Player]:
+   22:         variants = self._query_variants(query)
+   22:         conditions = []
+   22:         rank_cases = []
+   50:         for item in variants:
+   28:             like_value = f'%{item}%'
+   28:             conditions.append(or_(Player.full_name.ilike(like_value), Player.first_name.ilike(like_value), Player.last_name.ilike(like_value), Player.slug.ilike(like_value)))
+   28:             rank_cases.append((func.lower(Player.full_name) == item, 0))
+   28:             rank_cases.append((Player.slug.ilike(f'{item}%'), 1))
+   28:             rank_cases.append((Player.full_name.ilike(f'{item}%'), 2))
+   22:         stmt = select(Player).where(or_(*conditions)).order_by(case(*rank_cases, else_=3), Player.current_rank.asc().nullslast(), Player.full_name.asc()).limit(limit)
+   22:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def search_tournaments(self, session: AsyncSession, query: str, *, limit: int = 5) -> list[Tournament]:
+    6:         variants = self._query_variants(query)
+    6:         conditions = []
+    6:         rank_cases = []
+   17:         for item in variants:
+   11:             like_value = f'%{item}%'
+   11:             conditions.append(or_(Tournament.name.ilike(like_value), Tournament.short_name.ilike(like_value), Tournament.slug.ilike(like_value), Tournament.city.ilike(like_value)))
+   11:             rank_cases.append((func.lower(Tournament.name) == item, 0))
+   11:             rank_cases.append((Tournament.slug.ilike(f'{item}%'), 1))
+   11:             rank_cases.append((Tournament.name.ilike(f'{item}%'), 2))
+    6:         stmt = select(Tournament).where(or_(*conditions)).order_by(case(*rank_cases, else_=3), Tournament.start_date.desc().nullslast(), Tournament.name.asc()).limit(limit)
+    6:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def search_news(self, session: AsyncSession, query: str, *, limit: int = 5) -> list[NewsArticle]:
+    6:         variants = self._query_variants(query)
+    6:         conditions = []
+    6:         rank_cases = []
+   17:         for item in variants:
+   11:             like_value = f'%{item}%'
+   11:             conditions.append(or_(NewsArticle.title.ilike(like_value), NewsArticle.subtitle.ilike(like_value), NewsArticle.lead.ilike(like_value), NewsArticle.content_html.ilike(like_value), NewsArticle.slug.ilike(like_value)))
+   11:             rank_cases.append((func.lower(NewsArticle.title) == item, 0))
+   11:             rank_cases.append((NewsArticle.slug.ilike(f'{item}%'), 1))
+   11:             rank_cases.append((NewsArticle.title.ilike(f'{item}%'), 2))
+    6:         stmt = select(NewsArticle).where(or_(*conditions)).order_by(case(*rank_cases, else_=3), NewsArticle.published_at.desc().nullslast(), NewsArticle.id.desc()).limit(limit)
+    6:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def search_matches(self, session: AsyncSession, query: str, *, limit: int = 5) -> list[Match]:
+    6:         variants = self._query_variants(query)
+    6:         conditions = []
+    6:         rank_cases = []
+   17:         for item in variants:
+   11:             like_value = f'%{item}%'
+   11:             conditions.append(or_(Match.slug.ilike(like_value), Match.score_summary.ilike(like_value), Match.round_code.ilike(like_value)))
+   11:             rank_cases.append((Match.slug.ilike(f'{item}%'), 0))
+   11:             rank_cases.append((Match.round_code.ilike(f'{item}%'), 1))
+    6:         stmt = select(Match).where(or_(*conditions)).order_by(case(*rank_cases, else_=2), Match.scheduled_at.desc()).limit(limit)
+    6:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def list_live_matches(self, session: AsyncSession, *, today: date) -> list[Match]:
+    2:         stmt = select(Match).where(or_(Match.status.in_(['live', 'about_to_start']), ((Match.status == 'scheduled') & (func.date(Match.scheduled_at) == today.isoformat())))).order_by(Match.scheduled_at.asc())
+    2:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def list_live_events(self, session: AsyncSession, *, limit: int = 50) -> list[MatchEvent]:
+    1:         stmt = select(MatchEvent).order_by(MatchEvent.created_at.desc()).limit(limit)
+    1:         return list(reversed(list((await session.scalars(stmt)).all())))

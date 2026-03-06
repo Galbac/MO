@@ -1,0 +1,175 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_media_and_audit_runtime(async_client, admin_auth_headers) -> None:
+    2:     admin_upload = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/media/upload",
+    1:         json={"filename": "note.txt", "content_type": "text/plain", "content": "binary-image"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert admin_upload.status_code == status.HTTP_201_CREATED
+    1:     media_id = admin_upload.json()["data"]["id"]
+       
+    1:     media_list = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/media", headers=admin_auth_headers)
+    1:     assert media_list.status_code == status.HTTP_200_OK
+    2:     assert any(item["id"] == media_id for item in media_list.json()["data"])
+       
+    1:     audit_list = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/audit-logs", headers=admin_auth_headers)
+    1:     assert audit_list.status_code == status.HTTP_200_OK
+    1:     assert audit_list.json()["data"]
+       
+    1:     audit_id = audit_list.json()["data"][0]["id"]
+    1:     audit_detail = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/audit-logs/{audit_id}", headers=admin_auth_headers)
+    1:     assert audit_detail.status_code == status.HTTP_200_OK
+       
+    1:     delete_response = await async_client.delete(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/media/{media_id}", headers=admin_auth_headers)
+    1:     assert delete_response.status_code == status.HTTP_200_OK
+       
+       
+    1: async def test_public_media_upload_runtime(async_client) -> None:
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
+    1:         files={"file": ("story.txt", b"hello world", "text/plain")},
+           )
+    1:     assert response.status_code == status.HTTP_201_CREATED
+    1:     media_id = response.json()["data"]["id"]
+       
+    1:     get_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/media/{media_id}")
+    1:     assert get_response.status_code == status.HTTP_200_OK
+    1:     assert get_response.json()["data"]["filename"] == "story.txt"
+       
+       
+    1: async def test_integrations_runtime(async_client, admin_auth_headers) -> None:
+    2:     patch_response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+    1:         json={"api_key": "secret", "endpoint": "https://example.invalid"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert patch_response.status_code == status.HTTP_200_OK
+       
+    2:     sync_response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+    1:         headers=admin_auth_headers,
+    1:         json={
+    2:             'provider_payload': {
+    2:                 'events': [
+    1:                     {
+    1:                         'type': 'score_updated',
+    1:                         'timestamp': '2026-03-06T10:00:00Z',
+    1:                         'match': {'slug': 'novak-djokovic-vs-jannik-sinner', 'status': 'live', 'tournament_name': 'Australian Open'},
+    1:                         'players': [{'name': 'Novak Djokovic'}, {'name': 'Jannik Sinner'}],
+                           }
+                       ]
+                   }
+               },
+           )
+    1:     assert sync_response.status_code == status.HTTP_200_OK
+       
+    1:     list_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations", headers=admin_auth_headers)
+    1:     assert list_response.status_code == status.HTTP_200_OK
+    2:     assert any(item["provider"] == "live-provider" for item in list_response.json()["data"])
+       
+    1:     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
+    1:     assert logs_response.status_code == status.HTTP_200_OK
+    1:     assert "Validated 1 live events from provider payload" in logs_response.json()["data"]["message"]
+       
+       
+    1: async def test_integrations_runtime_endpoint_fetch_failure(async_client, admin_auth_headers, monkeypatch) -> None:
+    1:     from source.integrations import IntegrationSyncError
+    1:     from source.services.operations_service import OperationsService
+       
+    2:     class FailingClient:
+    1:         async def fetch_events(self, endpoint: str, headers: dict | None = None):
+    1:             raise IntegrationSyncError('upstream unavailable')
+       
+    2:     monkeypatch.setattr(OperationsService, '_integration_client', lambda self, provider, settings_payload=None: FailingClient())
+       
+    2:     await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+    1:         json={"endpoint": "https://provider.test/live"},
+    1:         headers=admin_auth_headers,
+           )
+       
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert response.status_code == status.HTTP_502_BAD_GATEWAY
+       
+    1:     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
+    1:     assert 'upstream unavailable' in logs_response.json()['data']['message']
+       
+       
+    1: async def test_integrations_runtime_endpoint_fetch_success(async_client, admin_auth_headers, monkeypatch) -> None:
+    1:     from source.integrations.provider_contracts import ProviderLiveEvent
+    1:     from source.services.operations_service import OperationsService
+    1:     from datetime import datetime, UTC
+       
+    2:     class SuccessfulClient:
+    1:         async def fetch_events(self, endpoint: str, headers: dict | None = None):
+    1:             return [
+    2:                 ProviderLiveEvent(
+    1:                     provider='live-provider',
+    1:                     event_type='score_updated',
+    1:                     match_slug='novak-djokovic-vs-jannik-sinner',
+    1:                     tournament_name='Australian Open',
+    1:                     player1_name='Novak Djokovic',
+    1:                     player2_name='Jannik Sinner',
+    1:                     status='live',
+    1:                     score_summary='6-4 4-3',
+    1:                     occurred_at=datetime.now(tz=UTC),
+    1:                     payload={'source': 'endpoint'},
+                       )
+                   ]
+       
+    2:     monkeypatch.setattr(OperationsService, '_integration_client', lambda self, provider, settings_payload=None: SuccessfulClient())
+       
+    2:     await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+    1:         json={"endpoint": "https://provider.test/live"},
+    1:         headers=admin_auth_headers,
+           )
+       
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert response.status_code == status.HTTP_200_OK
+       
+    1:     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
+    1:     assert 'Fetched 1 live events from provider endpoint' in logs_response.json()['data']['message']
+       
+    1: async def test_integration_update_rejects_localhost_endpoint(async_client, admin_auth_headers) -> None:
+    2:     response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+    1:         json={"endpoint": "http://127.0.0.1:8000/internal"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+       
+       
+    1: async def test_integration_update_rejects_embedded_credentials(async_client, admin_auth_headers) -> None:
+    2:     response = await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+    1:         json={"endpoint": "https://user:pass@provider.test/live"},
+    1:         headers=admin_auth_headers,
+           )
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+       
+       
+    1: async def test_integration_sync_rejects_payload_endpoint_override_to_private_host(async_client, admin_auth_headers) -> None:
+    2:     await async_client.patch(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+    1:         json={"endpoint": "https://provider.test/live"},
+    1:         headers=admin_auth_headers,
+           )
+       
+    2:     response = await async_client.post(
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+    1:         headers=admin_auth_headers,
+    1:         json={"endpoint": "http://10.0.0.1/live"},
+           )
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+       

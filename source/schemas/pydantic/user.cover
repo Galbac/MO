@@ -1,0 +1,78 @@
+    1: from datetime import datetime
+       
+    1: from pydantic import BaseModel, EmailStr, Field
+       
+       
+    2: class UserProfile(BaseModel):
+    1:     id: int
+    1:     email: EmailStr
+    1:     username: str
+    1:     role: str
+    1:     status: str = "active"
+    1:     first_name: str | None = None
+    1:     last_name: str | None = None
+    1:     avatar_url: str | None = None
+    1:     locale: str
+    1:     timezone: str
+    1:     quiet_hours_start: str | None = None
+    1:     quiet_hours_end: str | None = None
+    1:     is_email_verified: bool = True
+    1:     created_at: datetime | None = None
+    1:     updated_at: datetime | None = None
+       
+       
+    2: class UserUpdateRequest(BaseModel):
+    1:     first_name: str | None = None
+    1:     last_name: str | None = None
+    1:     avatar_url: str | None = None
+    1:     locale: str | None = None
+    1:     timezone: str | None = None
+    1:     quiet_hours_start: str | None = None
+    1:     quiet_hours_end: str | None = None
+       
+       
+    2: class UserPasswordChangeRequest(BaseModel):
+    1:     current_password: str
+    1:     new_password: str = Field(min_length=8)
+       
+       
+    2: class UserTokenBundle(BaseModel):
+    1:     access_token: str
+    1:     refresh_token: str
+    1:     user: UserProfile
+       
+       
+    2: class FavoriteItem(BaseModel):
+    1:     id: int
+    1:     user_id: int
+    1:     entity_type: str
+    1:     entity_id: int
+    1:     entity_name: str
+       
+       
+    2: class FavoriteCreateRequest(BaseModel):
+    1:     entity_type: str
+    1:     entity_id: int
+       
+       
+    2: class NotificationSubscriptionItem(BaseModel):
+    1:     id: int
+    1:     user_id: int
+    1:     entity_type: str
+    1:     entity_id: int
+    1:     notification_types: list[str]
+    1:     channels: list[str]
+    1:     is_active: bool = True
+       
+       
+    2: class NotificationSubscriptionCreateRequest(BaseModel):
+    1:     entity_type: str
+    1:     entity_id: int
+    1:     notification_types: list[str]
+    1:     channels: list[str]
+       
+       
+    2: class NotificationSubscriptionUpdateRequest(BaseModel):
+    1:     notification_types: list[str] | None = None
+    1:     channels: list[str] | None = None
+    1:     is_active: bool | None = None

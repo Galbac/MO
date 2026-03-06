@@ -1,0 +1,9 @@
+    1: from pydantic import BaseModel
+       
+       
+    2: class MediaFile(BaseModel):
+    1:     id: int
+    1:     filename: str
+    1:     content_type: str
+    1:     url: str
+    1:     size: int | None = None

@@ -1,0 +1,22 @@
+    1: from sqlalchemy import ForeignKey, Integer
+    1: from sqlalchemy.orm import Mapped, mapped_column
+       
+    1: from source.db.models.base import Base
+    1: from source.db.models.mixins import IdIntPkMixin
+       
+       
+    2: class HeadToHead(Base, IdIntPkMixin):
+    1:     __tablename__ = "head_to_heads"
+       
+    1:     player1_id: Mapped[int] = mapped_column(ForeignKey("players.id"), index=True)
+    1:     player2_id: Mapped[int] = mapped_column(ForeignKey("players.id"), index=True)
+    1:     total_matches: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     player1_wins: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     player2_wins: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     hard_player1_wins: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     hard_player2_wins: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     clay_player1_wins: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     clay_player2_wins: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     grass_player1_wins: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     grass_player2_wins: Mapped[int] = mapped_column(Integer(), default=0)
+    1:     last_match_id: Mapped[int | None] = mapped_column(ForeignKey("matches.id"), nullable=True, index=True)

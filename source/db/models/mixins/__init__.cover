@@ -1,0 +1,4 @@
+    1: from source.db.models.mixins.create_update import TimestampMixin
+    1: from source.db.models.mixins.id_int_pk import IdIntPkMixin
+       
+    1: __all__ = ["IdIntPkMixin", "TimestampMixin"]

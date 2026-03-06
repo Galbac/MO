@@ -1,0 +1,46 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_search_returns_db_backed_entities(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/search", params={"q": "Djokovic"})
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["data"]["players"]
+    1:     assert payload["data"]["players"][0]["slug"] == "novak-djokovic"
+       
+       
+    1: async def test_search_suggestions_are_generated_from_results(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/search/suggestions", params={"q": "Australian"})
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["data"]
+       
+       
+    1: async def test_search_matches_normalized_slug_variants(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/search", params={'q': 'djokovic sinner'})
+    1:     assert response.status_code == 200
+    1:     payload = response.json()['data']
+    2:     assert any(item['slug'] == 'djokovic-vs-sinner-ao-2026-final' for item in payload['matches'])
+       
+       
+    1: async def test_search_respects_types_filter(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/search", params={"q": "Djokovic", "types": ["players"]})
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()["data"]
+    1:     assert payload["players"]
+    1:     assert payload["news"] == []
+    1:     assert payload["matches"] == []
+       
+       
+    1: async def test_search_rejects_invalid_type(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/search", params={"q": "Djokovic", "types": ["unknown"]})
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+       
+       
+    1: async def test_search_rejects_blank_query(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/search", params={"q": "   "})
+    1:     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

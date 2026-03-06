@@ -1,0 +1,35 @@
+    1: from contextlib import asynccontextmanager
+    1: from typing import AsyncIterator
+       
+    1: from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+       
+    1: from source.config.settings import settings
+    1: from source.db.models import Base
+       
+       
+    2: class DatabaseSessionManager:
+    1:     def __init__(self, url: str) -> None:
+    1:         self.engine = create_async_engine(url, future=True)
+    1:         self.session_factory = async_sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
+       
+    2:     @asynccontextmanager
+    2:     async def session(self) -> AsyncIterator[AsyncSession]:
+ 1276:         async with self.session_factory() as session:
+  638:             yield session
+       
+    1:     async def init_models(self) -> None:
+    3:         if not settings.db.auto_create:
+>>>>>>             return
+    6:         async with self.engine.begin() as connection:
+    3:             await connection.run_sync(Base.metadata.create_all)
+       
+    1:     async def reset_models(self) -> None:
+  200:         async with self.engine.begin() as connection:
+  200:             await connection.run_sync(lambda conn: Base.metadata.drop_all(conn, checkfirst=True))
+  200:             await connection.run_sync(lambda conn: Base.metadata.create_all(conn, checkfirst=True))
+       
+    1:     async def dispose(self) -> None:
+  103:         await self.engine.dispose()
+       
+       
+    1: db_session_manager = DatabaseSessionManager(settings.db.url)

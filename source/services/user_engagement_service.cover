@@ -1,0 +1,189 @@
+    1: from __future__ import annotations
+       
+    1: from datetime import UTC, datetime
+       
+    1: from fastapi import HTTPException, Request, status
+    1: from sqlalchemy.ext.asyncio import AsyncSession
+       
+    1: from source.config.settings import settings
+    1: from source.db.session import db_session_manager
+    1: from source.repositories import EngagementRepository, MatchRepository, NewsRepository, PlayerRepository, TournamentRepository
+    1: from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.notification import NotificationItem, NotificationUnreadCount
+    1: from source.schemas.pydantic.user import FavoriteCreateRequest, FavoriteItem, NotificationSubscriptionCreateRequest, NotificationSubscriptionItem, NotificationSubscriptionUpdateRequest
+    1: from source.services.auth_user_service import AuthUserService
+       
+       
+    2: class UserEngagementService:
+    1:     def __init__(self) -> None:
+    2:         self.repo = EngagementRepository()
+    2:         self.auth = AuthUserService()
+    2:         self.players = PlayerRepository()
+    2:         self.tournaments = TournamentRepository()
+    2:         self.matches = MatchRepository()
+    2:         self.news = NewsRepository()
+       
+    1:     async def _current_user_id(self, request: Request) -> int:
+   39:         user = await self.auth._resolve_current_user(request)
+   39:         return user.id
+       
+    1:     async def _resolve_entity_name(self, session: AsyncSession, entity_type: str, entity_id: int) -> str | None:
+   12:         if entity_type == 'player':
+    2:             entity = await self.players.get(session, entity_id)
+    2:             return entity.full_name if entity else None
+   10:         if entity_type == 'tournament':
+    1:             entity = await self.tournaments.get(session, entity_id)
+    1:             return entity.name if entity else None
+    9:         if entity_type == 'match':
+    8:             entity = await self.matches.get(session, entity_id)
+    8:             if entity is None:
+>>>>>>                 return None
+    8:             player1 = await self.players.get(session, entity.player1_id)
+    8:             player2 = await self.players.get(session, entity.player2_id)
+    8:             if player1 and player2:
+    8:                 return f'{player1.full_name} vs {player2.full_name}'
+>>>>>>             return entity.slug
+    1:         if entity_type == 'news':
+    1:             entity = await self.news.get(session, entity_id)
+    1:             return entity.title if entity else None
+>>>>>>         return None
+       
+    1:     async def _require_entity_name(self, session: AsyncSession, entity_type: str, entity_id: int) -> str:
+   10:         entity_name = await self._resolve_entity_name(session, entity_type, entity_id)
+   10:         if entity_name is None:
+>>>>>>             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Entity not found')
+   10:         return entity_name
+       
+    2:     @staticmethod
+    2:     def _normalize_unique(values: list[str]) -> list[str]:
+   16:         seen: set[str] = set()
+   16:         normalized: list[str] = []
+   32:         for value in values:
+   16:             item = str(value).strip()
+   16:             if not item or item in seen:
+>>>>>>                 continue
+   16:             seen.add(item)
+   16:             normalized.append(item)
+   16:         return normalized
+       
+    1:     def _validate_subscription_payload(self, notification_types: list[str], channels: list[str]) -> tuple[list[str], list[str]]:
+    8:         normalized_types = self._normalize_unique(notification_types)
+    8:         normalized_channels = self._normalize_unique(channels)
+    8:         if not normalized_types:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='notification_types is required')
+    8:         if not normalized_channels:
+>>>>>>             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='channels is required')
+   23:         if any(item not in settings.notifications.allowed_types for item in normalized_types):
+    1:             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsupported notification type')
+   20:         if any(item not in settings.notifications.allowed_channels for item in normalized_channels):
+    1:             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsupported notification channel')
+    6:         return normalized_types, normalized_channels
+       
+    2:     @staticmethod
+    2:     def _notification_item(item) -> NotificationItem:
+   30:         return NotificationItem(id=item.id, type=item.type, title=item.title, body=item.body, payload_json=item.payload_json or {}, status=item.status, read_at=item.read_at, created_at=item.created_at)
+       
+    1:     async def list_favorites(self, request: Request) -> SuccessResponse[list[FavoriteItem]]:
+    1:         user_id = await self._current_user_id(request)
+    2:         async with db_session_manager.session() as session:
+    1:             items = await self.repo.list_favorites(session, user_id)
+    1:             data = []
+    3:             for item in items:
+    2:                 entity_name = await self._resolve_entity_name(session, item.entity_type, item.entity_id)
+    2:                 data.append(FavoriteItem(id=item.id, user_id=item.user_id, entity_type=item.entity_type, entity_id=item.entity_id, entity_name=entity_name or f'{item.entity_type}:{item.entity_id}'))
+    1:             return SuccessResponse(data=data)
+       
+    1:     async def create_favorite(self, request: Request, payload: FavoriteCreateRequest) -> SuccessResponse[FavoriteItem]:
+    2:         user_id = await self._current_user_id(request)
+    4:         async with db_session_manager.session() as session:
+    2:             entity_name = await self._require_entity_name(session, payload.entity_type, payload.entity_id)
+    2:             exists = await self.repo.find_favorite(session, user_id, payload.entity_type, payload.entity_id)
+    2:             if exists is not None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Favorite already exists')
+    2:             item = await self.repo.create_favorite(session, {'user_id': user_id, 'entity_type': payload.entity_type, 'entity_id': payload.entity_id})
+    2:             return SuccessResponse(data=FavoriteItem(id=item.id, user_id=item.user_id, entity_type=item.entity_type, entity_id=item.entity_id, entity_name=entity_name))
+       
+    1:     async def delete_favorite(self, request: Request, favorite_id: int) -> MessageResponse:
+    1:         user_id = await self._current_user_id(request)
+    2:         async with db_session_manager.session() as session:
+    1:             favorite = await self.repo.get_favorite(session, favorite_id, user_id)
+    1:             if favorite is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Favorite not found')
+    1:             await self.repo.delete_favorite(session, favorite)
+    1:             return MessageResponse(data=SimpleMessage(message='Favorite deleted'))
+       
+    1:     async def list_subscriptions(self, request: Request) -> SuccessResponse[list[NotificationSubscriptionItem]]:
+    1:         user_id = await self._current_user_id(request)
+    2:         async with db_session_manager.session() as session:
+    1:             items = await self.repo.list_subscriptions(session, user_id)
+    2:             return SuccessResponse(data=[NotificationSubscriptionItem(id=item.id, user_id=item.user_id, entity_type=item.entity_type, entity_id=item.entity_id, notification_types=list(item.notification_types or []), channels=list(item.channels or []), is_active=item.is_active) for item in items])
+       
+    1:     async def create_subscription(self, request: Request, payload: NotificationSubscriptionCreateRequest) -> SuccessResponse[NotificationSubscriptionItem]:
+    8:         user_id = await self._current_user_id(request)
+   16:         async with db_session_manager.session() as session:
+    8:             await self._require_entity_name(session, payload.entity_type, payload.entity_id)
+    8:             notification_types, channels = self._validate_subscription_payload(payload.notification_types, payload.channels)
+    6:             exists = await self.repo.find_subscription(session, user_id, payload.entity_type, payload.entity_id)
+    6:             if exists is not None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Subscription already exists')
+    6:             item = await self.repo.create_subscription(session, {'user_id': user_id, 'entity_type': payload.entity_type, 'entity_id': payload.entity_id, 'notification_types': notification_types, 'channels': channels, 'is_active': True})
+    6:             return SuccessResponse(data=NotificationSubscriptionItem(id=item.id, user_id=item.user_id, entity_type=item.entity_type, entity_id=item.entity_id, notification_types=list(item.notification_types or []), channels=list(item.channels or []), is_active=item.is_active))
+       
+    1:     async def update_subscription(self, request: Request, subscription_id: int, payload: NotificationSubscriptionUpdateRequest) -> SuccessResponse[NotificationSubscriptionItem]:
+    1:         user_id = await self._current_user_id(request)
+    2:         async with db_session_manager.session() as session:
+    1:             item = await self.repo.get_subscription(session, subscription_id, user_id)
+    1:             if item is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Subscription not found')
+    1:             update_payload = payload.model_dump(exclude_none=True)
+    1:             if 'notification_types' in update_payload or 'channels' in update_payload:
+>>>>>>                 notification_types = update_payload.get('notification_types', list(item.notification_types or []))
+>>>>>>                 channels = update_payload.get('channels', list(item.channels or []))
+>>>>>>                 normalized_types, normalized_channels = self._validate_subscription_payload(notification_types, channels)
+>>>>>>                 update_payload['notification_types'] = normalized_types
+>>>>>>                 update_payload['channels'] = normalized_channels
+    1:             updated = await self.repo.update_subscription(session, item, update_payload)
+    1:             return SuccessResponse(data=NotificationSubscriptionItem(id=updated.id, user_id=updated.user_id, entity_type=updated.entity_type, entity_id=updated.entity_id, notification_types=list(updated.notification_types or []), channels=list(updated.channels or []), is_active=updated.is_active))
+       
+    1:     async def delete_subscription(self, request: Request, subscription_id: int) -> MessageResponse:
+    1:         user_id = await self._current_user_id(request)
+    2:         async with db_session_manager.session() as session:
+    1:             item = await self.repo.get_subscription(session, subscription_id, user_id)
+    1:             if item is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Subscription not found')
+    1:             await self.repo.delete_subscription(session, item)
+    1:             return MessageResponse(data=SimpleMessage(message='Subscription deleted'))
+       
+    1:     async def list_notifications(self, request: Request) -> SuccessResponse[list[NotificationItem]]:
+   14:         user_id = await self._current_user_id(request)
+   28:         async with db_session_manager.session() as session:
+   14:             items = await self.repo.list_notifications(session, user_id)
+   43:             return SuccessResponse(data=[self._notification_item(item) for item in items])
+       
+    1:     async def get_unread_count(self, request: Request) -> SuccessResponse[NotificationUnreadCount]:
+    7:         user_id = await self._current_user_id(request)
+   14:         async with db_session_manager.session() as session:
+    7:             total = await self.repo.count_unread_notifications(session, user_id)
+    7:             return SuccessResponse(data=NotificationUnreadCount(unread_count=total))
+       
+    1:     async def mark_notification_read(self, request: Request, notification_id: int) -> SuccessResponse[NotificationItem]:
+    1:         user_id = await self._current_user_id(request)
+    2:         async with db_session_manager.session() as session:
+    1:             item = await self.repo.get_notification(session, notification_id, user_id)
+    1:             if item is None:
+>>>>>>                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Notification not found')
+    1:             updated = await self.repo.mark_notification_read(session, item, datetime.now(tz=UTC))
+    1:             return SuccessResponse(data=self._notification_item(updated))
+       
+    1:     async def mark_all_notifications_read(self, request: Request) -> MessageResponse:
+    1:         user_id = await self._current_user_id(request)
+    2:         async with db_session_manager.session() as session:
+    1:             await self.repo.mark_all_notifications_read(session, user_id, datetime.now(tz=UTC))
+    1:             return MessageResponse(data=SimpleMessage(message='All notifications marked as read'))
+       
+    1:     async def send_test_notification(self, request: Request) -> MessageResponse:
+    1:         user_id = await self._current_user_id(request)
+    2:         async with db_session_manager.session() as session:
+    1:             await self.repo.create_notification(session, {'user_id': user_id, 'type': 'test', 'title': 'Test notification', 'body': 'This is a test notification.', 'payload_json': {'source': 'api'}, 'status': 'unread', 'read_at': None})
+    1:             return MessageResponse(data=SimpleMessage(message='Test notification sent'))

@@ -1,0 +1,59 @@
+    1: from fastapi import APIRouter
+       
+    1: from source.services import PortalQueryService
+    1: from source.schemas.pydantic.common import PaginatedResponse, SuccessResponse
+    1: from source.schemas.pydantic.match import MatchDetail, MatchEventItem, MatchPreview, MatchScore, MatchStats, MatchSummary
+    1: from source.schemas.pydantic.player import H2HResponse
+       
+    1: router = APIRouter(prefix="/matches", tags=["matches"])
+    1: service = PortalQueryService()
+       
+       
+    2: @router.get("", response_model=PaginatedResponse[MatchSummary])
+    2: async def get_matches(page: int = 1, per_page: int = 20, status: str | None = None) -> PaginatedResponse[MatchSummary]:
+>>>>>>     return await service.list_matches(page, per_page, status)
+       
+       
+    2: @router.get("/{match_id}", response_model=SuccessResponse[MatchDetail])
+    2: async def get_match(match_id: int) -> SuccessResponse[MatchDetail]:
+   10:     return await service.get_match(match_id)
+       
+       
+    2: @router.get("/{match_id}/score", response_model=SuccessResponse[MatchScore])
+    2: async def get_match_score(match_id: int) -> SuccessResponse[MatchScore]:
+>>>>>>     return await service.get_match_score(match_id)
+       
+       
+    2: @router.get("/{match_id}/stats", response_model=SuccessResponse[MatchStats])
+    2: async def get_match_stats(match_id: int) -> SuccessResponse[MatchStats]:
+>>>>>>     return await service.get_match_stats(match_id)
+       
+       
+    2: @router.get("/{match_id}/timeline", response_model=SuccessResponse[list[MatchEventItem]])
+    2: async def get_match_timeline(match_id: int) -> SuccessResponse[list[MatchEventItem]]:
+>>>>>>     return await service.get_match_timeline(match_id)
+       
+       
+    2: @router.get("/{match_id}/h2h", response_model=SuccessResponse[H2HResponse])
+    2: async def get_match_h2h(match_id: int) -> SuccessResponse[H2HResponse]:
+>>>>>>     return await service.get_match_h2h(match_id)
+       
+       
+    2: @router.get("/{match_id}/preview", response_model=SuccessResponse[MatchPreview])
+    2: async def get_match_preview(match_id: int) -> SuccessResponse[MatchPreview]:
+>>>>>>     return await service.get_match_preview(match_id)
+       
+       
+    2: @router.get("/{match_id}/point-by-point", response_model=SuccessResponse[list[MatchEventItem]])
+    2: async def get_match_point_by_point(match_id: int) -> SuccessResponse[list[MatchEventItem]]:
+>>>>>>     return await service.get_match_point_by_point(match_id)
+       
+       
+    2: @router.get("/upcoming", response_model=SuccessResponse[list[MatchSummary]])
+    2: async def get_upcoming_matches() -> SuccessResponse[list[MatchSummary]]:
+>>>>>>     return await service.get_upcoming_matches()
+       
+       
+    2: @router.get("/results", response_model=SuccessResponse[list[MatchSummary]])
+    2: async def get_match_results() -> SuccessResponse[list[MatchSummary]]:
+>>>>>>     return await service.get_match_results()

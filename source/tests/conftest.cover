@@ -1,0 +1,64 @@
+    1: import shutil
+    1: from pathlib import Path
+       
+    1: import pytest
+    1: import pytest_asyncio
+    1: from httpx import ASGITransport, AsyncClient
+       
+    1: from source.config.settings import settings
+    1: from source.db.bootstrap import seed_demo_data
+    1: from source.db.session import db_session_manager
+    1: from source.main import create_app
+       
+       
+    2: @pytest.fixture(scope="session")
+    2: def anyio_backend() -> str:
+>>>>>>     return "asyncio"
+       
+       
+    2: @pytest_asyncio.fixture
+    2: async def async_client() -> AsyncClient:
+  100:     runtime_dir = Path('var')
+  100:     if runtime_dir.exists():
+   89:         shutil.rmtree(runtime_dir)
+       
+  100:     await db_session_manager.reset_models()
+  200:     async with db_session_manager.session() as session:
+  100:         await seed_demo_data(session)
+       
+  100:     app = create_app()
+  100:     transport = ASGITransport(app=app)
+  200:     async with AsyncClient(transport=transport, base_url="http://test") as client:
+  100:         yield client
+       
+  100:     await db_session_manager.dispose()
+       
+       
+    1: async def _login_headers(client: AsyncClient, *, email_or_username: str, password: str) -> dict[str, str]:
+  124:     response = await client.post(
+   62:         f"{settings.api.prefix}{settings.api.v1.prefix}/auth/login",
+   62:         json={"email_or_username": email_or_username, "password": password},
+           )
+   62:     assert response.status_code == 200
+   62:     token = response.json()["data"]["access_token"]
+   62:     return {"Authorization": f"Bearer {token}"}
+       
+       
+    2: @pytest_asyncio.fixture
+    2: async def user_auth_headers(async_client: AsyncClient) -> dict[str, str]:
+   18:     return await _login_headers(async_client, email_or_username="demo_user", password="UserPass123")
+       
+       
+    2: @pytest_asyncio.fixture
+    2: async def admin_auth_headers(async_client: AsyncClient) -> dict[str, str]:
+   37:     return await _login_headers(async_client, email_or_username="admin", password="AdminPass123")
+       
+       
+    2: @pytest_asyncio.fixture
+    2: async def editor_auth_headers(async_client: AsyncClient) -> dict[str, str]:
+    3:     return await _login_headers(async_client, email_or_username="editor", password="EditorPass123")
+       
+       
+    2: @pytest_asyncio.fixture
+    2: async def operator_auth_headers(async_client: AsyncClient) -> dict[str, str]:
+    4:     return await _login_headers(async_client, email_or_username="operator", password="OperatorPass123")

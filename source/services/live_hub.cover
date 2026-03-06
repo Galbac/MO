@@ -1,0 +1,57 @@
+    1: from __future__ import annotations
+       
+    1: from collections.abc import Iterable
+    1: from typing import Any
+       
+    1: from fastapi import WebSocket
+       
+       
+    2: class LiveHub:
+    1:     def __init__(self) -> None:
+    1:         self._connections: dict[int, tuple[WebSocket, set[str]]] = {}
+       
+    1:     async def connect(self, websocket: WebSocket) -> int:
+    1:         await websocket.accept()
+    1:         connection_id = id(websocket)
+    1:         self._connections[connection_id] = (websocket, set())
+    1:         return connection_id
+       
+    1:     def disconnect(self, connection_id: int) -> None:
+    1:         self._connections.pop(connection_id, None)
+       
+    1:     def subscribe(self, connection_id: int, channels: Iterable[str]) -> list[str]:
+    1:         websocket, current = self._connections[connection_id]
+    1:         del websocket
+    2:         for channel in channels:
+    1:             value = str(channel).strip()
+    1:             if value:
+    1:                 current.add(value)
+    1:         return sorted(current)
+       
+    1:     def unsubscribe(self, connection_id: int, channels: Iterable[str]) -> list[str]:
+>>>>>>         websocket, current = self._connections[connection_id]
+>>>>>>         del websocket
+>>>>>>         for channel in channels:
+>>>>>>             current.discard(str(channel).strip())
+>>>>>>         return sorted(current)
+       
+    1:     def channels(self, connection_id: int) -> list[str]:
+>>>>>>         websocket, current = self._connections[connection_id]
+>>>>>>         del websocket
+>>>>>>         return sorted(current)
+       
+    1:     async def broadcast(self, *, channels: Iterable[str], payload: dict[str, Any]) -> None:
+   86:         target_channels = {str(channel).strip() for channel in channels if str(channel).strip()}
+   15:         stale: list[int] = []
+   16:         for connection_id, (websocket, subscribed) in self._connections.items():
+    1:             if not subscribed.intersection(target_channels):
+>>>>>>                 continue
+    1:             try:
+    1:                 await websocket.send_json(payload)
+>>>>>>             except Exception:  # noqa: BLE001
+>>>>>>                 stale.append(connection_id)
+   15:         for connection_id in stale:
+>>>>>>             self.disconnect(connection_id)
+       
+       
+    1: live_hub = LiveHub()

@@ -1,0 +1,39 @@
+    1: from fastapi import APIRouter, Request
+       
+    1: from source.schemas.pydantic.admin import AdminUserItem
+    1: from source.schemas.pydantic.auth import MessageResponse
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.services import AuthUserService
+       
+    1: router = APIRouter(prefix="/users", tags=["admin-users"])
+    1: service = AuthUserService()
+       
+       
+    2: @router.get("", response_model=SuccessResponse[list[AdminUserItem]])
+    2: async def list_admin_users() -> SuccessResponse[list[AdminUserItem]]:
+    2:     return await service.list_admin_users()
+       
+       
+    2: @router.get("/{user_id}", response_model=SuccessResponse[AdminUserItem])
+    2: async def get_admin_user(user_id: int) -> SuccessResponse[AdminUserItem]:
+>>>>>>     return await service.get_admin_user(user_id)
+       
+       
+    2: @router.patch("/{user_id}", response_model=SuccessResponse[AdminUserItem])
+    2: async def patch_admin_user(request: Request, user_id: int, payload: dict) -> SuccessResponse[AdminUserItem]:
+    2:     return await service.update_admin_user(user_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.patch("/{user_id}/status", response_model=SuccessResponse[AdminUserItem])
+    2: async def patch_admin_user_status(request: Request, user_id: int, payload: dict) -> SuccessResponse[AdminUserItem]:
+>>>>>>     return await service.update_admin_user(user_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.patch("/{user_id}/role", response_model=SuccessResponse[AdminUserItem])
+    2: async def patch_admin_user_role(request: Request, user_id: int, payload: dict) -> SuccessResponse[AdminUserItem]:
+>>>>>>     return await service.update_admin_user(user_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.delete("/{user_id}", response_model=MessageResponse)
+    2: async def delete_admin_user(user_id: int) -> MessageResponse:
+>>>>>>     return MessageResponse(data={"message": f"User {user_id} soft deleted"})

@@ -1,0 +1,49 @@
+    1: from fastapi import APIRouter, Request
+       
+    1: from source.schemas.pydantic.auth import MessageResponse
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.player import PlayerDetail, PlayerSummary
+    1: from source.services import AdminContentService
+       
+    1: router = APIRouter(prefix="/players", tags=["admin-players"])
+    1: service = AdminContentService()
+       
+       
+    2: @router.get("", response_model=SuccessResponse[list[PlayerSummary]])
+    2: async def list_admin_players() -> SuccessResponse[list[PlayerSummary]]:
+>>>>>>     return await service.list_admin_players()
+       
+       
+    2: @router.post("", response_model=SuccessResponse[PlayerDetail])
+    2: async def create_admin_player(request: Request, payload: dict) -> SuccessResponse[PlayerDetail]:
+    3:     return await service.create_admin_player(payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.get("/{player_id}", response_model=SuccessResponse[PlayerDetail])
+    2: async def get_admin_player(player_id: int) -> SuccessResponse[PlayerDetail]:
+>>>>>>     return await service.get_admin_player(player_id)
+       
+       
+    2: @router.patch("/{player_id}", response_model=SuccessResponse[PlayerDetail])
+    2: async def patch_admin_player(request: Request, player_id: int, payload: dict) -> SuccessResponse[PlayerDetail]:
+    1:     return await service.update_admin_player(player_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.delete("/{player_id}", response_model=MessageResponse)
+    2: async def delete_admin_player(request: Request, player_id: int) -> MessageResponse:
+    1:     return await service.delete_admin_player(player_id, actor_id=getattr(request.state.current_user, 'id', None))
+       
+       
+    2: @router.post("/import", response_model=MessageResponse)
+    2: async def import_admin_players() -> MessageResponse:
+>>>>>>     return MessageResponse(data={"message": "Player import started"})
+       
+       
+    2: @router.post("/{player_id}/photo", response_model=MessageResponse)
+    2: async def upload_admin_player_photo(player_id: int) -> MessageResponse:
+>>>>>>     return MessageResponse(data={"message": f"Photo uploaded for player {player_id}"})
+       
+       
+    2: @router.post("/{player_id}/recalculate-stats", response_model=MessageResponse)
+    2: async def recalculate_admin_player_stats(player_id: int) -> MessageResponse:
+>>>>>>     return MessageResponse(data={"message": f"Stats recalculation queued for player {player_id}"})

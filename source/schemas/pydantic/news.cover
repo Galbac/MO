@@ -1,0 +1,54 @@
+    1: from pydantic import BaseModel, Field
+       
+       
+    2: class NewsCategoryItem(BaseModel):
+    1:     id: int
+    1:     slug: str
+    1:     name: str
+       
+       
+    2: class TagItem(BaseModel):
+    1:     id: int
+    1:     slug: str
+    1:     name: str
+       
+       
+    2: class NewsArticleSummary(BaseModel):
+    1:     id: int
+    1:     slug: str
+    1:     title: str
+    1:     subtitle: str | None = None
+    1:     lead: str | None = None
+    1:     cover_image_url: str | None = None
+    1:     status: str
+    1:     published_at: str | None = None
+    1:     category: NewsCategoryItem | None = None
+    1:     tags: list[TagItem] = Field(default_factory=list)
+       
+       
+    2: class NewsArticleDetail(NewsArticleSummary):
+    1:     content_html: str
+    1:     seo_title: str | None = None
+    1:     seo_description: str | None = None
+    1:     related_news: list["NewsArticleSummary"] = Field(default_factory=list)
+       
+       
+    2: class NewsArticleCreateRequest(BaseModel):
+    1:     slug: str
+    1:     title: str
+    1:     subtitle: str | None = None
+    1:     lead: str | None = None
+    1:     content_html: str
+    1:     category_id: int | None = None
+    1:     tag_ids: list[int] = Field(default_factory=list)
+    1:     seo_title: str | None = None
+    1:     seo_description: str | None = None
+    1:     status: str = "draft"
+       
+       
+    2: class NewsStatusRequest(BaseModel):
+    1:     status: str
+    1:     publish_at: str | None = None
+       
+       
+    1: NewsArticleDetail.model_rebuild()

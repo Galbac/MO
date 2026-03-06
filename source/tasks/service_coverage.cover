@@ -1,0 +1,96 @@
+    1: from __future__ import annotations
+       
+    1: import argparse
+    1: import json
+    1: import re
+    1: import subprocess
+    1: import sys
+    1: from pathlib import Path
+    1: from typing import Iterable
+       
+    1: DEFAULT_THRESHOLD = 80.0
+    1: SUMMARY_RE = re.compile(r"^\s*(?P<lines>\d+)\s+(?P<cov>\d+)%\s+\S+\s+\((?P<path>.+)\)$")
+       
+       
+    1: def parse_trace_summary(output: str, service_root: str = "source/services") -> dict[str, object]:
+    1:     entries: list[dict[str, object]] = []
+    1:     total_lines = 0
+    1:     covered_lines = 0
+    1:     root_fragment = service_root.replace('\\', '/')
+    5:     for raw_line in output.splitlines():
+    4:         match = SUMMARY_RE.match(raw_line.strip())
+    4:         if not match:
+    1:             continue
+    3:         path_value = match.group('path').replace('\\', '/')
+    3:         if root_fragment not in path_value:
+    1:             continue
+    2:         lines = int(match.group('lines'))
+    2:         coverage_pct = int(match.group('cov'))
+    2:         covered = round(lines * coverage_pct / 100)
+    2:         total_lines += lines
+    2:         covered_lines += covered
+    4:         entries.append({
+    2:             'path': path_value,
+    2:             'lines': lines,
+    2:             'coverage_pct': coverage_pct,
+    2:             'covered_lines_estimate': covered,
+               })
+    1:     overall_pct = round((covered_lines / total_lines * 100) if total_lines else 0.0, 2)
+    1:     return {
+    1:         'service_root': service_root,
+    1:         'total_lines': total_lines,
+    1:         'covered_lines_estimate': covered_lines,
+    1:         'coverage_pct': overall_pct,
+    3:         'files': sorted(entries, key=lambda item: str(item['path'])),
+           }
+       
+       
+    1: def _report_path(output_dir: Path) -> Path:
+>>>>>>     output_dir.mkdir(parents=True, exist_ok=True)
+>>>>>>     return output_dir / 'service_coverage.json'
+       
+       
+    1: def run_trace_pytest(pytest_args: Iterable[str]) -> str:
+>>>>>>     command = [
+>>>>>>         sys.executable,
+>>>>>>         '-m',
+>>>>>>         'trace',
+>>>>>>         '--count',
+>>>>>>         '--summary',
+>>>>>>         '--missing',
+>>>>>>         '--module',
+>>>>>>         'pytest',
+>>>>>>         *pytest_args,
+           ]
+>>>>>>     result = subprocess.run(command, check=False, capture_output=True, text=True)
+>>>>>>     if result.returncode != 0:
+>>>>>>         sys.stderr.write(result.stdout)
+>>>>>>         sys.stderr.write(result.stderr)
+>>>>>>         raise SystemExit(result.returncode)
+>>>>>>     return result.stdout
+       
+       
+    1: def main() -> None:
+>>>>>>     parser = argparse.ArgumentParser(description='Generate service-layer coverage report using stdlib trace.')
+>>>>>>     parser.add_argument('--threshold', type=float, default=DEFAULT_THRESHOLD)
+>>>>>>     parser.add_argument('--output-dir', default='var/coverage')
+>>>>>>     args, pytest_args = parser.parse_known_args()
+>>>>>>     if not pytest_args:
+>>>>>>         pytest_args = ['-q']
+       
+>>>>>>     trace_output = run_trace_pytest(pytest_args)
+>>>>>>     report = parse_trace_summary(trace_output)
+>>>>>>     report['threshold_pct'] = float(args.threshold)
+>>>>>>     report['passed'] = report['coverage_pct'] >= float(args.threshold)
+       
+>>>>>>     report_path = _report_path(Path(args.output_dir))
+>>>>>>     report_path.write_text(json.dumps(report, ensure_ascii=True, indent=2, sort_keys=True))
+       
+>>>>>>     print(f"Service coverage: {report['coverage_pct']}% ({report['covered_lines_estimate']}/{report['total_lines']} est. lines)")
+>>>>>>     print(f"Report: {report_path}")
+>>>>>>     if not report['passed']:
+>>>>>>         raise SystemExit(1)
+       
+       
+    1: if __name__ == '__main__':
+>>>>>>     main()

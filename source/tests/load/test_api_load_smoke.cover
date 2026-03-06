@@ -1,0 +1,33 @@
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_public_api_load_smoke(async_client) -> None:
+    1:     endpoints = [
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/live",
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/matches/2",
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/players",
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/rankings/current",
+           ]
+       
+    1:     responses = []
+    9:     for _ in range(8):
+   40:         for path in endpoints:
+   32:             responses.append(await async_client.get(path))
+       
+   34:     assert all(response.status_code == 200 for response in responses)
+    2:     assert any(response.json().get('data') for response in responses)
+       
+       
+    1: async def test_authenticated_api_load_smoke(async_client, user_auth_headers) -> None:
+    1:     endpoints = [
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/users/me",
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/notifications",
+    1:         f"{settings.api.prefix}{settings.api.v1.prefix}/notifications/unread-count",
+           ]
+       
+    1:     responses = []
+    7:     for _ in range(6):
+   24:         for path in endpoints:
+   18:             responses.append(await async_client.get(path, headers=user_auth_headers))
+       
+   20:     assert all(response.status_code == 200 for response in responses)

@@ -1,0 +1,59 @@
+    1: from fastapi import APIRouter, Request, status
+       
+    1: from source.schemas.pydantic.auth import (
+           AuthResponse,
+           ForgotPasswordRequest,
+           LoginRequest,
+           LogoutRequest,
+           MessageResponse,
+           RefreshTokenRequest,
+           RegisterRequest,
+           ResetPasswordRequest,
+           VerifyEmailRequest,
+       )
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.user import UserProfile
+    1: from source.services import AuthUserService
+       
+    1: router = APIRouter(prefix="/auth", tags=["auth"])
+    1: service = AuthUserService()
+       
+       
+    2: @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+    2: async def register(request: Request, payload: RegisterRequest) -> AuthResponse:
+    2:     return await service.register(request, payload)
+       
+       
+    2: @router.post("/login", response_model=AuthResponse)
+    2: async def login(request: Request, payload: LoginRequest) -> AuthResponse:
+   71:     return await service.login(request, payload)
+       
+       
+    2: @router.post("/refresh", response_model=AuthResponse)
+    2: async def refresh(request: Request, payload: RefreshTokenRequest) -> AuthResponse:
+    2:     return await service.refresh(request, payload)
+       
+       
+    2: @router.post("/logout", response_model=MessageResponse)
+    2: async def logout(request: Request, payload: LogoutRequest) -> MessageResponse:
+>>>>>>     return await service.logout(request, payload)
+       
+       
+    2: @router.post("/forgot-password", response_model=MessageResponse)
+    2: async def forgot_password(request: Request, payload: ForgotPasswordRequest) -> MessageResponse:
+>>>>>>     return await service.forgot_password(request, payload)
+       
+       
+    2: @router.post("/reset-password", response_model=MessageResponse)
+    2: async def reset_password(payload: ResetPasswordRequest) -> MessageResponse:
+>>>>>>     return await service.reset_password(payload)
+       
+       
+    2: @router.post("/verify-email", response_model=MessageResponse)
+    2: async def verify_email(payload: VerifyEmailRequest) -> MessageResponse:
+>>>>>>     return await service.verify_email(payload)
+       
+       
+    2: @router.get("/me", response_model=SuccessResponse[UserProfile])
+    2: async def auth_me(request: Request) -> SuccessResponse[UserProfile]:
+    1:     return await service.auth_me(request)

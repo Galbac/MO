@@ -1,0 +1,15 @@
+    1: from pathlib import Path
+       
+    1: import yaml
+       
+       
+    1: def test_docker_compose_has_postgres_redis_migrate_api_worker_nginx() -> None:
+    1:     payload = yaml.safe_load(Path('docker-compose.yml').read_text())
+    1:     services = payload['services']
+       
+    1:     assert {'postgres', 'redis', 'migrate', 'api', 'worker', 'nginx'}.issubset(services)
+    1:     assert services['api']['environment']['FASTAPI_CFG__DB__URL'].startswith('postgresql+asyncpg://')
+    1:     assert services['api']['environment']['FASTAPI_CFG__REDIS__ENABLED'] == 'true'
+    1:     assert services['migrate']['command'] == 'alembic upgrade head'
+    1:     assert services['worker']['command'] == 'python -m source.tasks.worker'
+    1:     assert services['nginx']['ports'] == ['8080:80']

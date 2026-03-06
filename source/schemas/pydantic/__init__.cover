@@ -1,0 +1,15 @@
+    1: __all__ = [
+           "admin",
+           "auth",
+           "common",
+           "health",
+           "match",
+           "media",
+           "news",
+           "notification",
+           "player",
+           "ranking",
+           "search",
+           "tournament",
+           "user",
+       ]

@@ -1,0 +1,35 @@
+    1: from fastapi import APIRouter, Depends, Request
+       
+    1: from source.api.dependencies.auth import require_authenticated_user
+    1: from source.schemas.pydantic.auth import MessageResponse
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.notification import NotificationItem, NotificationUnreadCount
+    1: from source.services import UserEngagementService
+       
+    1: router = APIRouter(prefix="/notifications", tags=["notifications"], dependencies=[Depends(require_authenticated_user)])
+    1: service = UserEngagementService()
+       
+       
+    2: @router.get("", response_model=SuccessResponse[list[NotificationItem]])
+    2: async def get_notifications(request: Request) -> SuccessResponse[list[NotificationItem]]:
+    7:     return await service.list_notifications(request)
+       
+       
+    2: @router.get("/unread-count", response_model=SuccessResponse[NotificationUnreadCount])
+    2: async def get_unread_count(request: Request) -> SuccessResponse[NotificationUnreadCount]:
+    7:     return await service.get_unread_count(request)
+       
+       
+    2: @router.patch("/{notification_id}/read", response_model=SuccessResponse[NotificationItem])
+    2: async def patch_notification_read(request: Request, notification_id: int) -> SuccessResponse[NotificationItem]:
+>>>>>>     return await service.mark_notification_read(request, notification_id)
+       
+       
+    2: @router.patch("/read-all", response_model=MessageResponse)
+    2: async def patch_notifications_read_all(request: Request) -> MessageResponse:
+>>>>>>     return await service.mark_all_notifications_read(request)
+       
+       
+    2: @router.post("/test", response_model=MessageResponse)
+    2: async def post_test_notification(request: Request) -> MessageResponse:
+    1:     return await service.send_test_notification(request)

@@ -1,0 +1,10 @@
+    1: from pathlib import Path
+       
+       
+    1: def test_public_and_admin_templates_exist() -> None:
+    1:     templates_dir = Path("source/web/templates")
+       
+    1:     assert (templates_dir / "public" / "index.html").exists()
+    1:     assert (templates_dir / "public" / "match-detail.html").exists()
+    1:     assert (templates_dir / "admin" / "dashboard.html").exists()
+    1:     assert (templates_dir / "admin" / "match-detail.html").exists()

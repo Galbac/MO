@@ -1,0 +1,56 @@
+    1: from contextlib import asynccontextmanager
+       
+    1: from fastapi import FastAPI
+    1: from fastapi.middleware.cors import CORSMiddleware
+    1: from fastapi.staticfiles import StaticFiles
+       
+    1: from source.api.exception_handlers import register_exception_handlers
+    1: from source.api.middleware import ApiRateLimitMiddleware, SecurityHeadersMiddleware
+    1: from source.api.protected_docs import register_protected_docs
+    1: from source.api.routers.http import router as http_router
+    1: from source.config.settings import settings
+    1: from source.db.bootstrap import seed_demo_data
+    1: from source.db.session import db_session_manager
+    1: from source.web.router import router as web_router
+    1: from source.tasks import process_due_jobs
+       
+       
+    2: @asynccontextmanager
+    2: async def lifespan(_: FastAPI):
+    3:     await db_session_manager.init_models()
+    6:     async with db_session_manager.session() as session:
+    3:         await seed_demo_data(session)
+    3:     if settings.jobs.process_on_startup:
+    3:         await process_due_jobs()
+    3:     try:
+    3:         yield
+           finally:
+    3:         await db_session_manager.dispose()
+       
+       
+    1: def create_app() -> FastAPI:
+  206:     app = FastAPI(
+  103:         title=settings.names.title,
+  103:         root_path=settings.names.path,
+  103:         docs_url="/docs",
+  103:         redoc_url="/redoc",
+  103:         openapi_url="/openapi.json",
+  103:         lifespan=lifespan,
+           )
+       
+  206:     app.add_middleware(
+  103:         CORSMiddleware,
+  103:         allow_origins=settings.middleware.cors_origins,
+  103:         allow_credentials=True,
+  103:         allow_methods=settings.middleware.allow_methods,
+  103:         allow_headers=settings.middleware.allow_headers,
+           )
+  103:     app.add_middleware(ApiRateLimitMiddleware)
+  103:     app.add_middleware(SecurityHeadersMiddleware)
+       
+  103:     app.include_router(http_router)
+  103:     app.include_router(web_router)
+  103:     app.mount("/static", StaticFiles(directory="source/web/static"), name="static")
+  103:     register_protected_docs(app)
+  103:     register_exception_handlers(app)
+  103:     return app

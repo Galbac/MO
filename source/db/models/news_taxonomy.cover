@@ -1,0 +1,19 @@
+    1: from sqlalchemy import String
+    1: from sqlalchemy.orm import Mapped, mapped_column
+       
+    1: from source.db.models.base import Base
+    1: from source.db.models.mixins import IdIntPkMixin
+       
+       
+    2: class NewsCategory(Base, IdIntPkMixin):
+    1:     __tablename__ = "news_categories"
+       
+    1:     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    1:     name: Mapped[str] = mapped_column(String(255), index=True)
+       
+       
+    2: class Tag(Base, IdIntPkMixin):
+    1:     __tablename__ = "tags"
+       
+    1:     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    1:     name: Mapped[str] = mapped_column(String(255), index=True)

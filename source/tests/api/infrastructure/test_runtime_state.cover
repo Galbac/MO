@@ -1,0 +1,17 @@
+    1: from source.services import CacheService, JobService, RuntimeStateStore
+       
+       
+    1: def test_runtime_state_store_uses_local_backend_without_redis() -> None:
+    1:     store = RuntimeStateStore()
+    1:     assert store.backend_name() == 'local'
+       
+    1:     store.write_namespace('smoke', {'ok': True})
+    1:     assert store.read_namespace('smoke', {}) == {'ok': True}
+       
+       
+    1: def test_cache_and_jobs_share_runtime_store_fallback() -> None:
+    1:     cache = CacheService()
+    1:     jobs = JobService()
+       
+    1:     assert cache.backend_name() == 'local'
+    1:     assert jobs.backend_name() == 'local'

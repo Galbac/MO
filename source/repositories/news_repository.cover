@@ -1,0 +1,65 @@
+    1: from __future__ import annotations
+       
+    1: from datetime import datetime
+       
+    1: from sqlalchemy import func, select
+    1: from sqlalchemy.ext.asyncio import AsyncSession
+       
+    1: from source.db.models import NewsArticle, NewsCategory, Tag
+       
+       
+    2: class NewsRepository:
+    1:     async def create(self, session: AsyncSession, payload: dict) -> NewsArticle:
+    4:         item = NewsArticle(**payload)
+    4:         session.add(item)
+    4:         await session.commit()
+    4:         await session.refresh(item)
+    4:         return item
+       
+    1:     async def get(self, session: AsyncSession, news_id: int) -> NewsArticle | None:
+    6:         return await session.get(NewsArticle, news_id)
+       
+    1:     async def update(self, session: AsyncSession, article: NewsArticle, payload: dict) -> NewsArticle:
+   24:         for key, value in payload.items():
+   19:             setattr(article, key, value)
+    5:         await session.commit()
+    5:         await session.refresh(article)
+    5:         return article
+       
+    1:     async def delete(self, session: AsyncSession, article: NewsArticle) -> None:
+    1:         await session.delete(article)
+    1:         await session.commit()
+       
+    1:     async def list(self, session: AsyncSession, *, page: int, per_page: int) -> tuple[list[NewsArticle], int]:
+   27:         stmt = select(NewsArticle).order_by(NewsArticle.published_at.desc().nullslast(), NewsArticle.id.desc()).offset((page - 1) * per_page).limit(per_page)
+   27:         count_stmt = select(func.count()).select_from(NewsArticle)
+   27:         items = list((await session.scalars(stmt)).all())
+   27:         total = int((await session.scalar(count_stmt)) or 0)
+   27:         return items, total
+       
+    1:     async def get_by_slug(self, session: AsyncSession, slug: str) -> NewsArticle | None:
+   10:         stmt = select(NewsArticle).where(NewsArticle.slug == slug)
+   10:         return await session.scalar(stmt)
+       
+    1:     async def list_due_scheduled(self, session: AsyncSession, now: datetime) -> list[NewsArticle]:
+    1:         stmt = select(NewsArticle).where(NewsArticle.status == 'scheduled', NewsArticle.published_at.is_not(None), NewsArticle.published_at <= now).order_by(NewsArticle.published_at.asc(), NewsArticle.id.asc())
+    1:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def list_categories(self, session: AsyncSession) -> list[NewsCategory]:
+   42:         stmt = select(NewsCategory).order_by(NewsCategory.name.asc())
+   42:         return list((await session.scalars(stmt)).all())
+       
+    1:     async def list_tags(self, session: AsyncSession) -> list[Tag]:
+>>>>>>         stmt = select(Tag).order_by(Tag.name.asc())
+>>>>>>         return list((await session.scalars(stmt)).all())
+       
+    1:     async def list_featured(self, session: AsyncSession) -> list[NewsArticle]:
+>>>>>>         stmt = select(NewsArticle).order_by(NewsArticle.published_at.desc().nullslast()).limit(3)
+>>>>>>         return list((await session.scalars(stmt)).all())
+       
+    1:     async def list_related(self, session: AsyncSession, *, slug: str | None = None, limit: int = 2) -> list[NewsArticle]:
+   10:         stmt = select(NewsArticle)
+   10:         if slug:
+   10:             stmt = stmt.where(NewsArticle.slug != slug)
+   10:         stmt = stmt.order_by(NewsArticle.published_at.desc().nullslast()).limit(limit)
+   10:         return list((await session.scalars(stmt)).all())

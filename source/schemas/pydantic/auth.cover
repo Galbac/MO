@@ -1,0 +1,50 @@
+    1: from pydantic import BaseModel, EmailStr, Field
+       
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.schemas.pydantic.user import UserTokenBundle
+       
+       
+    2: class RegisterRequest(BaseModel):
+    1:     email: EmailStr
+    1:     username: str = Field(min_length=3, max_length=50)
+    1:     password: str = Field(min_length=8)
+    1:     locale: str | None = None
+    1:     timezone: str | None = None
+       
+       
+    2: class LoginRequest(BaseModel):
+    1:     email_or_username: str
+    1:     password: str
+       
+       
+    2: class RefreshTokenRequest(BaseModel):
+    1:     refresh_token: str
+       
+       
+    2: class ForgotPasswordRequest(BaseModel):
+    1:     email: EmailStr
+       
+       
+    2: class ResetPasswordRequest(BaseModel):
+    1:     token: str
+    1:     new_password: str = Field(min_length=8)
+       
+       
+    2: class VerifyEmailRequest(BaseModel):
+    1:     token: str
+       
+       
+    2: class LogoutRequest(BaseModel):
+    1:     refresh_token: str
+       
+       
+    2: class SimpleMessage(BaseModel):
+    1:     message: str
+       
+       
+    2: class AuthResponse(SuccessResponse[UserTokenBundle]):
+    1:     pass
+       
+       
+    2: class MessageResponse(SuccessResponse[SimpleMessage]):
+    1:     pass

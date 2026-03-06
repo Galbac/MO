@@ -1,0 +1,28 @@
+    1: from datetime import date
+       
+    1: from pydantic import BaseModel, Field
+       
+       
+    2: class RankingEntry(BaseModel):
+    1:     position: int
+    1:     player_id: int | None = None
+    1:     player_name: str
+    1:     country_code: str
+    1:     points: int
+    1:     movement: int
+    1:     ranking_type: str = "atp"
+    1:     ranking_date: str = Field(default_factory=lambda: date.today().isoformat())
+       
+       
+    2: class RankingSnapshotItem(BaseModel):
+    1:     ranking_type: str
+    1:     ranking_date: str
+    1:     entries: list[RankingEntry]
+       
+       
+    2: class RankingImportJob(BaseModel):
+    1:     id: int
+    1:     ranking_type: str
+    1:     status: str
+    1:     imported_at: str
+    1:     processed_rows: int

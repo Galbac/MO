@@ -1,0 +1,21 @@
+    1: from fastapi import status
+       
+    1: from source.config.settings import settings
+       
+       
+    1: async def test_live_list_returns_live_matches(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/live")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["data"]
+    2:     assert any(item["status"] == "live" for item in payload["data"])
+       
+       
+    1: async def test_live_feed_returns_events(async_client) -> None:
+    1:     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/live/feed")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     payload = response.json()
+    1:     assert payload["data"]
+    1:     assert payload["data"][0]["event_type"]

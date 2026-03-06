@@ -1,0 +1,84 @@
+    1: from fastapi import status
+       
+       
+    1: async def test_home_page_renders_html(async_client) -> None:
+    1:     response = await async_client.get("/")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     assert "text/html" in response.headers["content-type"]
+    1:     assert "Makhachkala Open" in response.text
+    1:     assert "Счета, новости и рейтинги" in response.text
+       
+       
+    1: async def test_admin_dashboard_renders_html(async_client) -> None:
+    1:     response = await async_client.get("/admin")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     assert "text/html" in response.headers["content-type"]
+    1:     assert "Админка" in response.text
+    1:     assert "Панель" in response.text
+       
+       
+    1: async def test_h2h_page_renders_html(async_client) -> None:
+    1:     response = await async_client.get("/h2h")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     assert "text/html" in response.headers["content-type"]
+    1:     assert "Личные встречи" in response.text
+       
+       
+    1: async def test_error_pages_render_html(async_client) -> None:
+    1:     response_404 = await async_client.get("/404")
+    1:     response_500 = await async_client.get("/500")
+       
+    1:     assert response_404.status_code == status.HTTP_200_OK
+    1:     assert response_500.status_code == status.HTTP_200_OK
+    1:     assert "Страница не найдена" in response_404.text
+    1:     assert "Что-то пошло не так" in response_500.text
+       
+       
+    1: async def test_robots_and_sitemap_are_exposed(async_client) -> None:
+    1:     robots = await async_client.get('/robots.txt')
+    1:     sitemap = await async_client.get('/sitemap.xml')
+       
+    1:     assert robots.status_code == status.HTTP_200_OK
+    1:     assert 'Sitemap:' in robots.text
+    1:     assert sitemap.status_code == status.HTTP_200_OK
+    1:     assert '<urlset' in sitemap.text
+    1:     assert '/players/novak-djokovic' in sitemap.text
+       
+       
+    1: async def test_search_page_includes_seo_meta(async_client) -> None:
+    1:     response = await async_client.get('/search')
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     assert 'meta name="description"' in response.text
+    1:     assert 'property="og:title"' in response.text
+    1:     assert 'rel="canonical"' in response.text
+       
+       
+    1: async def test_rankings_page_renders_both_tours(async_client) -> None:
+    1:     response = await async_client.get("/rankings")
+       
+    1:     assert response.status_code == status.HTTP_200_OK
+    1:     assert "Рейтинг ATP" in response.text
+    1:     assert "Рейтинг WTA" in response.text
+       
+       
+    1: async def test_detail_pages_include_structured_data(async_client) -> None:
+    1:     player = await async_client.get('/players/novak-djokovic')
+    1:     match = await async_client.get('/matches/djokovic-vs-sinner-ao-2026-final')
+    1:     article = await async_client.get('/news/djokovic-wins-ao-2026')
+       
+    1:     assert player.status_code == status.HTTP_200_OK
+    1:     assert 'application/ld+json' in player.text
+    1:     assert 'Novak Djokovic' in player.text
+    1:     assert 'property="og:image"' in player.text
+       
+    1:     assert match.status_code == status.HTTP_200_OK
+    1:     assert 'SportsEvent' in match.text
+    1:     assert 'Novak Djokovic vs Jannik Sinner' in match.text
+       
+    1:     assert article.status_code == status.HTTP_200_OK
+    1:     assert 'NewsArticle' in article.text
+    1:     assert 'property="og:type" content="article"' in article.text

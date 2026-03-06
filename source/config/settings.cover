@@ -1,0 +1,153 @@
+    1: import os
+       
+    1: from pydantic import BaseModel
+    1: from pydantic_settings import BaseSettings, SettingsConfigDict
+       
+       
+    2: class RunConfig(BaseModel):
+    1:     host: str = "0.0.0.0"
+    1:     port: int = 8000
+    1:     production: bool = False
+       
+       
+    2: class ProjectName(BaseModel):
+    1:     title: str = "Makhachkala Open"
+    1:     path: str = ""
+    1:     slug: str = "makhachkala_open"
+       
+       
+    2: class ApiV1Prefix(BaseModel):
+    1:     prefix: str = "/v1"
+       
+       
+    2: class ApiPrefix(BaseModel):
+    1:     prefix: str = "/api"
+    1:     v1: ApiV1Prefix = ApiV1Prefix()
+       
+       
+    2: class MiddlewareSettings(BaseModel):
+    1:     cors_origins: list[str] = ["http://localhost", "http://localhost:3000"]
+    1:     allow_methods: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    1:     allow_headers: list[str] = ["Authorization", "Content-Type"]
+       
+       
+    2: class AuthSettings(BaseModel):
+    1:     secret_key: str = os.getenv("FASTAPI_CFG__AUTH__SECRET_KEY", "dev-secret-key-change-me")
+    1:     access_token_ttl_minutes: int = 60
+    1:     refresh_token_ttl_minutes: int = 60 * 24 * 14
+    1:     refresh_token_rotation_enabled: bool = True
+    1:     login_rate_limit_max_attempts: int = 5
+    1:     login_rate_limit_window_seconds: int = 60
+    1:     brute_force_lockout_seconds: int = 300
+       
+       
+       
+       
+    2: class MediaSettings(BaseModel):
+    1:     allowed_content_types: list[str] = [
+               "image/jpeg",
+               "image/png",
+               "image/webp",
+               "image/gif",
+               "text/plain",
+           ]
+    1:     allowed_extensions_by_content_type: dict[str, list[str]] = {
+    1:         "image/jpeg": [".jpg", ".jpeg"],
+    1:         "image/png": [".png"],
+    1:         "image/webp": [".webp"],
+    1:         "image/gif": [".gif"],
+    1:         "text/plain": [".txt", ".log", ".md"],
+           }
+    1:     forbidden_extensions: list[str] = [".html", ".htm", ".js", ".svg", ".exe", ".php", ".sh", ".bat"]
+    1:     max_upload_size_bytes: int = 1024 * 1024 * 5
+       
+       
+    2: class CacheSettings(BaseModel):
+    1:     enabled: bool = True
+    1:     storage_path: str = "var/cache_store.json"
+    1:     default_ttl_seconds: int = 300
+    1:     rankings_ttl_seconds: int = 600
+    1:     live_ttl_seconds: int = 15
+       
+       
+    2: class JobsSettings(BaseModel):
+    1:     enabled: bool = True
+    1:     storage_path: str = "var/job_queue.json"
+    1:     process_on_startup: bool = True
+    1:     poll_interval_seconds: int = 5
+       
+       
+    2: class RedisSettings(BaseModel):
+    1:     enabled: bool = False
+    1:     url: str = os.getenv("FASTAPI_CFG__REDIS__URL", "redis://localhost:6379/0")
+    1:     key_prefix: str = "tennis-portal"
+    1:     connect_timeout_seconds: float = 0.2
+    1:     state_fallback_path: str = "var/runtime_state"
+       
+       
+    2: class DocsSettings(BaseModel):
+    1:     username: str = os.getenv("FASTAPI_CFG__DOCS__USERNAME", "admin")
+    1:     password: str = os.getenv("FASTAPI_CFG__DOCS__PASSWORD", "admin")
+       
+       
+    2: class DbSettings(BaseModel):
+    2:     url: str = os.getenv(
+    1:         "FASTAPI_CFG__DB__URL",
+    1:         "sqlite+aiosqlite:///./tennis_portal.db",
+           )
+    1:     auto_create: bool = True
+    1:     seed_demo_data: bool = True
+       
+       
+    2: class SecuritySettings(BaseModel):
+    1:     api_rate_limit_enabled: bool = True
+    1:     api_rate_limit_requests: int = 240
+    1:     api_rate_limit_window_seconds: int = 60
+       
+       
+    2: class NotificationSettings(BaseModel):
+    1:     allowed_types: list[str] = [
+               "match_start",
+               "match_soon",
+               "set_finished",
+               "match_finished",
+               "news",
+               "ranking_change",
+               "tournament_start",
+               "test",
+           ]
+    1:     allowed_channels: list[str] = ["web", "email", "push"]
+    1:     active_channels: list[str] = ["web"]
+       
+       
+    2: class MaintenanceSettings(BaseModel):
+    1:     artifacts_dir: str = "var/maintenance"
+    1:     backups_dir: str = "var/backups"
+       
+       
+       
+    2: class Settings(BaseSettings):
+    2:     model_config = SettingsConfigDict(
+    1:         env_file=(".env.template", ".env"),
+    1:         case_sensitive=False,
+    1:         env_nested_delimiter="__",
+    1:         env_prefix="FASTAPI_CFG__",
+    1:         extra="ignore",
+           )
+    1:     run: RunConfig = RunConfig()
+    1:     names: ProjectName = ProjectName()
+    1:     api: ApiPrefix = ApiPrefix()
+    1:     middleware: MiddlewareSettings = MiddlewareSettings()
+    1:     auth: AuthSettings = AuthSettings()
+    1:     media: MediaSettings = MediaSettings()
+    1:     cache: CacheSettings = CacheSettings()
+    1:     jobs: JobsSettings = JobsSettings()
+    1:     redis: RedisSettings = RedisSettings()
+    1:     docs: DocsSettings = DocsSettings()
+    1:     db: DbSettings = DbSettings()
+    1:     security: SecuritySettings = SecuritySettings()
+    1:     notifications: NotificationSettings = NotificationSettings()
+    1:     maintenance: MaintenanceSettings = MaintenanceSettings()
+       
+       
+    1: settings = Settings()

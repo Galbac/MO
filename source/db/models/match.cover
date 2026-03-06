@@ -1,0 +1,27 @@
+    1: from datetime import datetime
+       
+    1: from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+    1: from sqlalchemy.orm import Mapped, mapped_column
+       
+    1: from source.db.models.base import Base
+    1: from source.db.models.mixins import IdIntPkMixin, TimestampMixin
+       
+       
+    2: class Match(Base, IdIntPkMixin, TimestampMixin):
+    1:     __tablename__ = "matches"
+       
+    1:     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    1:     tournament_id: Mapped[int] = mapped_column(ForeignKey("tournaments.id"), index=True)
+    1:     round_code: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    1:     best_of_sets: Mapped[int] = mapped_column(Integer(), default=3)
+    1:     player1_id: Mapped[int] = mapped_column(ForeignKey("players.id"), index=True)
+    1:     player2_id: Mapped[int] = mapped_column(ForeignKey("players.id"), index=True)
+    1:     winner_id: Mapped[int | None] = mapped_column(ForeignKey("players.id"), nullable=True, index=True)
+    1:     status: Mapped[str] = mapped_column(String(32), index=True)
+    1:     scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    1:     actual_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    1:     actual_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    1:     court_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    1:     score_summary: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    1:     retire_reason: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    1:     walkover_reason: Mapped[str | None] = mapped_column(Text(), nullable=True)

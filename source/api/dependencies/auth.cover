@@ -1,0 +1,26 @@
+    1: from __future__ import annotations
+       
+    1: from collections.abc import Callable
+       
+    1: from fastapi import Depends, HTTPException, Request, status
+       
+    1: from source.services import AuthUserService
+       
+    1: auth_service = AuthUserService()
+       
+       
+    1: async def require_authenticated_user(request: Request):
+  147:     user = await auth_service._resolve_current_user(request)
+  144:     request.state.current_user = user
+  144:     return user
+       
+       
+    1: def require_roles(*roles: str) -> Callable:
+   12:     async def dependency(request: Request, user = Depends(require_authenticated_user)):
+   94:         allowed = set(roles)
+   94:         if user.role not in allowed:
+    8:             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Insufficient permissions')
+   86:         request.state.current_user = user
+   86:         return user
+       
+   12:     return dependency

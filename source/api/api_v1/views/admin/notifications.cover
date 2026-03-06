@@ -1,0 +1,24 @@
+    1: from fastapi import APIRouter
+       
+    1: from source.schemas.pydantic.admin import AdminNotificationBroadcast, AdminNotificationTemplate
+    1: from source.schemas.pydantic.auth import MessageResponse
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.services import AdminSupportService
+       
+    1: router = APIRouter(prefix="/notifications", tags=["admin-notifications"])
+    1: service = AdminSupportService()
+       
+       
+    2: @router.get("/templates", response_model=SuccessResponse[list[AdminNotificationTemplate]])
+    2: async def get_admin_notification_templates() -> SuccessResponse[list[AdminNotificationTemplate]]:
+    1:     return await service.list_notification_templates()
+       
+       
+    2: @router.get("", response_model=SuccessResponse[list[AdminNotificationBroadcast]])
+    2: async def get_admin_notifications() -> SuccessResponse[list[AdminNotificationBroadcast]]:
+    2:     return await service.list_notification_history()
+       
+       
+    2: @router.post("/test", response_model=MessageResponse)
+    2: async def post_admin_notifications_test() -> MessageResponse:
+    1:     return await service.send_test_notification()

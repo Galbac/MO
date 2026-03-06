@@ -1,0 +1,29 @@
+    1: from fastapi import APIRouter
+       
+    1: from source.schemas.pydantic.admin import AdminIntegrationItem
+    1: from source.schemas.pydantic.auth import MessageResponse
+    1: from source.schemas.pydantic.common import SuccessResponse
+    1: from source.services import OperationsService
+       
+    1: router = APIRouter(prefix="/integrations", tags=["admin-integrations"])
+    1: service = OperationsService()
+       
+       
+    2: @router.get("", response_model=SuccessResponse[list[AdminIntegrationItem]])
+    2: async def get_admin_integrations() -> SuccessResponse[list[AdminIntegrationItem]]:
+    1:     return await service.list_integrations()
+       
+       
+    2: @router.patch("/{provider}", response_model=MessageResponse)
+    2: async def patch_admin_integration(provider: str, payload: dict | None = None) -> MessageResponse:
+    7:     return await service.update_integration(provider, payload or {})
+       
+       
+    2: @router.post("/{provider}/sync", response_model=MessageResponse)
+    2: async def sync_admin_integration(provider: str, payload: dict | None = None) -> MessageResponse:
+    4:     return await service.sync_integration(provider, payload or {})
+       
+       
+    2: @router.get("/{provider}/logs", response_model=MessageResponse)
+    2: async def get_admin_integration_logs(provider: str) -> MessageResponse:
+    3:     return await service.get_integration_logs(provider)

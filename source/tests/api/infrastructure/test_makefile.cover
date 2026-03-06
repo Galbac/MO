@@ -1,0 +1,16 @@
+    1: from pathlib import Path
+       
+       
+    1: def test_makefile_contains_core_tasks() -> None:
+    1:     content = Path('Makefile').read_text()
+    8:     for target in ['dev:', 'test:', 'lint:', 'format:', 'typecheck:', 'migrate-up:', 'compose-up:']:
+    7:         assert target in content
+       
+       
+    1: def test_makefile_has_worker_and_contract_targets() -> None:
+    1:     content = __import__("pathlib").Path("Makefile").read_text()
+    1:     assert "worker:" in content
+    1:     assert "test-contract:" in content
+    1:     assert "test-load:" in content
+    1:     assert "backup-runtime:" in content
+    1:     assert "restore-runtime:" in content

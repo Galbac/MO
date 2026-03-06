@@ -1,0 +1,114 @@
+    1: from datetime import date
+       
+    1: from pydantic import BaseModel, Field
+       
+       
+    2: class PlayerListQuery(BaseModel):
+    1:     search: str | None = None
+    1:     country_code: str | None = None
+    1:     hand: str | None = None
+    1:     status: str | None = None
+    1:     rank_from: int | None = None
+    1:     rank_to: int | None = None
+    1:     page: int = 1
+    1:     per_page: int = 20
+    1:     sort: str = "rank_asc"
+       
+       
+    2: class PlayerSummary(BaseModel):
+    1:     id: int
+    1:     slug: str
+    1:     full_name: str
+    1:     country_code: str
+    1:     current_rank: int | None = None
+    1:     current_points: int | None = None
+    1:     photo_url: str | None = None
+    1:     form: list[str] = Field(default_factory=list)
+       
+       
+    2: class PlayerStats(BaseModel):
+    1:     season: int
+    1:     matches_played: int
+    1:     wins: int
+    1:     losses: int
+    1:     win_rate: float
+    1:     hard_record: str
+    1:     clay_record: str
+    1:     grass_record: str
+       
+       
+    2: class RankingHistoryPoint(BaseModel):
+    1:     ranking_date: str
+    1:     rank_position: int
+    1:     points: int
+    1:     movement: int
+       
+       
+    2: class TitleItem(BaseModel):
+    1:     tournament_name: str
+    1:     season_year: int
+    1:     surface: str
+    1:     category: str
+       
+       
+    2: class SeoMeta(BaseModel):
+    1:     title: str
+    1:     description: str
+    1:     canonical_url: str | None = None
+       
+       
+    2: class PlayerNewsItem(BaseModel):
+    1:     id: int
+    1:     slug: str
+    1:     title: str
+    1:     published_at: str | None = None
+       
+       
+    2: class UpcomingMatchItem(BaseModel):
+    1:     match_id: int
+    1:     slug: str
+    1:     tournament_name: str
+    1:     opponent_name: str
+    1:     scheduled_at: str
+    1:     status: str
+       
+       
+    2: class PlayerDetail(PlayerSummary):
+    1:     first_name: str | None = None
+    1:     last_name: str | None = None
+    1:     country_name: str | None = None
+    1:     birth_date: date | None = None
+    1:     height_cm: int | None = None
+    1:     weight_kg: int | None = None
+    1:     hand: str | None = None
+    1:     backhand: str | None = None
+    1:     biography: str | None = None
+    1:     status: str = "active"
+    1:     stats: PlayerStats | None = None
+    1:     recent_matches: list[dict] = Field(default_factory=list)
+    1:     upcoming_match: UpcomingMatchItem | None = None
+    1:     ranking_history: list[RankingHistoryPoint] = Field(default_factory=list)
+    1:     titles: list[TitleItem] = Field(default_factory=list)
+    1:     seo: SeoMeta | None = None
+       
+       
+    2: class PlayerComparison(BaseModel):
+    1:     player1: PlayerDetail
+    1:     player2: PlayerDetail
+    1:     h2h: dict
+    1:     comparison: dict
+       
+       
+    2: class H2HResponse(BaseModel):
+    1:     player1_id: int
+    1:     player2_id: int
+    1:     total_matches: int
+    1:     player1_wins: int
+    1:     player2_wins: int
+    1:     hard_player1_wins: int
+    1:     hard_player2_wins: int
+    1:     clay_player1_wins: int
+    1:     clay_player2_wins: int
+    1:     grass_player1_wins: int
+    1:     grass_player2_wins: int
+    1:     last_match_id: int | None = None
