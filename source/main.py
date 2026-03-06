@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from source.api.exception_handlers import register_exception_handlers
+from source.api.middleware import ApiRateLimitMiddleware, SecurityHeadersMiddleware
 from source.api.protected_docs import register_protected_docs
 from source.api.routers.http import router as http_router
 from source.config.settings import settings
@@ -44,6 +45,8 @@ def create_app() -> FastAPI:
         allow_methods=settings.middleware.allow_methods,
         allow_headers=settings.middleware.allow_headers,
     )
+    app.add_middleware(ApiRateLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(http_router)
     app.include_router(web_router)

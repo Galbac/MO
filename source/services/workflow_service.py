@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 
 from source.db.models import Match, NewsArticle, Tournament
 from source.db.session import db_session_manager
-from source.repositories import EngagementRepository, MatchRepository, NewsRepository, TournamentRepository
+from source.repositories import EngagementRepository, MatchRepository, NewsRepository, PlayerRepository, TournamentRepository
 from source.services.cache_service import CacheService
 
 
@@ -15,6 +15,7 @@ class WorkflowService:
         self.matches = MatchRepository()
         self.engagement = EngagementRepository()
         self.news = NewsRepository()
+        self.players = PlayerRepository()
         self.tournaments = TournamentRepository()
         self.cache = CacheService()
 
@@ -38,6 +39,53 @@ class WorkflowService:
             )
             await self._send_match_notifications(session, match=match, tournament=tournament)
         self.cache.invalidate_prefixes('matches:', 'players:', 'tournaments:', 'live:', 'search:', 'news:')
+
+    async def process_match_status_change(self, match_id: int, status_value: str) -> int:
+        notification_type = {
+            'about_to_start': 'match_soon',
+            'live': 'match_start',
+        }.get(status_value)
+        if notification_type is None:
+            return 0
+
+        async with db_session_manager.session() as session:
+            match = await self.matches.get(session, match_id)
+            if match is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
+            tournament = await self.tournaments.get(session, match.tournament_id)
+            if tournament is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+            player1 = await self.players.get(session, match.player1_id)
+            player2 = await self.players.get(session, match.player2_id)
+            player1_name = player1.full_name if player1 else 'Player 1'
+            player2_name = player2.full_name if player2 else 'Player 2'
+            entities = [('match', match.id), ('player', match.player1_id), ('player', match.player2_id), ('tournament', tournament.id)]
+            subscriptions = await self.engagement.list_matching_subscriptions(session, entities=entities, notification_type=notification_type)
+            title = f'{player1_name} vs {player2_name}'
+            body = 'Match is starting soon.' if notification_type == 'match_soon' else 'Match is now live.'
+            created = 0
+            for subscription in subscriptions:
+                duplicate = await self.engagement.find_duplicate_notification(
+                    session,
+                    user_id=subscription.user_id,
+                    type_=notification_type,
+                    title=title,
+                    entity_type='match',
+                    entity_id=match.id,
+                )
+                if duplicate is not None:
+                    continue
+                await self.engagement.create_notification(session, {
+                    'user_id': subscription.user_id,
+                    'type': notification_type,
+                    'title': title,
+                    'body': body,
+                    'payload_json': {'entity_type': 'match', 'entity_id': match.id, 'status': status_value, 'tournament_id': tournament.id},
+                    'status': 'unread',
+                    'read_at': None,
+                })
+                created += 1
+        return created
 
     async def _send_match_notifications(self, session, *, match: Match, tournament: Tournament) -> None:
         entities = [('match', match.id), ('player', match.player1_id), ('player', match.player2_id), ('tournament', tournament.id)]

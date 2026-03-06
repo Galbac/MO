@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -51,9 +52,18 @@ class OperationsService:
     def _media_item(payload: dict) -> MediaFile:
         return MediaFile(id=payload['id'], filename=payload['filename'], content_type=payload['content_type'], url=payload['url'], size=payload.get('size'))
 
+    @staticmethod
+    def _sanitize_filename(filename: str) -> str:
+        candidate = Path(filename).name.strip()
+        candidate = re.sub(r'[^A-Za-z0-9._-]+', '_', candidate)
+        candidate = candidate.lstrip('._')
+        return candidate
+
     def _validate_upload(self, filename: str, content_type: str, size: int) -> None:
         if not filename:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='filename is required')
+        if filename != Path(filename).name or '..' in filename:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsafe filename')
         if content_type not in settings.media.allowed_content_types:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsupported media type')
         if size > settings.media.max_upload_size_bytes:
@@ -69,14 +79,16 @@ class OperationsService:
         return SuccessResponse(data=self._media_item(record))
 
     async def upload_media_file(self, file: UploadFile) -> SuccessResponse[MediaFile]:
-        filename = (file.filename or '').strip()
+        raw_filename = (file.filename or '').strip()
+        self._validate_upload(raw_filename, file.content_type or 'application/octet-stream', 0)
+        filename = self._sanitize_filename(raw_filename)
         content_type = file.content_type or 'application/octet-stream'
         records = self._media_records()
         media_id = max((item['id'] for item in records), default=0) + 1
         self._ensure_storage()
         file_path = self.media_dir / f'{media_id}_{filename}'
         content = await file.read()
-        self._validate_upload(filename, content_type, len(content))
+        self._validate_upload(raw_filename, content_type, len(content))
         file_path.write_bytes(content)
         record = {'id': media_id, 'filename': filename, 'content_type': content_type, 'url': f'/static-runtime/media/{file_path.name}', 'size': len(content), 'stored_path': str(file_path), 'created_at': datetime.now(tz=UTC).isoformat()}
         records.append(record)
@@ -85,11 +97,12 @@ class OperationsService:
         return SuccessResponse(data=self._media_item(record))
 
     async def create_media_record(self, payload: dict[str, Any]) -> SuccessResponse[MediaFile]:
-        filename = str(payload.get('filename', '')).strip()
+        raw_filename = str(payload.get('filename', '')).strip()
+        filename = self._sanitize_filename(raw_filename)
         content_type = str(payload.get('content_type') or 'application/octet-stream')
         raw_content = payload.get('content', '')
         content = raw_content.encode() if isinstance(raw_content, str) else b''
-        self._validate_upload(filename, content_type, int(payload.get('size') or len(content)))
+        self._validate_upload(raw_filename, content_type, int(payload.get('size') or len(content)))
         records = self._media_records()
         media_id = max((item['id'] for item in records), default=0) + 1
         self._ensure_storage()

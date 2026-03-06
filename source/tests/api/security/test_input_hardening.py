@@ -36,3 +36,11 @@ async def test_news_html_is_sanitized(async_client, admin_auth_headers) -> None:
     assert '<script' not in content_html.lower()
     assert 'onclick=' not in content_html.lower()
     assert 'javascript:' not in content_html.lower()
+
+
+async def test_public_media_rejects_unsafe_filename(async_client) -> None:
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
+        files={"file": ("../escape.txt", b"payload", "text/plain")},
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

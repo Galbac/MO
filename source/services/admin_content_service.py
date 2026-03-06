@@ -17,6 +17,7 @@ from source.services.cache_service import CacheService
 from source.services.job_service import JobService
 from source.services.live_hub import live_hub
 from source.services.portal_query_service import PortalQueryService
+from source.services.workflow_service import WorkflowService
 
 
 class AdminContentService:
@@ -29,6 +30,7 @@ class AdminContentService:
         self.query = PortalQueryService()
         self.cache = CacheService()
         self.jobs = JobService()
+        self.workflows = WorkflowService()
 
     @staticmethod
     def _require(payload: dict[str, Any], field: str, current: Any = None) -> Any:
@@ -296,6 +298,8 @@ class AdminContentService:
             after = self._entity_dict(updated)
         await self._log_audit(action='match.update', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
         self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:', 'search:')
+        if before.get('status') != after.get('status') and after.get('status') in {'about_to_start', 'live'}:
+            await self.workflows.process_match_status_change(match_id, str(after.get('status')))
         await self._broadcast_match_update(match_id, 'match_status_changed', {'status': after.get('status')})
         return await self.query.get_match(match_id)
 

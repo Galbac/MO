@@ -90,6 +90,12 @@ class DbSettings(BaseModel):
     seed_demo_data: bool = True
 
 
+class SecuritySettings(BaseModel):
+    api_rate_limit_enabled: bool = True
+    api_rate_limit_requests: int = 240
+    api_rate_limit_window_seconds: int = 60
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env.template", ".env"),
@@ -109,6 +115,7 @@ class Settings(BaseSettings):
     redis: RedisSettings = RedisSettings()
     docs: DocsSettings = DocsSettings()
     db: DbSettings = DbSettings()
+    security: SecuritySettings = SecuritySettings()
 
 
 settings = Settings()
