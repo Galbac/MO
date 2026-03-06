@@ -18,6 +18,8 @@ from source.services.portal_query_service import PortalQueryService
 
 
 class PublicDataService:
+    ALLOWED_SEARCH_TYPES = {"players", "tournaments", "matches", "news"}
+
     def __init__(self) -> None:
         self.repo = DiscoveryRepository()
         self.news = NewsRepository()
@@ -85,16 +87,37 @@ class PublicDataService:
     @staticmethod
     def _match_score_value(match: Match, players: dict[int, Player]) -> str:
         return ' '.join(filter(None, [players.get(match.player1_id).full_name if players.get(match.player1_id) else None, 'vs', players.get(match.player2_id).full_name if players.get(match.player2_id) else None]))
+    @classmethod
+    def _normalize_search_query(cls, query: str) -> str:
+        normalized = ' '.join(str(query or '').strip().split())
+        if not normalized:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Search query is required')
+        return normalized[:120]
 
-    async def search(self, q: str) -> SuccessResponse[SearchResults]:
+    @classmethod
+    def _normalize_search_types(cls, types: list[str] | None) -> set[str]:
+        if not types:
+            return set(cls.ALLOWED_SEARCH_TYPES)
+        normalized = {str(item).strip().lower() for item in types if str(item).strip()}
+        if not normalized:
+            return set(cls.ALLOWED_SEARCH_TYPES)
+        invalid = sorted(normalized - cls.ALLOWED_SEARCH_TYPES)
+        if invalid:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'Unsupported search types: {", ".join(invalid)}')
+        return normalized
+
+
+    async def search(self, q: str, types: list[str] | None = None) -> SuccessResponse[SearchResults]:
         async def loader() -> SuccessResponse[SearchResults]:
+            normalized_query = self._normalize_search_query(q)
+            allowed_types = self._normalize_search_types(types)
             async with db_session_manager.session() as session:
-                players = await self.repo.search_players(session, q)
-                tournaments = await self.repo.search_tournaments(session, q)
-                news = await self.repo.search_news(session, q)
-                matches = await self.repo.search_matches(session, q)
+                players = await self.repo.search_players(session, normalized_query) if 'players' in allowed_types else []
+                tournaments = await self.repo.search_tournaments(session, normalized_query) if 'tournaments' in allowed_types else []
+                news = await self.repo.search_news(session, normalized_query) if 'news' in allowed_types else []
+                matches = await self.repo.search_matches(session, normalized_query) if 'matches' in allowed_types else []
 
-                query_terms = [item for item in q.lower().replace('-', ' ').split() if item]
+                query_terms = [item for item in normalized_query.lower().replace('-', ' ').split() if item]
                 direct_match_payload = []
                 if len(query_terms) >= 2:
                     supplemental_player_ids = {item.id for item in players}
@@ -125,11 +148,14 @@ class PublicDataService:
                 news_payload = [self.query._news_summary(item, categories.get(item.category_id)) for item in news]
                 return SuccessResponse(data=SearchResults(players=player_payload, tournaments=tournament_payload, matches=[MatchSummary.model_validate(item.model_dump()) for item in match_payload.values()], news=news_payload))
 
-        return await self._cached(f'search:query:{q.strip().lower()}', SuccessResponse[SearchResults], loader)
+        normalized_query = self._normalize_search_query(q)
+        normalized_types = sorted(self._normalize_search_types(types))
+        cache_key = f"search:query:{normalized_query.lower()}:{'|'.join(normalized_types)}"
+        return await self._cached(cache_key, SuccessResponse[SearchResults], loader)
 
-    async def search_suggestions(self, q: str) -> SuccessResponse[list[SearchSuggestion]]:
+    async def search_suggestions(self, q: str, types: list[str] | None = None) -> SuccessResponse[list[SearchSuggestion]]:
         async def loader() -> SuccessResponse[list[SearchSuggestion]]:
-            results = (await self.search(q)).data
+            results = (await self.search(q, types=types)).data
             suggestions: list[SearchSuggestion] = []
             for item in results.players[:3]:
                 suggestions.append(SearchSuggestion(text=item.full_name, entity_type='player'))
@@ -148,7 +174,10 @@ class PublicDataService:
                     deduped.append(item)
             return SuccessResponse(data=deduped[:8])
 
-        return await self._cached(f'search:suggestions:{q.strip().lower()}', SuccessResponse[list[SearchSuggestion]], loader)
+        normalized_query = self._normalize_search_query(q)
+        normalized_types = sorted(self._normalize_search_types(types))
+        cache_key = f"search:suggestions:{normalized_query.lower()}:{'|'.join(normalized_types)}"
+        return await self._cached(cache_key, SuccessResponse[list[SearchSuggestion]], loader)
 
     async def list_live_matches(self) -> SuccessResponse[list[MatchSummary]]:
         async def loader() -> SuccessResponse[list[MatchSummary]]:

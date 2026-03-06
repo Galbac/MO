@@ -51,6 +51,14 @@ class MediaSettings(BaseModel):
         "image/gif",
         "text/plain",
     ]
+    allowed_extensions_by_content_type: dict[str, list[str]] = {
+        "image/jpeg": [".jpg", ".jpeg"],
+        "image/png": [".png"],
+        "image/webp": [".webp"],
+        "image/gif": [".gif"],
+        "text/plain": [".txt", ".log", ".md"],
+    }
+    forbidden_extensions: list[str] = [".html", ".htm", ".js", ".svg", ".exe", ".php", ".sh", ".bat"]
     max_upload_size_bytes: int = 1024 * 1024 * 5
 
 

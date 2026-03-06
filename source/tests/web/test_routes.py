@@ -63,3 +63,22 @@ async def test_rankings_page_renders_both_tours(async_client) -> None:
     assert response.status_code == status.HTTP_200_OK
     assert "Рейтинг ATP" in response.text
     assert "Рейтинг WTA" in response.text
+
+
+async def test_detail_pages_include_structured_data(async_client) -> None:
+    player = await async_client.get('/players/novak-djokovic')
+    match = await async_client.get('/matches/djokovic-vs-sinner-ao-2026-final')
+    article = await async_client.get('/news/djokovic-wins-ao-2026')
+
+    assert player.status_code == status.HTTP_200_OK
+    assert 'application/ld+json' in player.text
+    assert 'Novak Djokovic' in player.text
+    assert 'property="og:image"' in player.text
+
+    assert match.status_code == status.HTTP_200_OK
+    assert 'SportsEvent' in match.text
+    assert 'Novak Djokovic vs Jannik Sinner' in match.text
+
+    assert article.status_code == status.HTTP_200_OK
+    assert 'NewsArticle' in article.text
+    assert 'property="og:type" content="article"' in article.text

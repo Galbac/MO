@@ -66,8 +66,14 @@ class OperationsService:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='filename is required')
         if filename != Path(filename).name or '..' in filename:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsafe filename')
+        extension = Path(filename).suffix.lower()
+        if extension in set(settings.media.forbidden_extensions):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Forbidden file extension')
         if content_type not in settings.media.allowed_content_types:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsupported media type')
+        allowed_extensions = settings.media.allowed_extensions_by_content_type.get(content_type, [])
+        if extension not in allowed_extensions:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='File extension does not match content type')
         if size > settings.media.max_upload_size_bytes:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='File too large')
 

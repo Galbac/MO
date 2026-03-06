@@ -44,3 +44,20 @@ async def test_public_media_rejects_unsafe_filename(async_client) -> None:
         files={"file": ("../escape.txt", b"payload", "text/plain")},
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+async def test_media_rejects_mismatched_extension(async_client) -> None:
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
+        files={"file": ("cover.jpg", b"plain text", "text/plain")},
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+async def test_media_rejects_forbidden_extension(async_client, admin_auth_headers) -> None:
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/media/upload",
+        json={"filename": "payload.html", "content_type": "text/plain", "content": "x"},
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
