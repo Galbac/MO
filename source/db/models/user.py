@@ -18,4 +18,6 @@ class User(Base, IdIntPkMixin, TimestampMixin):
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     locale: Mapped[str] = mapped_column(String(16), default="ru")
     timezone: Mapped[str] = mapped_column(String(64), default="Europe/Moscow")
+    quiet_hours_start: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    quiet_hours_end: Mapped[str | None] = mapped_column(String(5), nullable=True)
     is_email_verified: Mapped[bool] = mapped_column(Boolean(), default=False)

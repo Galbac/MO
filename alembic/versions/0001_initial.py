@@ -24,6 +24,8 @@ def upgrade() -> None:
         sa.Column("avatar_url", sa.String(length=512), nullable=True),
         sa.Column("locale", sa.String(length=16), nullable=False, server_default="ru"),
         sa.Column("timezone", sa.String(length=64), nullable=False, server_default="Europe/Moscow"),
+        sa.Column("quiet_hours_start", sa.String(length=5), nullable=True),
+        sa.Column("quiet_hours_end", sa.String(length=5), nullable=True),
         sa.Column("is_email_verified", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),

@@ -14,6 +14,8 @@ class UserProfile(BaseModel):
     avatar_url: str | None = None
     locale: str
     timezone: str
+    quiet_hours_start: str | None = None
+    quiet_hours_end: str | None = None
     is_email_verified: bool = True
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -25,6 +27,8 @@ class UserUpdateRequest(BaseModel):
     avatar_url: str | None = None
     locale: str | None = None
     timezone: str | None = None
+    quiet_hours_start: str | None = None
+    quiet_hours_end: str | None = None
 
 
 class UserPasswordChangeRequest(BaseModel):

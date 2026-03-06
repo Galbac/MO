@@ -1,22 +1,43 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time as clock_time
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 
 from source.db.models import Match, NewsArticle, Tournament
 from source.db.session import db_session_manager
-from source.repositories import EngagementRepository, MatchRepository, NewsRepository, PlayerRepository, TournamentRepository
+from source.repositories import EngagementRepository, MatchRepository, NewsRepository, PlayerRepository, TournamentRepository, UserRepository
 from source.services.cache_service import CacheService
 
 
 class WorkflowService:
+    @staticmethod
+    def _in_quiet_hours(user, now_utc: datetime) -> bool:
+        start = getattr(user, 'quiet_hours_start', None)
+        end = getattr(user, 'quiet_hours_end', None)
+        if not start or not end:
+            return False
+        try:
+            user_tz = ZoneInfo(getattr(user, 'timezone', 'UTC') or 'UTC')
+            local_time = now_utc.astimezone(user_tz).time()
+            start_time = clock_time.fromisoformat(start)
+            end_time = clock_time.fromisoformat(end)
+        except Exception:
+            return False
+        if start_time == end_time:
+            return True
+        if start_time < end_time:
+            return start_time <= local_time < end_time
+        return local_time >= start_time or local_time < end_time
+
     def __init__(self) -> None:
         self.matches = MatchRepository()
         self.engagement = EngagementRepository()
         self.news = NewsRepository()
         self.players = PlayerRepository()
         self.tournaments = TournamentRepository()
+        self.users = UserRepository()
         self.cache = CacheService()
 
     async def process_finalized_match(self, match_id: int) -> None:
@@ -64,7 +85,11 @@ class WorkflowService:
             title = f'{player1_name} vs {player2_name}'
             body = 'Match is starting soon.' if notification_type == 'match_soon' else 'Match is now live.'
             created = 0
+            now = datetime.now(tz=UTC)
             for subscription in subscriptions:
+                subscription_user = await self.users.get(session, subscription.user_id)
+                if subscription_user is None or self._in_quiet_hours(subscription_user, now):
+                    continue
                 duplicate = await self.engagement.find_duplicate_notification(
                     session,
                     user_id=subscription.user_id,
@@ -90,6 +115,7 @@ class WorkflowService:
     async def _send_match_notifications(self, session, *, match: Match, tournament: Tournament) -> None:
         entities = [('match', match.id), ('player', match.player1_id), ('player', match.player2_id), ('tournament', tournament.id)]
         subscriptions = await self.engagement.list_matching_subscriptions(session, entities=entities, notification_type='match_finished')
+        now = datetime.now(tz=UTC)
         winner_name = 'Player'
         if match.winner_id == match.player1_id:
             winner_name = 'player1'
@@ -98,6 +124,9 @@ class WorkflowService:
         title = f'Match finished: {match.slug}'
         body = f'{title}. Winner recorded as {winner_name}.'
         for subscription in subscriptions:
+            subscription_user = await self.users.get(session, subscription.user_id)
+            if subscription_user is None or self._in_quiet_hours(subscription_user, now):
+                continue
             duplicate = await self.engagement.find_duplicate_notification(
                 session,
                 user_id=subscription.user_id,

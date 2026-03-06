@@ -267,7 +267,7 @@ class AuthUserService:
             if user is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
             before = self._entity_dict(user)
-            safe_payload = {key: value for key, value in payload.items() if key in {'email', 'username', 'role', 'status', 'first_name', 'last_name', 'locale', 'timezone'}}
+            safe_payload = {key: value for key, value in payload.items() if key in {'email', 'username', 'role', 'status', 'first_name', 'last_name', 'locale', 'timezone', 'quiet_hours_start', 'quiet_hours_end'}}
             updated = await self.users.update(session, user, safe_payload)
             after = self._entity_dict(updated)
         await self._log_audit(action='admin.user.update', entity_type='user', entity_id=updated.id, before_json=before, after_json=after, user_id=actor_id)

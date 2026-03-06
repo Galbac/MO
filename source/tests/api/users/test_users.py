@@ -14,7 +14,7 @@ async def test_users_me_returns_seeded_demo_user(async_client, user_auth_headers
 async def test_patch_users_me_updates_profile(async_client, user_auth_headers) -> None:
     response = await async_client.patch(
         f"{settings.api.prefix}{settings.api.v1.prefix}/users/me",
-        json={"first_name": "Updated", "timezone": "UTC"},
+        json={"first_name": "Updated", "timezone": "UTC", "quiet_hours_start": "23:00", "quiet_hours_end": "07:00"},
         headers=user_auth_headers,
     )
 
@@ -22,6 +22,8 @@ async def test_patch_users_me_updates_profile(async_client, user_auth_headers) -
     payload = response.json()
     assert payload["data"]["first_name"] == "Updated"
     assert payload["data"]["timezone"] == "UTC"
+    assert payload["data"]["quiet_hours_start"] == "23:00"
+    assert payload["data"]["quiet_hours_end"] == "07:00"
 
 
 async def test_patch_users_me_password_changes_hash(async_client, user_auth_headers) -> None:
