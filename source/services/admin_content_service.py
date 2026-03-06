@@ -15,6 +15,7 @@ from source.schemas.pydantic.match import MatchEventCreateRequest, MatchEventIte
 from source.schemas.pydantic.news import NewsArticleCreateRequest, NewsStatusRequest
 from source.services.cache_service import CacheService
 from source.services.job_service import JobService
+from source.services.live_hub import live_hub
 from source.services.portal_query_service import PortalQueryService
 
 
@@ -154,6 +155,32 @@ class AdminContentService:
     def _invalidate_cache(self, *prefixes: str) -> None:
         self.cache.invalidate_prefixes(*prefixes)
 
+    async def _broadcast_match_update(self, match_id: int, event_name: str, extra: dict[str, Any] | None = None) -> None:
+        try:
+            detail = (await self.query.get_match(match_id)).data
+        except HTTPException:
+            return
+        channels = {
+            'live:all',
+            f'live:match:{match_id}',
+        }
+        if detail.tournament_id is not None:
+            channels.add(f'live:tournament:{detail.tournament_id}')
+        if detail.player1_id is not None:
+            channels.add(f'live:player:{detail.player1_id}')
+        if detail.player2_id is not None:
+            channels.add(f'live:player:{detail.player2_id}')
+        payload = {
+            'event': event_name,
+            'match_id': match_id,
+            'tournament_id': detail.tournament_id,
+            'player_ids': [detail.player1_id, detail.player2_id],
+            'data': detail.model_dump(),
+        }
+        if extra:
+            payload['meta'] = extra
+        await live_hub.broadcast(channels=channels, payload=payload)
+
     @staticmethod
     def _decide_winner(match, sets: list[Any]) -> int | None:
         if match.status == 'retired':
@@ -269,6 +296,7 @@ class AdminContentService:
             after = self._entity_dict(updated)
         await self._log_audit(action='match.update', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
         self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:', 'search:')
+        await self._broadcast_match_update(match_id, 'match_status_changed', {'status': after.get('status')})
         return await self.query.get_match(match_id)
 
     async def delete_admin_match(self, match_id: int, actor_id: int | None = None):
@@ -297,6 +325,7 @@ class AdminContentService:
             after = self._entity_dict(updated)
         await self._log_audit(action='match.update_score', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
         self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:')
+        await self._broadcast_match_update(match_id, 'score_updated', {'score_summary': payload.score_summary})
         return await self.query.get_match(match_id)
 
     async def update_admin_match_stats(self, match_id: int, payload: MatchStatsUpdateRequest, actor_id: int | None = None):
@@ -307,6 +336,7 @@ class AdminContentService:
             await self.matches.upsert_stats(session, match_id, payload.stats.model_dump())
         await self._log_audit(action='match.update_stats', entity_type='match', entity_id=match_id, before_json=None, after_json=payload.stats.model_dump(), user_id=actor_id)
         self._invalidate_cache('matches:', 'live:')
+        await self._broadcast_match_update(match_id, 'stats_updated', payload.stats.model_dump())
         return await self.query.get_match(match_id)
 
     async def create_admin_match_event(self, match_id: int, payload: MatchEventCreateRequest, actor_id: int | None = None):
@@ -317,6 +347,8 @@ class AdminContentService:
             event = await self.matches.create_event(session, {'match_id': match_id, 'event_type': payload.event_type, 'set_number': payload.set_number, 'game_number': payload.game_number, 'player_id': payload.player_id, 'payload_json': payload.payload_json, 'created_at': datetime.now(tz=UTC)})
         await self._log_audit(action='match.create_event', entity_type='match', entity_id=match_id, before_json=None, after_json={'event_id': event.id, **payload.model_dump()}, user_id=actor_id)
         self._invalidate_cache('matches:', 'live:')
+        broadcast_event = payload.event_type if payload.event_type in {'break_point', 'set_finished', 'match_finished'} else 'point_updated'
+        await self._broadcast_match_update(match_id, broadcast_event, {'event_id': event.id, **payload.model_dump()})
         return SuccessResponse(data=MatchEventItem(id=event.id, event_type=event.event_type, set_number=event.set_number, game_number=event.game_number, player_id=event.player_id, payload_json=event.payload_json or {}, created_at=event.created_at))
 
     async def finalize_admin_match(self, match_id: int, actor_id: int | None = None):
@@ -331,6 +363,7 @@ class AdminContentService:
             after = self._entity_dict(updated)
         await self._log_audit(action='match.finalize', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
         self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:', 'rankings:')
+        await self._broadcast_match_update(match_id, 'match_finished', {'winner_id': winner_id})
         await self.jobs.enqueue(job_type='finalize_match_postprocess', payload={'match_id': match_id, 'actor_id': actor_id})
         await self.jobs.process_due_jobs()
         return MessageResponse(data=SimpleMessage(message='Match finalized and post-processing queued'))
@@ -345,6 +378,7 @@ class AdminContentService:
             after = self._entity_dict(updated)
         await self._log_audit(action='match.reopen', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
         self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:')
+        await self._broadcast_match_update(match_id, 'match_status_changed', {'status': 'scheduled'})
         return MessageResponse(data=SimpleMessage(message='Match reopened'))
 
     async def list_admin_news(self):

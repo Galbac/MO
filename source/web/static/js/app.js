@@ -35,6 +35,34 @@ function setHtml(id, html) {
     if (node) node.innerHTML = html;
 }
 
+function wsBaseUrl(path) {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}${API_BASE}${path}`;
+}
+
+function createLiveSocket(channels, onEvent) {
+    const socket = new WebSocket(wsBaseUrl(`/live/ws/live?channels=${encodeURIComponent(channels.join(","))}`));
+    socket.addEventListener("message", (event) => {
+        try {
+            const payload = JSON.parse(event.data);
+            if (payload.event === "connected") return;
+            if (payload.event === "subscribed") return;
+            onEvent(payload);
+        } catch (_error) {
+            return;
+        }
+    });
+    return socket;
+}
+
+function debounce(fn, wait) {
+    let timer = null;
+    return (...args) => {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(() => fn(...args), wait);
+    };
+}
+
 function getEntitySlug() {
     return document.body.dataset.entitySlug || window.location.pathname.split("/").filter(Boolean).at(-1) || "";
 }
@@ -191,23 +219,33 @@ async function initMatchesListPage() {
 async function initMatchDetailPage() {
     const match = await resolveEntityBySlug("/matches", getEntitySlug());
     if (!match) return;
-    const [detail, stats, timeline, preview, h2h] = await Promise.all([apiGet(`/matches/${match.id}`), apiGet(`/matches/${match.id}/stats`), apiGet(`/matches/${match.id}/timeline`), apiGet(`/matches/${match.id}/preview`), apiGet(`/matches/${match.id}/h2h`)]);
-    const data = detail.data;
-    setHtml("match-title", escapeHtml(`${data.player1_name} vs ${data.player2_name}`));
-    setHtml("match-subtitle", escapeHtml(`${data.tournament_name}${data.round_code ? `, ${data.round_code}` : ""}`));
-    setHtml("match-status", escapeHtml(formatStatus(data.status)));
-    setHtml("match-scoreboard", `<div class="score-line"><strong>${escapeHtml(data.player1_name)}</strong>${data.score.sets.map((set) => `<span>${escapeHtml(set.split("-")[0])}</span>`).join("")}</div><div class="score-line"><strong>${escapeHtml(data.player2_name)}</strong>${data.score.sets.map((set) => `<span>${escapeHtml(set.split("-")[1])}</span>`).join("")}</div>`);
-    setHtml("match-stats-table", `<tr><td>Aces</td><td>${escapeHtml(stats.data.player1_aces)}</td><td>${escapeHtml(stats.data.player2_aces)}</td></tr><tr><td>First serve %</td><td>${escapeHtml(stats.data.player1_first_serve_pct)}</td><td>${escapeHtml(stats.data.player2_first_serve_pct)}</td></tr><tr><td>Duration</td><td colspan="2">${escapeHtml(stats.data.duration_minutes)} min</td></tr>`);
-    setHtml("match-timeline", extractList(timeline).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.event_type)}</div><strong>${escapeHtml(JSON.stringify(item.payload_json))}</strong></div>`).join(""));
-    setHtml("match-preview", `<div class="text-muted">${escapeHtml(preview.data.notes.join(" "))}</div>`);
-    setHtml("match-h2h", `<div class="metric-value">${escapeHtml(h2h.data.player1_wins)} - ${escapeHtml(h2h.data.player2_wins)}</div><div class="text-muted">Total matches: ${escapeHtml(h2h.data.total_matches)}</div>`);
-    setHtml("match-news", (data.related_news || []).map(newsCard).join(""));
+    const render = async () => {
+        const [detail, stats, timeline, preview, h2h] = await Promise.all([apiGet(`/matches/${match.id}`), apiGet(`/matches/${match.id}/stats`), apiGet(`/matches/${match.id}/timeline`), apiGet(`/matches/${match.id}/preview`), apiGet(`/matches/${match.id}/h2h`)]);
+        const data = detail.data;
+        setHtml("match-title", escapeHtml(`${data.player1_name} vs ${data.player2_name}`));
+        setHtml("match-subtitle", escapeHtml(`${data.tournament_name}${data.round_code ? `, ${data.round_code}` : ""}`));
+        setHtml("match-status", escapeHtml(formatStatus(data.status)));
+        setHtml("match-scoreboard", `<div class="score-line"><strong>${escapeHtml(data.player1_name)}</strong>${data.score.sets.map((set) => `<span>${escapeHtml(set.split("-")[0])}</span>`).join("")}</div><div class="score-line"><strong>${escapeHtml(data.player2_name)}</strong>${data.score.sets.map((set) => `<span>${escapeHtml(set.split("-")[1])}</span>`).join("")}</div>`);
+        setHtml("match-stats-table", `<tr><td>Aces</td><td>${escapeHtml(stats.data.player1_aces)}</td><td>${escapeHtml(stats.data.player2_aces)}</td></tr><tr><td>First serve %</td><td>${escapeHtml(stats.data.player1_first_serve_pct)}</td><td>${escapeHtml(stats.data.player2_first_serve_pct)}</td></tr><tr><td>Duration</td><td colspan="2">${escapeHtml(stats.data.duration_minutes)} min</td></tr>`);
+        setHtml("match-timeline", extractList(timeline).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.event_type)}</div><strong>${escapeHtml(JSON.stringify(item.payload_json))}</strong></div>`).join(""));
+        setHtml("match-preview", `<div class="text-muted">${escapeHtml(preview.data.notes.join(" "))}</div>`);
+        setHtml("match-h2h", `<div class="metric-value">${escapeHtml(h2h.data.player1_wins)} - ${escapeHtml(h2h.data.player2_wins)}</div><div class="text-muted">Total matches: ${escapeHtml(h2h.data.total_matches)}</div>`);
+        setHtml("match-news", (data.related_news || []).map(newsCard).join(""));
+    };
+    await render();
+    const refresh = debounce(render, 250);
+    createLiveSocket([`live:match:${match.id}`], () => refresh());
 }
 
 async function initLiveCenterPage() {
-    const [matches, feed] = await Promise.all([apiGet("/live"), apiGet("/live/feed")]);
-    setHtml("live-matches-list", extractList(matches).map(matchCard).join(""));
-    setHtml("live-feed-list", extractList(feed).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.event_type)}</div><strong>${escapeHtml(JSON.stringify(item.payload_json))}</strong></div>`).join(""));
+    const render = async () => {
+        const [matches, feed] = await Promise.all([apiGet("/live"), apiGet("/live/feed")]);
+        setHtml("live-matches-list", extractList(matches).map(matchCard).join(""));
+        setHtml("live-feed-list", extractList(feed).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.event_type)}</div><strong>${escapeHtml(JSON.stringify(item.payload_json))}</strong></div>`).join(""));
+    };
+    await render();
+    const refresh = debounce(render, 250);
+    createLiveSocket(["live:all"], () => refresh());
 }
 
 async function initRankingsPage() {

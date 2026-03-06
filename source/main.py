@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from source.api.exception_handlers import register_exception_handlers
@@ -32,7 +31,6 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.names.title,
         root_path=settings.names.path,
-        default_response_class=ORJSONResponse,
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
