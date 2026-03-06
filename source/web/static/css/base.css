@@ -11,6 +11,7 @@ html {
 body {
     min-height: 100vh;
     margin: 0;
+    overflow-x: hidden;
     font-family: var(--font-body);
     color: var(--text);
     background:
@@ -78,6 +79,18 @@ textarea {
     overflow-x: clip;
 }
 
+.page-main,
+.page-section,
+.page-grid,
+.cards-grid,
+.toolbar,
+.toolbar__group,
+.toolbar__tabs,
+.admin-layout,
+.admin-content {
+    min-width: 0;
+}
+
 .page-main {
     padding: 1.5rem 0 4rem;
 }
@@ -123,6 +136,7 @@ textarea {
 .section-title {
     font-size: clamp(1.4rem, 2.4vw, 2rem);
     margin: 0;
+    text-wrap: balance;
 }
 
 .section-lead,
@@ -232,6 +246,11 @@ textarea {
     padding-bottom: 1rem;
     border-bottom-color: var(--line);
     vertical-align: middle;
+}
+
+.table-responsive {
+    border-radius: 1.2rem;
+    -webkit-overflow-scrolling: touch;
 }
 
 .form-control,
@@ -457,6 +476,27 @@ textarea {
     }
 }
 
+@media (max-width: 991px) {
+    .page-main {
+        padding-top: 1.1rem;
+        padding-bottom: 3.25rem;
+    }
+
+    .page-section {
+        margin-bottom: 1.15rem;
+    }
+
+    .hero-card {
+        padding: 1.5rem;
+    }
+
+    .display-title,
+    .hero-title {
+        font-size: clamp(2.1rem, 10vw, 3.35rem);
+        line-height: 1;
+    }
+}
+
 @media (max-width: 767px) {
     .page-main {
         padding-top: 1rem;
@@ -476,5 +516,40 @@ textarea {
     .cards-grid.cards-2,
     .cards-grid.cards-3 {
         grid-template-columns: 1fr;
+    }
+
+    .table-clean {
+        min-width: 38rem;
+    }
+}
+
+@media (max-width: 575px) {
+    .container-xxl {
+        padding-inline: 0.85rem !important;
+    }
+
+    .hero-card,
+    .content-card,
+    .table-card,
+    .timeline-card,
+    .metric-card,
+    .scoreboard-card,
+    .state-card {
+        padding: 1rem;
+        border-radius: 1.2rem;
+    }
+
+    .section-kicker {
+        font-size: 0.66rem;
+        letter-spacing: 0.16em;
+    }
+
+    .display-title,
+    .hero-title {
+        font-size: clamp(1.85rem, 9vw, 2.55rem);
+    }
+
+    .section-title {
+        font-size: clamp(1.2rem, 6vw, 1.5rem);
     }
 }

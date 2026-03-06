@@ -94,7 +94,7 @@ async def test_auth_user_service_direct_methods(async_client, admin_auth_headers
     )
     assert changed.data.message == 'Password changed and tokens revoked'
 
-    forgot = await service.forgot_password(None, ForgotPasswordRequest(email='user@example.com'))
+    forgot = await service.forgot_password(None, ForgotPasswordRequest(email=settings.demo.user_email))
     assert 'reset instructions' in forgot.data.message
 
     reset_token = service._issue_action_token(user_id=2, purpose='password_reset', ttl_minutes=settings.auth.password_reset_token_ttl_minutes)

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import time
+from urllib.parse import quote
 
-from fastapi import Request, status
-from fastapi.responses import JSONResponse
+from fastapi import HTTPException, Request, status
+from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from source.config.settings import settings
+from source.services import AuthUserService
 from source.services.log_service import LogService
 from source.services.runtime_state_store import RuntimeStateStore
 
@@ -84,4 +86,54 @@ class ApiRateLimitMiddleware(BaseHTTPMiddleware):
         timestamps.append(now)
         state[client_ip] = timestamps
         self.store.write_namespace(self.namespace, state)
+        return await call_next(request)
+
+
+class WebAccessMiddleware(BaseHTTPMiddleware):
+    public_paths = {"/", "/register", "/admin/login", "/404", "/500", "/robots.txt", "/sitemap.xml", "/__dev__/reload-token"}
+    protected_prefixes = ("/portal", "/players", "/tournaments", "/matches", "/live", "/rankings", "/h2h", "/news", "/search", "/account", "/notifications")
+
+    def __init__(self, app) -> None:
+        super().__init__(app)
+        self.auth_service = AuthUserService()
+
+    @staticmethod
+    def _redirect(url: str) -> RedirectResponse:
+        return RedirectResponse(url=url, status_code=status.HTTP_303_SEE_OTHER)
+
+    @staticmethod
+    def _next_value(request: Request) -> str:
+        target = request.url.path
+        if request.url.query:
+            target = f"{target}?{request.url.query}"
+        return quote(target, safe='')
+
+    async def _current_user(self, request: Request):
+        try:
+            user = await self.auth_service._resolve_current_user(request)
+        except HTTPException:
+            return None
+        request.state.current_user = user
+        return user
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if path.startswith('/api/') or path.startswith('/static') or path.startswith('/docs') or path.startswith('/redoc') or path == '/openapi.json':
+            return await call_next(request)
+
+        user = await self._current_user(request)
+
+        if path in {"/", "/register", "/admin/login"} and user is not None:
+            return self._redirect('/admin' if user.role == 'admin' else '/portal')
+
+        if path.startswith('/admin') and path != '/admin/login':
+            if user is None:
+                return self._redirect(f"/admin/login?next={self._next_value(request)}")
+            if user.role != 'admin':
+                return self._redirect('/portal')
+
+        if any(path == prefix or path.startswith(f"{prefix}/") for prefix in self.protected_prefixes):
+            if user is None:
+                return self._redirect(f"/register?next={self._next_value(request)}")
+
         return await call_next(request)

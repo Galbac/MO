@@ -108,8 +108,56 @@
     background: rgba(15, 31, 56, 0.04);
 }
 
+@media (max-width: 1199px) {
+    .home-hero .row {
+        row-gap: 1.25rem;
+    }
+}
+
 @media (max-width: 991px) {
     .player-hero {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 767px) {
+    [data-section="public"] .hero-card {
+        min-height: auto;
+    }
+
+    .hero-visual {
+        min-height: 13rem;
+        border-radius: 1.35rem;
+    }
+
+    .hero-visual__ball {
+        top: 22%;
+        right: 14%;
+        width: 3.9rem;
+        height: 3.9rem;
+    }
+
+    .hero-visual__pulse {
+        left: 10%;
+        width: 58%;
+    }
+
+    .player-meta-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 575px) {
+    .player-avatar--lg {
+        min-height: 15rem;
+    }
+
+    .player-meta-card,
+    .search-result {
+        padding: 0.9rem;
+    }
+
+    .form-chart {
+        min-height: 4.2rem;
     }
 }

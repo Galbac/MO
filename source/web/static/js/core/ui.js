@@ -1,6 +1,33 @@
 import { api, formToJson } from "/static/js/core/api.js";
 import { escapeHtml, qs, qsa, setText, show } from "/static/js/core/utils.js";
 
+async function handleAuthSuccess(path, payload) {
+    if (path === "/auth/logout") {
+        window.location.href = "/register";
+        return;
+    }
+
+    if (path !== "/auth/login" && path !== "/auth/register") return;
+
+    const role = payload?.data?.user?.role || "user";
+    const section = document.body.dataset.section || "public";
+
+    if (section === "admin") {
+        if (role !== "admin") {
+            try {
+                await api.auth.logout({});
+            } catch (_error) {
+                // Ignore cleanup errors after denied admin sign-in.
+            }
+            throw new Error("Доступ к админке разрешен только администратору.");
+        }
+        window.location.href = "/admin";
+        return;
+    }
+
+    window.location.href = role === "admin" ? "/admin" : "/portal";
+}
+
 function activateTabs() {
     qsa("[data-tab-group]").forEach((group) => {
         const buttons = qsa("[data-tab-target]", group);
@@ -41,9 +68,11 @@ function initForms() {
                 const method = (form.dataset.apiMethod || "POST").toLowerCase();
                 const path = form.dataset.apiPath;
                 const payload = formToJson(form);
-                if (method === "post") await api.post(path, payload);
-                else if (method === "patch") await api.patch(path, payload);
-                else if (method === "delete") await api.delete(path);
+                let result = null;
+                if (method === "post") result = await api.post(path, payload);
+                else if (method === "patch") result = await api.patch(path, payload);
+                else if (method === "delete") result = await api.delete(path);
+                await handleAuthSuccess(path, result);
                 show(feedback, true, feedback?.textContent || "Готово");
             } catch (submitError) {
                 show(error, true, submitError.message || "Ошибка запроса");

@@ -47,6 +47,9 @@ def _check_password_strength(password: str) -> None:
 
 
 class AuthUserService:
+    access_cookie_name = 'mo_access_token'
+    refresh_cookie_name = 'mo_refresh_token'
+
     def __init__(self) -> None:
         self.users = UserRepository()
         self.audit = AuditRepository()
@@ -262,11 +265,27 @@ class AuthUserService:
             self.store.write_namespace(self.refresh_namespace, refresh_store)
         return payload
 
-    async def _resolve_current_user(self, request: Request):
+    @classmethod
+    def access_token_from_request(cls, request: Request) -> str:
         auth_header = request.headers.get('authorization', '')
-        if not auth_header.startswith('Bearer '):
+        if auth_header.startswith('Bearer '):
+            return auth_header.split(' ', 1)[1].strip()
+        return (request.cookies.get(cls.access_cookie_name) or '').strip()
+
+    @classmethod
+    def refresh_token_from_request(cls, request: Request | None, fallback: str | None = None) -> str:
+        candidate = (fallback or '').strip()
+        if candidate:
+            return candidate
+        if request is None:
+            return ''
+        return (request.cookies.get(cls.refresh_cookie_name) or '').strip()
+
+    async def _resolve_current_user(self, request: Request):
+        access_token = self.access_token_from_request(request)
+        if not access_token:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Authentication required')
-        payload = token_codec.decode(auth_header.split(' ', 1)[1])
+        payload = token_codec.decode(access_token)
         if payload.get('typ') != 'access':
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid access token')
         async with db_session_manager.session() as session:
@@ -331,7 +350,10 @@ class AuthUserService:
         return AuthResponse(data=self._bundle(user))
 
     async def refresh(self, request: Request | None, payload: RefreshTokenRequest) -> AuthResponse:
-        token_payload = self._consume_refresh_token(payload.refresh_token, revoke_only=False)
+        refresh_token = self.refresh_token_from_request(request, payload.refresh_token)
+        if not refresh_token:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Refresh token is required')
+        token_payload = self._consume_refresh_token(refresh_token, revoke_only=False)
         async with db_session_manager.session() as session:
             user = await self.users.get(session, int(token_payload['sub']))
             if user is None:
@@ -349,7 +371,10 @@ class AuthUserService:
             )
 
     async def logout(self, request: Request | None, payload: LogoutRequest) -> SuccessResponse[ActionResult]:
-        self._consume_refresh_token(payload.refresh_token, revoke_only=True)
+        refresh_token = self.refresh_token_from_request(request, payload.refresh_token)
+        if not refresh_token:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Refresh token is required')
+        self._consume_refresh_token(refresh_token, revoke_only=True)
         return self._action_result(action='auth.logout', message='Logged out', resource_type='session')
 
     async def forgot_password(self, request: Request | None, payload: ForgotPasswordRequest) -> SuccessResponse[ActionResult]:
@@ -404,8 +429,7 @@ class AuthUserService:
 
     async def auth_me(self, request: Request) -> SuccessResponse[UserProfile]:
         user = await self._resolve_current_user(request)
-        auth_header = request.headers.get('authorization', '')
-        token = auth_header.split(' ', 1)[1] if auth_header.startswith('Bearer ') else ''
+        token = self.access_token_from_request(request)
         payload = token_codec.decode(token) if token else {}
         return SuccessResponse(
             data=self._profile(user),

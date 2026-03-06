@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from source.api.exception_handlers import register_exception_handlers
-from source.api.middleware import AccessLogMiddleware, ApiRateLimitMiddleware, SecurityHeadersMiddleware
+from source.api.middleware import AccessLogMiddleware, ApiRateLimitMiddleware, SecurityHeadersMiddleware, WebAccessMiddleware
 from source.api.protected_docs import register_protected_docs
 from source.api.routers.http import router as http_router
 from source.config.settings import settings
@@ -44,6 +44,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.add_middleware(WebAccessMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.middleware.cors_origins,

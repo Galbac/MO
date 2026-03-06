@@ -129,3 +129,23 @@ async def editor_auth_headers(async_client: AsyncClient) -> dict[str, str]:
 @pytest_asyncio.fixture
 async def operator_auth_headers(async_client: AsyncClient) -> dict[str, str]:
     return await _login_headers(async_client, email_or_username="operator", password="OperatorPass123")
+
+
+@pytest_asyncio.fixture
+async def user_session_client(async_client: AsyncClient) -> AsyncClient:
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/auth/login",
+        json={"email_or_username": "demo_user", "password": "UserPass123"},
+    )
+    assert response.status_code == 200
+    return async_client
+
+
+@pytest_asyncio.fixture
+async def admin_session_client(async_client: AsyncClient) -> AsyncClient:
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/auth/login",
+        json={"email_or_username": "admin", "password": "AdminPass123"},
+    )
+    assert response.status_code == 200
+    return async_client

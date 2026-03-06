@@ -30,6 +30,7 @@ async def test_register_creates_user_and_returns_tokens(async_client) -> None:
     assert payload["success"] is True
     assert payload["data"]["user"]["email"] == "new-user@example.com"
     assert payload["data"]["access_token"]
+    assert "mo_access_token=" in response.headers.get("set-cookie", "")
 
 
 async def test_login_returns_db_backed_user(async_client) -> None:
@@ -42,6 +43,7 @@ async def test_login_returns_db_backed_user(async_client) -> None:
     payload = response.json()
     assert payload["data"]["user"]["username"] == "demo_user"
     assert payload["data"]["refresh_token"]
+    assert "mo_access_token=" in response.headers.get("set-cookie", "")
 
 
 async def test_refresh_token_rotation_invalidates_old_refresh(async_client) -> None:
@@ -71,7 +73,7 @@ async def test_forgot_password_reset_flow_updates_password(async_client) -> None
     service = AuthUserService()
     forgot_response = await async_client.post(
         f"{settings.api.prefix}{settings.api.v1.prefix}/auth/forgot-password",
-        json={"email": "user@example.com"},
+        json={"email": settings.demo.user_email},
     )
 
     assert forgot_response.status_code == status.HTTP_200_OK

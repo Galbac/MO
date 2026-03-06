@@ -121,9 +121,13 @@
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
+    max-width: 100%;
     padding: 0.3rem;
     border-radius: 999px;
     background: rgba(15, 31, 56, 0.06);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
 }
 
 .toolbar__tab {
@@ -133,6 +137,8 @@
     font-weight: 800;
     padding: 0.7rem 1rem;
     border-radius: 999px;
+    white-space: nowrap;
+    flex: 0 0 auto;
 }
 
 .toolbar__tab.is-active {
@@ -166,6 +172,8 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 0.85rem;
+    min-width: 0;
+    flex-wrap: wrap;
 }
 
 .entity-card__eyebrow {
@@ -181,6 +189,7 @@
     font-size: 1.15rem;
     font-weight: 800;
     letter-spacing: -0.03em;
+    text-wrap: balance;
 }
 
 .entity-card__meta,
@@ -233,6 +242,7 @@
     display: grid;
     grid-template-columns: 1.2fr minmax(280px, 0.95fr);
     gap: 1rem;
+    min-width: 0;
 }
 
 .scoreboard-player {
@@ -255,6 +265,10 @@
     align-items: center;
     gap: 0.65rem;
     font-weight: 800;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .scoreboard-player__flag {
@@ -372,6 +386,7 @@
     border-radius: 1rem;
     background: rgba(15, 31, 56, 0.04);
     border: 1px solid rgba(15, 31, 56, 0.08);
+    overflow-wrap: anywhere;
 }
 
 .notification-item.is-unread {
@@ -401,6 +416,14 @@
     .scoreboard-card__grid {
         grid-template-columns: 1fr;
     }
+
+    .site-header__inner {
+        padding-inline: 0.9rem !important;
+    }
+
+    .brand {
+        max-width: min(18rem, 100%);
+    }
 }
 
 @media (max-width: 767px) {
@@ -408,13 +431,96 @@
         border-radius: 1.2rem;
     }
 
+    .site-header {
+        padding-top: 0.55rem;
+    }
+
+    .brand {
+        gap: 0.65rem;
+    }
+
+    .brand__ball {
+        width: 2.4rem;
+        height: 2.4rem;
+        border-radius: 0.85rem;
+    }
+
     .toolbar {
         padding: 0.9rem;
+        align-items: stretch;
+    }
+
+    .toolbar__group {
+        width: 100%;
     }
 
     .scoreboard-player {
         grid-template-columns: minmax(0, 1fr) repeat(5, minmax(1.8rem, auto));
         gap: 0.5rem;
         padding: 0.8rem;
+    }
+
+    .scoreboard-player__set,
+    .scoreboard-player__game {
+        font-size: 1rem;
+    }
+
+    .scoreboard-player__game {
+        font-size: 1.2rem;
+    }
+
+    .footer__inner {
+        border-radius: 1.4rem;
+        padding: 1.15rem;
+    }
+}
+
+@media (max-width: 575px) {
+    .top-nav__link {
+        padding: 0.65rem 0.8rem;
+        font-size: 0.94rem;
+    }
+
+    .toolbar {
+        gap: 0.8rem;
+    }
+
+    .toolbar__tabs {
+        width: 100%;
+    }
+
+    .toolbar__tab {
+        padding: 0.65rem 0.9rem;
+    }
+
+    .entity-card {
+        padding: 1rem;
+        border-radius: 1.2rem;
+    }
+
+    .entity-card__title {
+        font-size: 1.02rem;
+    }
+
+    .scoreboard-card {
+        padding: 1rem;
+    }
+
+    .scoreboard-card__grid {
+        overflow-x: auto;
+        padding-bottom: 0.2rem;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .scoreboard-card__grid > * {
+        min-width: min(100%, 18rem);
+    }
+
+    .scoreboard-player {
+        min-width: 19rem;
+    }
+
+    .notification-item {
+        padding: 0.85rem 0.9rem;
     }
 }
