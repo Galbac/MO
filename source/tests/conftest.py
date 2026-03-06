@@ -1,4 +1,5 @@
 import shutil
+import uuid
 from pathlib import Path
 
 import pytest
@@ -16,16 +17,39 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-@pytest_asyncio.fixture
-async def async_client() -> AsyncClient:
+@pytest.fixture
+def prepared_test_db() -> str:
     runtime_dir = Path('var')
     if runtime_dir.exists():
         shutil.rmtree(runtime_dir)
 
-    await db_session_manager.reset_models()
-    async with db_session_manager.session() as session:
-        await seed_demo_data(session)
+    original_url = db_session_manager.url
+    test_db_path = Path('var') / f'test_{uuid.uuid4().hex}.db'
+    test_db_path.parent.mkdir(parents=True, exist_ok=True)
+    test_db_url = f'sqlite+aiosqlite:///{test_db_path.resolve()}'
 
+    import asyncio
+
+    asyncio.run(db_session_manager.reconfigure(test_db_url))
+    asyncio.run(db_session_manager.reset_models())
+
+    async def _seed() -> None:
+        async with db_session_manager.session() as session:
+            await seed_demo_data(session)
+
+    asyncio.run(_seed())
+    try:
+        yield test_db_url
+    finally:
+        asyncio.run(db_session_manager.dispose())
+        if test_db_path.exists():
+            test_db_path.unlink()
+        asyncio.run(db_session_manager.reconfigure(original_url))
+
+
+@pytest_asyncio.fixture
+async def async_client(prepared_test_db: str) -> AsyncClient:
+    del prepared_test_db
     app = create_app()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

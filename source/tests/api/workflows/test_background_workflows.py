@@ -195,7 +195,7 @@ async def test_match_start_notification_skips_unsupported_active_channel(async_c
     assert notifications_response.status_code == 200
     assert not any(item['type'] == 'match_start' and item['payload_json']['entity_id'] == 2 for item in notifications_response.json()['data'])
 
-async def test_maintenance_jobs_generate_artifacts() -> None:
+async def test_maintenance_jobs_generate_artifacts(prepared_test_db: str) -> None:
     jobs = JobService()
     await jobs.enqueue(job_type='generate_sitemap', payload={'base_url': 'https://example.test'})
     await jobs.enqueue(job_type='rebuild_search_index')

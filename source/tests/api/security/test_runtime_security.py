@@ -4,7 +4,7 @@ from source.config.settings import settings
 from source.main import create_app
 
 
-def test_security_headers_present() -> None:
+def test_security_headers_present(prepared_test_db: str) -> None:
     app = create_app()
     with TestClient(app) as client:
         response = client.get('/api/v1/health')
@@ -14,7 +14,7 @@ def test_security_headers_present() -> None:
         assert 'content-security-policy' in response.headers
 
 
-def test_api_rate_limit_returns_429(monkeypatch) -> None:
+def test_api_rate_limit_returns_429(monkeypatch, prepared_test_db: str) -> None:
     monkeypatch.setattr(settings.security, 'api_rate_limit_requests', 1)
     monkeypatch.setattr(settings.security, 'api_rate_limit_window_seconds', 60)
     app = create_app()

@@ -17,6 +17,11 @@ class DatabaseSessionManager:
         self.engine = create_async_engine(self.url, future=True)
         self.session_factory = async_sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
 
+    async def reconfigure(self, url: str) -> None:
+        await self.dispose()
+        self.url = url
+        self._rebuild_engine()
+
     @asynccontextmanager
     async def session(self) -> AsyncIterator[AsyncSession]:
         async with self.session_factory() as session:

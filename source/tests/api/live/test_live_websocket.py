@@ -7,7 +7,7 @@ from source.main import create_app
 from source.services import live_hub
 
 
-def test_live_websocket_supports_subscribe_and_manual_broadcast() -> None:
+def test_live_websocket_supports_subscribe_and_manual_broadcast(prepared_test_db: str) -> None:
     app = create_app()
     with TestClient(app) as client:
         with client.websocket_connect('/api/v1/live/ws/live') as websocket:

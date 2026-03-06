@@ -1,6 +1,6 @@
 {
   "matches:detail:1": {
-    "expires_at": 1772812633.571209,
+    "expires_at": 1772821094.207911,
     "payload": {
       "data": {
         "actual_end_at": "2026-01-26T13:51:00",
@@ -138,7 +138,7 @@
     }
   },
   "matches:list::1:300": {
-    "expires_at": 1772812633.546655,
+    "expires_at": 1772821094.202456,
     "payload": {
       "data": [
         {
@@ -187,7 +187,7 @@
     }
   },
   "news:detail:djokovic-wins-ao-2026": {
-    "expires_at": 1772812633.598194,
+    "expires_at": 1772821094.211756,
     "payload": {
       "data": {
         "category": {
@@ -232,7 +232,7 @@
     }
   },
   "players:detail:1": {
-    "expires_at": 1772812633.5175931,
+    "expires_at": 1772821094.197472,
     "payload": {
       "data": {
         "backhand": "two-handed",
@@ -319,7 +319,7 @@
     }
   },
   "players:list:::::::1:300": {
-    "expires_at": 1772812633.508544,
+    "expires_at": 1772821094.194765,
     "payload": {
       "data": [
         {
@@ -398,7 +398,7 @@
     }
   },
   "tournaments:news:1": {
-    "expires_at": 1772812633.565396,
+    "expires_at": 1772821094.207396,
     "payload": {
       "data": [
         {

@@ -22,7 +22,7 @@ poetry install
 poetry run uvicorn source.main:create_app --factory --reload
 ```
 
-Default local runtime uses SQLite fallback unless `FASTAPI_CFG__DB__URL` is provided.
+Default local runtime is PostgreSQL-first. Tests explicitly override the DB engine to an isolated SQLite file per run.
 
 ## Docker stack
 

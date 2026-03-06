@@ -4,6 +4,16 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _default_postgres_url() -> str:
+    host = os.getenv('POSTGRES_HOST', 'localhost')
+    port = os.getenv('POSTGRES_PORT', '5432')
+    database = os.getenv('POSTGRES_DB', 'tennis_portal')
+    user = os.getenv('POSTGRES_USER', 'postgres')
+    password = os.getenv('POSTGRES_PASSWORD', 'postgres')
+    return f'postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}'
+
+
+
 class RunConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
@@ -93,7 +103,7 @@ class DocsSettings(BaseModel):
 class DbSettings(BaseModel):
     url: str = os.getenv(
         "FASTAPI_CFG__DB__URL",
-        "sqlite+aiosqlite:///./tennis_portal.db",
+        _default_postgres_url(),
     )
     auto_create: bool = True
     seed_demo_data: bool = True

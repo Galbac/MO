@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from redis.exceptions import RedisError
+from starlette.requests import Request
 
 from source.config.settings import settings
 from source.db.models import Match, Player, RankingSnapshot
@@ -14,7 +16,8 @@ from source.services.cache_service import CacheService
 from source.services.live_hub import LiveHub
 from source.services.public_data_service import PublicDataService
 from source.services.runtime_state_store import RuntimeStateStore
-from source.services.token_codec import TokenCodec
+from source.schemas.pydantic.auth import ResetPasswordRequest, VerifyEmailRequest
+from source.services.token_codec import TokenCodec, token_codec
 from source.services.user_engagement_service import UserEngagementService
 
 
@@ -212,3 +215,147 @@ def test_user_engagement_service_validation_helpers() -> None:
 
     with pytest.raises(HTTPException):
         service._validate_subscription_payload(['match_start'], ['pager'])
+
+from datetime import UTC, date, datetime
+
+from source.services import __all__ as services_all
+from source.services import AuthUserService, live_hub
+from source.services.auth_user_service import _check_password_strength, _hash_password, _verify_password
+from source.services.runtime_state_store import RuntimeStateStore
+from source.services.token_codec import _b64decode, _b64encode
+
+
+def _request_scope(*, host: str | None = '127.0.0.1') -> Request:
+    scope = {
+        'type': 'http',
+        'method': 'GET',
+        'path': '/',
+        'headers': [],
+        'query_string': b'',
+        'scheme': 'http',
+        'server': ('test', 80),
+        'http_version': '1.1',
+    }
+    if host is not None:
+        scope['client'] = (host, 12345)
+    return Request(scope)
+
+
+def test_services_module_exports_are_stable() -> None:
+    assert 'AuthUserService' in services_all
+    assert 'WorkflowService' in services_all
+    assert live_hub is not None
+
+
+def test_cache_service_admin_methods(monkeypatch) -> None:
+    cache = CacheService()
+    invalidated: list[tuple[str, ...]] = []
+    cleared = {'count': 0}
+    monkeypatch.setattr(cache.store, 'invalidate_cache_prefixes', lambda *prefixes: invalidated.append(prefixes))
+    monkeypatch.setattr(cache.store, 'clear_cache', lambda: cleared.__setitem__('count', cleared['count'] + 1))
+    monkeypatch.setattr(cache.store, 'backend_name', lambda: 'local')
+
+    cache.invalidate_prefixes('players:', 'news:')
+    assert invalidated == [('players:', 'news:')]
+
+    monkeypatch.setattr(settings.cache, 'enabled', False)
+    cache.invalidate_prefixes('ignored:')
+    monkeypatch.setattr(settings.cache, 'enabled', True)
+    assert invalidated == [('players:', 'news:')]
+
+    cache.clear()
+    assert cleared['count'] == 1
+    assert cache.backend_name() == 'local'
+
+
+def test_runtime_state_store_handles_bad_local_json(tmp_path) -> None:
+    store = RuntimeStateStore()
+    store.base_path = tmp_path / 'state'
+    target = store._namespace_path('broken')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text('{broken')
+    assert store.read_namespace('broken', {'fallback': True}) == {'fallback': True}
+
+
+class BrokenRedis(FakeRedis):
+    def get(self, key: str):
+        raise RedisError('boom')
+
+    def set(self, key: str, value: str) -> None:
+        raise RedisError('boom')
+
+    def setex(self, key: str, ttl_seconds: int, value: str) -> None:
+        raise RedisError('boom')
+
+    def delete(self, key: str) -> None:
+        raise RedisError('boom')
+
+    def scan_iter(self, match: str):
+        raise RedisError('boom')
+
+
+def test_runtime_state_store_falls_back_when_redis_fails(monkeypatch, tmp_path) -> None:
+    store = RuntimeStateStore()
+    store.base_path = tmp_path / 'state'
+    monkeypatch.setattr(store, '_get_redis', lambda: BrokenRedis())
+
+    store.write_namespace('ns', {'ok': True})
+    assert store.read_namespace('ns', {}) == {'ok': True}
+
+    store.set_cache_entry('key', {'expires_at': time.time() + 60, 'payload': {'x': 1}})
+    assert store.get_cache_entry('key')['payload'] == {'x': 1}
+    store.invalidate_cache_prefixes('key')
+    assert store.get_cache_entry('key') is None
+
+
+def test_token_codec_helpers_cover_base64_paths() -> None:
+    raw = b'tennis-portal'
+    assert _b64decode(_b64encode(raw)) == raw
+
+
+@pytest.mark.asyncio
+async def test_auth_user_service_helper_branches(async_client, user_auth_headers) -> None:
+    service = AuthUserService()
+
+    hashed = _hash_password('StrongPass123')
+    assert _verify_password('StrongPass123', hashed) is True
+    assert _verify_password('WrongPass123', hashed) is False
+    assert _verify_password('WrongPass123', 'broken') is False
+
+    with pytest.raises(HTTPException):
+        _check_password_strength('weak')
+
+    assert service._client_ip(None) == 'unknown'
+    assert service._client_ip(_request_scope(host=None)) == 'unknown'
+    assert service._client_ip(_request_scope(host='10.0.0.5')) == '10.0.0.5'
+    assert service._login_key(_request_scope(host='10.0.0.5'), ' Demo_User ') == '10.0.0.5::demo_user'
+
+    payload = {
+        'at': datetime(2026, 3, 6, 12, 0, tzinfo=UTC),
+        'day': date(2026, 3, 6),
+        'items': [datetime(2026, 3, 6, 13, 0, tzinfo=UTC)],
+    }
+    json_ready = service._json_ready(payload)
+    assert json_ready['at'].startswith('2026-03-06T12:00:00')
+    assert json_ready['day'] == '2026-03-06'
+    assert json_ready['items'][0].startswith('2026-03-06T13:00:00')
+
+    with pytest.raises(HTTPException):
+        await service.reset_password(ResetPasswordRequest(token=' ', new_password='StrongPass123'))
+
+    with pytest.raises(HTTPException):
+        await service.verify_email(VerifyEmailRequest(token=' '))
+
+    wrong_type_token = token_codec.encode({'sub': 2, 'typ': 'access', 'exp': int(time.time()) + 30})
+    with pytest.raises(HTTPException):
+        service._consume_refresh_token(wrong_type_token, revoke_only=False)
+
+    refresh, refresh_payload = token_codec.issue_refresh_token(2)
+    service.store.write_namespace(service.refresh_namespace, {
+        refresh_payload['jti']: {'user_id': 2, 'expires_at': refresh_payload['exp'], 'revoked': True}
+    })
+    with pytest.raises(HTTPException):
+        service._consume_refresh_token(refresh, revoke_only=False)
+
+    auth_me = await async_client.get('/api/v1/auth/me', headers=user_auth_headers)
+    assert auth_me.status_code == 200
