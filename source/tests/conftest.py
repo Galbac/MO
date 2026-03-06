@@ -52,3 +52,13 @@ async def user_auth_headers(async_client: AsyncClient) -> dict[str, str]:
 @pytest_asyncio.fixture
 async def admin_auth_headers(async_client: AsyncClient) -> dict[str, str]:
     return await _login_headers(async_client, email_or_username="admin", password="AdminPass123")
+
+
+@pytest_asyncio.fixture
+async def editor_auth_headers(async_client: AsyncClient) -> dict[str, str]:
+    return await _login_headers(async_client, email_or_username="editor", password="EditorPass123")
+
+
+@pytest_asyncio.fixture
+async def operator_auth_headers(async_client: AsyncClient) -> dict[str, str]:
+    return await _login_headers(async_client, email_or_username="operator", password="OperatorPass123")

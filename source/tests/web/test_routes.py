@@ -55,3 +55,11 @@ async def test_search_page_includes_seo_meta(async_client) -> None:
     assert 'meta name="description"' in response.text
     assert 'property="og:title"' in response.text
     assert 'rel="canonical"' in response.text
+
+
+async def test_rankings_page_renders_both_tours(async_client) -> None:
+    response = await async_client.get("/rankings")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert "Рейтинг ATP" in response.text
+    assert "Рейтинг WTA" in response.text

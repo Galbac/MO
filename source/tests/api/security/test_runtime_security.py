@@ -24,3 +24,22 @@ def test_api_rate_limit_returns_429(monkeypatch) -> None:
         assert first.status_code == 200
         assert second.status_code == 429
         assert second.json()['errors'][0]['code'] == 'RATE_LIMITED'
+
+
+async def test_invalid_bearer_token_returns_401(async_client) -> None:
+    response = await async_client.get('/api/v1/users/me', headers={'Authorization': 'Bearer invalid.token.value'})
+    assert response.status_code == 401
+
+
+async def test_sql_injection_like_queries_do_not_break_search(async_client) -> None:
+    payloads = [
+        "' OR 1=1 --",
+        "\"; DROP TABLE players; --",
+        "novak' UNION SELECT * FROM users --",
+    ]
+    for query in payloads:
+        response = await async_client.get('/api/v1/search', params={'q': query})
+        assert response.status_code == 200
+
+    players_response = await async_client.get('/api/v1/players')
+    assert players_response.status_code == 200

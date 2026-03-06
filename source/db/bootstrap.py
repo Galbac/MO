@@ -64,6 +64,28 @@ async def seed_demo_data(session: AsyncSession) -> None:
         last_name="User",
         is_email_verified=True,
     )
+    editor = User(
+        id=3,
+        email="editor@example.com",
+        username="editor",
+        password_hash=_seed_hash_password("EditorPass123"),
+        role="editor",
+        status="active",
+        first_name="News",
+        last_name="Editor",
+        is_email_verified=True,
+    )
+    operator = User(
+        id=4,
+        email="operator@example.com",
+        username="operator",
+        password_hash=_seed_hash_password("OperatorPass123"),
+        role="operator",
+        status="active",
+        first_name="Live",
+        last_name="Operator",
+        is_email_verified=True,
+    )
 
     players = [
         Player(
@@ -141,6 +163,44 @@ async def seed_demo_data(session: AsyncSession) -> None:
             status="active",
             current_rank=6,
             current_points=5120,
+        ),
+        Player(
+            id=5,
+            slug="iga-swiatek",
+            first_name="Iga",
+            last_name="Swiatek",
+            full_name="Iga Swiatek",
+            country_code="POL",
+            country_name="Poland",
+            birth_date=date(2001, 5, 31),
+            height_cm=176,
+            weight_kg=65,
+            hand="right",
+            backhand="two-handed",
+            biography="Multiple-time major champion and WTA leader.",
+            photo_url="/media/players/swiatek.jpg",
+            status="active",
+            current_rank=1,
+            current_points=10420,
+        ),
+        Player(
+            id=6,
+            slug="aryna-sabalenka",
+            first_name="Aryna",
+            last_name="Sabalenka",
+            full_name="Aryna Sabalenka",
+            country_code="BLR",
+            country_name="Belarus",
+            birth_date=date(1998, 5, 5),
+            height_cm=182,
+            weight_kg=80,
+            hand="right",
+            backhand="two-handed",
+            biography="Power baseline game and regular contender at majors.",
+            photo_url="/media/players/sabalenka.jpg",
+            status="active",
+            current_rank=2,
+            current_points=9030,
         ),
     ]
 
@@ -220,7 +280,7 @@ async def seed_demo_data(session: AsyncSession) -> None:
         ),
     ]
 
-    session.add_all([admin, user, *players, *tournaments, *matches])
+    session.add_all([admin, user, editor, operator, *players, *tournaments, *matches])
     session.add_all([
         MatchSet(id=1, match_id=1, set_number=1, player1_games=6, player2_games=4, is_finished=True),
         MatchSet(id=2, match_id=1, set_number=2, player1_games=3, player2_games=6, is_finished=True),
@@ -240,6 +300,8 @@ async def seed_demo_data(session: AsyncSession) -> None:
         RankingSnapshot(id=3, ranking_type="atp", ranking_date="2026-03-02", player_id=2, rank_position=2, points=8610, movement=0),
         RankingSnapshot(id=4, ranking_type="atp", ranking_date="2026-03-02", player_id=3, rank_position=4, points=6530, movement=1),
         RankingSnapshot(id=5, ranking_type="atp", ranking_date="2026-03-02", player_id=4, rank_position=6, points=5120, movement=-1),
+        RankingSnapshot(id=6, ranking_type="wta", ranking_date="2026-03-02", player_id=5, rank_position=1, points=10420, movement=0),
+        RankingSnapshot(id=7, ranking_type="wta", ranking_date="2026-03-02", player_id=6, rank_position=2, points=9030, movement=1),
         NewsCategory(id=1, slug="analysis", name="Analysis"),
         Tag(id=1, slug="djokovic", name="Djokovic"),
         Tag(id=2, slug="indian-wells", name="Indian Wells"),

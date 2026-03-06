@@ -70,6 +70,27 @@ services:
     expose:
       - "8000"
 
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    command: python -m source.tasks.worker
+    environment:
+      FASTAPI_CFG__RUN__PRODUCTION: "true"
+      FASTAPI_CFG__DB__URL: postgresql+asyncpg://postgres:postgres@postgres:5432/tennis_portal
+      FASTAPI_CFG__DB__AUTO_CREATE: "false"
+      FASTAPI_CFG__DB__SEED_DEMO_DATA: "false"
+      FASTAPI_CFG__REDIS__ENABLED: "true"
+      FASTAPI_CFG__REDIS__URL: redis://redis:6379/0
+      FASTAPI_CFG__JOBS__PROCESS_ON_STARTUP: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
   nginx:
     image: nginx:1.27-alpine
     depends_on:

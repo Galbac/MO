@@ -15,3 +15,11 @@ async def test_admin_notifications_page_renders_html(async_client) -> None:
     assert response.status_code == status.HTTP_200_OK
     assert "text/html" in response.headers["content-type"]
     assert "Шаблоны" in response.text
+
+
+async def test_admin_live_operations_page_has_dynamic_match_selector(async_client) -> None:
+    response = await async_client.get("/admin/live-operations")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert "admin-live-match-id" in response.text
+    assert "/admin/matches/2/events" not in response.text

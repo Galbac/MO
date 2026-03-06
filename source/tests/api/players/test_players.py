@@ -18,4 +18,5 @@ async def test_players_endpoint_uses_seeded_database_data(async_client) -> None:
 
     assert response.status_code == status.HTTP_200_OK
     payload = response.json()
-    assert payload["data"][0]["slug"] == "novak-djokovic"
+    slugs = {item["slug"] for item in payload["data"]}
+    assert {"novak-djokovic", "iga-swiatek"}.issubset(slugs)

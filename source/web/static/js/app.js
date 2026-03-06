@@ -206,7 +206,7 @@ async function initTournamentDetailPage() {
     setHtml("tournament-news", extractList(news).map(newsCard).join(""));
 }
 
-async function initМатчиListPage() {
+async function initMatchesListPage() {
     const render = async () => {
         const status = document.getElementById("matches-status")?.value || "";
         const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
@@ -249,9 +249,15 @@ async function initLiveCenterPage() {
 }
 
 async function initRankingsPage() {
-    const rankings = extractList(await apiGet("/rankings/current"));
-    setHtml("rankings-date", escapeHtml(rankings[0]?.ranking_date || "-"));
-    setHtml("rankings-atp-body", rankings.map((item) => `<tr><td>${escapeHtml(item.position)}</td><td>${escapeHtml(item.movement)}</td><td>${escapeHtml(item.player_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.points)}</td></tr>`).join(""));
+    const [atpPayload, wtaPayload] = await Promise.all([
+        apiGet("/rankings/current?ranking_type=atp"),
+        apiGet("/rankings/current?ranking_type=wta"),
+    ]);
+    const atp = extractList(atpPayload);
+    const wta = extractList(wtaPayload);
+    setHtml("rankings-date", escapeHtml(atp[0]?.ranking_date || wta[0]?.ranking_date || "-"));
+    setHtml("rankings-atp-body", atp.map((item) => `<tr><td>${escapeHtml(item.position)}</td><td>${escapeHtml(item.movement)}</td><td>${escapeHtml(item.player_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.points)}</td></tr>`).join(""));
+    setHtml("rankings-wta-body", wta.map((item) => `<tr><td>${escapeHtml(item.position)}</td><td>${escapeHtml(item.movement)}</td><td>${escapeHtml(item.player_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.points)}</td></tr>`).join(""));
 }
 
 async function initNewsListPage() {
@@ -363,7 +369,7 @@ async function initAdminMediaPage() {
 
 async function initAdminNotificationsPage() {
     const [templatesPayload, historyPayload] = await Promise.all([apiGet("/admin/notifications/templates"), apiGet("/admin/notifications")]);
-    setHtml("admin-notification-templates", extractList(templatesPayload).map((item) => `<tr><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.channel)}</td><td>${escapeHtml(item.is_активен ? "активен" : "отключен")}</td><td>${escapeHtml(item.updated_at)}</td></tr>`).join(""));
+    setHtml("admin-notification-templates", extractList(templatesPayload).map((item) => `<tr><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.channel)}</td><td>${escapeHtml(item.is_active ? "активен" : "отключен")}</td><td>${escapeHtml(item.updated_at)}</td></tr>`).join(""));
     setHtml("admin-notification-history", extractList(historyPayload).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.created_at)}</div><strong>${escapeHtml(item.title)}</strong><div class="text-muted">${escapeHtml(item.status)} · sent ${escapeHtml(item.sent_count)}</div></div>`).join(""));
 }
 
@@ -381,8 +387,19 @@ async function initAdminRankingsPage() {
 
 async function initAdminLiveOperationsPage() {
     const [livePayload, feedPayload] = await Promise.all([apiGet("/live"), apiGet("/live/feed")]);
-    setHtml("admin-live-matches", extractList(livePayload).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.player1_name)} против ${escapeHtml(item.player2_name)}</strong><div class="text-muted">${escapeHtml(item.tournament_name)} · ${escapeHtml(item.round_code || "-")}</div><div class="mt-2">${escapeHtml(item.score_summary || item.status)}</div></div>`).join(""));
+    const liveMatches = extractList(livePayload);
+    setHtml("admin-live-matches", liveMatches.map((item) => `<div class="entity-card"><strong>${escapeHtml(item.player1_name)} против ${escapeHtml(item.player2_name)}</strong><div class="text-muted">${escapeHtml(item.tournament_name)} · ${escapeHtml(item.round_code || "-")}</div><div class="mt-2">${escapeHtml(item.score_summary || item.status)}</div></div>`).join(""));
     setHtml("admin-live-events", extractList(feedPayload).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.event_type)}</div><strong>${escapeHtml(item.created_at)}</strong><div class="text-muted">${escapeHtml(JSON.stringify(item.payload_json))}</div></div>`).join(""));
+    const matchSelect = document.getElementById("admin-live-match-id");
+    const form = document.getElementById("admin-live-event-form");
+    if (matchSelect) {
+        matchSelect.innerHTML = liveMatches.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.player1_name)} vs ${escapeHtml(item.player2_name)} · ${escapeHtml(item.tournament_name)}</option>`).join("");
+    }
+    const updateFormPath = () => {
+        if (form && matchSelect?.value) form.dataset.apiPath = `/admin/matches/${matchSelect.value}/events`;
+    };
+    updateFormPath();
+    matchSelect?.addEventListener("change", updateFormPath);
 }
 
 async function initAdminUserDetailPage() {
@@ -419,8 +436,8 @@ function initTabs() {
         buttons.forEach((button) => {
             button.addEventListener("click", () => {
                 const target = button.getAttribute("data-tab-target");
-                buttons.forEach((item) => item.classList.remove("активен"));
-                button.classList.add("активен");
+                buttons.forEach((item) => item.classList.remove("active"));
+                button.classList.add("active");
                 document.querySelectorAll(`[data-tab-panel="${group.dataset.tabGroup}"]`).forEach((panel) => panel.classList.toggle("d-none", panel.id !== target));
             });
         });
@@ -431,9 +448,9 @@ function initLoadingButtons() {
     document.querySelectorAll("[data-loading-button]").forEach((button) => {
         button.addEventListener("click", () => {
             const original = button.innerHTML;
-            button.отключен = true;
+            button.disabled = true;
             button.innerHTML = "Загрузка...";
-            window.setTimeout(() => { button.отключен = false; button.innerHTML = original; }, 900);
+            window.setTimeout(() => { button.disabled = false; button.innerHTML = original; }, 900);
         });
     });
 }
@@ -480,7 +497,7 @@ function initFormProtection() {
             const submit = form.querySelector("[type='submit']");
             if (!submit) return;
             const original = submit.textContent;
-            submit.отключен = true;
+            submit.disabled = true;
             submit.textContent = "Сохранение...";
             showFormState(form, true, "");
             try {
@@ -489,7 +506,7 @@ function initFormProtection() {
             } catch (error) {
                 showFormState(form, false, error.message);
             } finally {
-                submit.отключен = false;
+                submit.disabled = false;
                 submit.textContent = original;
             }
         });
@@ -499,7 +516,7 @@ function initFormProtection() {
             const feedback = button.dataset.targetFeedback ? document.getElementById(button.dataset.targetFeedback) : null;
             const errorNode = button.dataset.targetError ? document.getElementById(button.dataset.targetError) : document.getElementById("match-finalize-error");
             const original = button.textContent;
-            button.отключен = true;
+            button.disabled = true;
             button.textContent = "Обработка...";
             if (feedback) feedback.classList.add("d-none");
             if (errorNode) errorNode.classList.add("d-none");
@@ -515,7 +532,7 @@ function initFormProtection() {
                     errorNode.textContent = error.message;
                 }
             } finally {
-                button.отключен = false;
+                button.disabled = false;
                 button.textContent = original;
             }
         });
@@ -529,7 +546,7 @@ async function initPageData() {
         case "player-detail": await initPlayerDetailPage(); break;
         case "tournaments-list": await initTournamentsListPage(); break;
         case "tournament-detail": await initTournamentDetailPage(); break;
-        case "matches-list": await initМатчиListPage(); break;
+        case "matches-list": await initMatchesListPage(); break;
         case "match-detail": await initMatchDetailPage(); break;
         case "live-center": await initLiveCenterPage(); break;
         case "rankings": await initRankingsPage(); break;

@@ -38,3 +38,7 @@ test-contract:
 
 test-load:
 	./.venv/bin/pytest -q source/tests/load
+
+
+worker:
+	./.venv/bin/python -m source.tasks.worker

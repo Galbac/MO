@@ -66,6 +66,7 @@ class JobsSettings(BaseModel):
     enabled: bool = True
     storage_path: str = "var/job_queue.json"
     process_on_startup: bool = True
+    poll_interval_seconds: int = 5
 
 
 class RedisSettings(BaseModel):
