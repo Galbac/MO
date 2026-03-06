@@ -77,6 +77,8 @@ class AdminIntegrationSyncResult(BaseModel):
     message: str
     applied_count: int = 0
     logs_count: int = 0
+    sync_mode: str | None = None
+    duration_ms: int | None = None
 
 
 class AdminIntegrationSummary(BaseModel):
@@ -182,10 +184,14 @@ class AdminMediaSummary(BaseModel):
     total: int
     total_size_bytes: int = 0
     missing_files: int = 0
+    orphan_files: int = 0
     content_types: dict[str, int] = Field(default_factory=dict)
     latest_created_at: datetime | None = None
     storage_backend: str
     storage_path: str
+    writable: bool = True
+    indexed_files: int = 0
+    files_on_disk: int = 0
 
 
 class AdminSettingsPayload(BaseModel):
@@ -193,6 +199,9 @@ class AdminSettingsPayload(BaseModel):
     storage_backend: str
     storage_path: str
     updated_at: datetime | None = None
+    writable: bool = True
+    file_exists: bool = False
+    values_checksum: str | None = None
 
 
 class AuditLogItem(BaseModel):

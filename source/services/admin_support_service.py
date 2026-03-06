@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -53,6 +54,11 @@ class AdminSupportService:
         path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
 
     @staticmethod
+    def _checksum(payload: dict[str, Any]) -> str:
+        serialized = json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(',', ':'))
+        return hashlib.sha256(serialized.encode()).hexdigest()
+
+    @staticmethod
     def _ensure_json_safe(value: Any) -> Any:
         try:
             json.dumps(value, ensure_ascii=True, sort_keys=True)
@@ -103,17 +109,21 @@ class AdminSupportService:
     async def get_settings(self) -> SuccessResponse[dict]:
         payload = self._read_json(self.settings_file)
         updated_at = None
-        if self.settings_file.exists():
+        file_exists = self.settings_file.exists()
+        if file_exists:
             updated_at = datetime.fromtimestamp(self.settings_file.stat().st_mtime, tz=UTC)
         model = AdminSettingsPayload(
             values=payload or {},
             storage_backend='local_file',
             storage_path=str(self.settings_file),
             updated_at=updated_at,
+            writable=True,
+            file_exists=file_exists,
+            values_checksum=self._checksum(payload or {}),
         )
         return SuccessResponse(
             data=model.model_dump() | dict(payload or {}),
-            meta={'keys_count': len(payload or {}), 'writable': True},
+            meta={'keys_count': len(payload or {}), 'writable': True, 'file_exists': file_exists},
         )
 
     async def update_settings(self, payload: dict[str, Any]) -> SuccessResponse[dict]:
@@ -134,10 +144,13 @@ class AdminSupportService:
             storage_backend='local_file',
             storage_path=str(self.settings_file),
             updated_at=updated_at,
+            writable=True,
+            file_exists=self.settings_file.exists(),
+            values_checksum=self._checksum(merged),
         )
         return SuccessResponse(
             data=model.model_dump() | merged,
-            meta={'keys_count': len(merged), 'updated_keys': sorted(sanitized.keys()), 'invalidated_prefixes': ['news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:']},
+            meta={'keys_count': len(merged), 'updated_keys': sorted(sanitized.keys()), 'invalidated_prefixes': ['news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:'], 'file_exists': self.settings_file.exists()},
         )
 
     async def list_notification_templates(self) -> SuccessResponse[list[AdminNotificationTemplate]]:

@@ -1,0 +1,13 @@
+[
+  {
+    "channel": "web",
+    "created_at": "2026-03-06T22:06:21.432040+00:00",
+    "entity_id": 1,
+    "entity_type": "tournament",
+    "notification_type": "tournament_start",
+    "reason": null,
+    "status": "sent",
+    "title": "Tournament started: Australian Open 2026",
+    "user_id": 2
+  }
+]

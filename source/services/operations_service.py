@@ -5,6 +5,7 @@ import binascii
 import ipaddress
 import json
 import re
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -208,6 +209,9 @@ class OperationsService:
         latest_created_at = None
         items = [self._admin_media_item(item) for item in self._media_records()]
         largest_item = None
+        indexed_paths = {item.stored_path for item in items if item.stored_path}
+        files_on_disk = [item for item in self.media_dir.glob('*') if item.is_file()] if self.media_dir.exists() else []
+        orphan_files = sum(1 for item in files_on_disk if str(item) not in indexed_paths)
         for item in items:
             content_types[item.content_type] = content_types.get(item.content_type, 0) + 1
             total_size_bytes += int(item.size or 0)
@@ -222,13 +226,17 @@ class OperationsService:
                 total=len(items),
                 total_size_bytes=total_size_bytes,
                 missing_files=missing_files,
+                orphan_files=orphan_files,
                 content_types=content_types,
                 latest_created_at=latest_created_at,
                 storage_backend='local_fs',
                 storage_path=str(self.media_dir),
+                writable=self.media_dir.exists() and self.media_dir.is_dir(),
+                indexed_files=len(items),
+                files_on_disk=len(files_on_disk),
             ),
             meta={
-                'healthy': missing_files == 0,
+                'healthy': missing_files == 0 and orphan_files == 0,
                 'largest_file': {
                     'id': largest_item.id,
                     'filename': largest_item.filename,
@@ -568,6 +576,7 @@ class OperationsService:
         log_message = 'Manual sync executed'
         applied = 0
         sync_mode = 'noop'
+        started_at = time.perf_counter()
         try:
             if isinstance(provider_payload, dict):
                 sync_mode = 'provider_payload'
@@ -593,11 +602,14 @@ class OperationsService:
                         rows = await client.fetch_rankings(endpoint, headers=headers)
                         applied = await self._apply_ranking_provider_rows(provider, rows)
                         log_message = f'Fetched {len(rows)} ranking rows from provider endpoint, applied {applied}'
+                elif not endpoint and not isinstance(provider_payload, dict):
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Integration endpoint or provider_payload is required')
             log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'level': 'info', 'message': log_message}
             updated = current | {'status': 'ok', 'last_sync_at': log_entry['timestamp'], 'last_error': None, 'logs': [*current.get('logs', []), log_entry][-20:]}
             records[provider] = updated
             self._save_integration_records(records)
             await self._log_audit(action='integration.sync', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
+            duration_ms = max(int((time.perf_counter() - started_at) * 1000), 0)
             return SuccessResponse(
                 data=AdminIntegrationSyncResult(
                     provider=provider,
@@ -607,8 +619,10 @@ class OperationsService:
                     message=log_message,
                     applied_count=applied,
                     logs_count=len(updated.get('logs') or []),
+                    sync_mode=sync_mode,
+                    duration_ms=duration_ms,
                 ),
-                meta={'sync_mode': sync_mode, 'provider_has_endpoint': bool(current.get('settings', {}).get('endpoint') or payload.get('endpoint')), 'used_payload': isinstance(provider_payload, dict)},
+                meta={'sync_mode': sync_mode, 'provider_has_endpoint': bool(current.get('settings', {}).get('endpoint') or payload.get('endpoint')), 'used_payload': isinstance(provider_payload, dict), 'duration_ms': duration_ms, 'storage_backend': 'local_json'},
             )
         except IntegrationSyncError as exc:
             log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'level': 'error', 'message': f'Provider sync failed: {exc}'}
