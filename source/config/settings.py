@@ -68,6 +68,14 @@ class JobsSettings(BaseModel):
     process_on_startup: bool = True
 
 
+class RedisSettings(BaseModel):
+    enabled: bool = False
+    url: str = os.getenv("FASTAPI_CFG__REDIS__URL", "redis://localhost:6379/0")
+    key_prefix: str = "tennis-portal"
+    connect_timeout_seconds: float = 0.2
+    state_fallback_path: str = "var/runtime_state"
+
+
 class DocsSettings(BaseModel):
     username: str = os.getenv("FASTAPI_CFG__DOCS__USERNAME", "admin")
     password: str = os.getenv("FASTAPI_CFG__DOCS__PASSWORD", "admin")
@@ -98,6 +106,7 @@ class Settings(BaseSettings):
     media: MediaSettings = MediaSettings()
     cache: CacheSettings = CacheSettings()
     jobs: JobsSettings = JobsSettings()
+    redis: RedisSettings = RedisSettings()
     docs: DocsSettings = DocsSettings()
     db: DbSettings = DbSettings()
 

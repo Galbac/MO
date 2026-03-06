@@ -3,10 +3,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
-import json
 import os
 import time
-from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException, Request, status
@@ -18,6 +16,7 @@ from source.schemas.pydantic.admin import AdminUserItem
 from source.schemas.pydantic.auth import AuthResponse, ForgotPasswordRequest, LoginRequest, LogoutRequest, MessageResponse, RefreshTokenRequest, RegisterRequest, ResetPasswordRequest, SimpleMessage, VerifyEmailRequest
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.user import UserPasswordChangeRequest, UserProfile, UserTokenBundle, UserUpdateRequest
+from source.services.runtime_state_store import RuntimeStateStore
 from source.services.token_codec import token_codec
 
 
@@ -47,9 +46,9 @@ class AuthUserService:
     def __init__(self) -> None:
         self.users = UserRepository()
         self.audit = AuditRepository()
-        self.storage_dir = Path('var')
-        self.security_state_file = self.storage_dir / 'auth_security.json'
-        self.refresh_store_file = self.storage_dir / 'refresh_tokens.json'
+        self.store = RuntimeStateStore()
+        self.security_namespace = 'auth_security'
+        self.refresh_namespace = 'refresh_tokens'
 
     @staticmethod
     def _profile(user) -> UserProfile:
@@ -69,24 +68,12 @@ class AuthUserService:
             return [AuthUserService._json_ready(item) for item in value]
         return value
 
-    def _ensure_storage(self) -> None:
-        self.storage_dir.mkdir(parents=True, exist_ok=True)
-
-    def _read_json(self, path: Path, default: Any) -> Any:
-        if not path.exists():
-            return default
-        return json.loads(path.read_text())
-
-    def _write_json(self, path: Path, payload: Any) -> None:
-        self._ensure_storage()
-        path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
-
     def _bundle(self, user) -> UserTokenBundle:
         access_token = token_codec.issue_access_token(user.id)
         refresh_token, refresh_payload = token_codec.issue_refresh_token(user.id)
-        refresh_store = self._read_json(self.refresh_store_file, {})
+        refresh_store = self.store.read_namespace(self.refresh_namespace, {})
         refresh_store[refresh_payload['jti']] = {'user_id': user.id, 'expires_at': refresh_payload['exp'], 'revoked': False}
-        self._write_json(self.refresh_store_file, refresh_store)
+        self.store.write_namespace(self.refresh_namespace, refresh_store)
         return UserTokenBundle(access_token=access_token, refresh_token=refresh_token, user=self._profile(user))
 
     async def _log_audit(self, *, action: str, entity_type: str, entity_id: int | None, before_json: dict | None, after_json: dict | None, user_id: int | None) -> None:
@@ -102,7 +89,7 @@ class AuthUserService:
         return f"{self._client_ip(request)}::{login_value.strip().lower()}"
 
     def _rate_limit_guard(self, request: Request | None, login_value: str) -> None:
-        state = self._read_json(self.security_state_file, {'login_attempts': {}})
+        state = self.store.read_namespace(self.security_namespace, {'login_attempts': {}})
         key = self._login_key(request, login_value)
         now = int(time.time())
         window = settings.auth.login_rate_limit_window_seconds
@@ -115,11 +102,11 @@ class AuthUserService:
         if len(failures) >= settings.auth.login_rate_limit_max_attempts:
             record = {'failures': failures, 'locked_until': now + lockout}
             state['login_attempts'][key] = record
-            self._write_json(self.security_state_file, state)
+            self.store.write_namespace(self.security_namespace, state)
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail='Too many login attempts')
 
     def _register_login_failure(self, request: Request | None, login_value: str) -> None:
-        state = self._read_json(self.security_state_file, {'login_attempts': {}})
+        state = self.store.read_namespace(self.security_namespace, {'login_attempts': {}})
         key = self._login_key(request, login_value)
         now = int(time.time())
         window = settings.auth.login_rate_limit_window_seconds
@@ -130,13 +117,13 @@ class AuthUserService:
         if len(failures) >= settings.auth.login_rate_limit_max_attempts:
             locked_until = now + settings.auth.brute_force_lockout_seconds
         state['login_attempts'][key] = {'failures': failures, 'locked_until': locked_until}
-        self._write_json(self.security_state_file, state)
+        self.store.write_namespace(self.security_namespace, state)
 
     def _clear_login_failures(self, request: Request | None, login_value: str) -> None:
-        state = self._read_json(self.security_state_file, {'login_attempts': {}})
+        state = self.store.read_namespace(self.security_namespace, {'login_attempts': {}})
         key = self._login_key(request, login_value)
         state['login_attempts'].pop(key, None)
-        self._write_json(self.security_state_file, state)
+        self.store.write_namespace(self.security_namespace, state)
 
     def _consume_refresh_token(self, refresh_token: str, *, revoke_only: bool) -> dict[str, Any]:
         payload = token_codec.decode(refresh_token)
@@ -145,7 +132,7 @@ class AuthUserService:
         jti = payload.get('jti')
         if not jti:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid refresh token')
-        refresh_store = self._read_json(self.refresh_store_file, {})
+        refresh_store = self.store.read_namespace(self.refresh_namespace, {})
         record = refresh_store.get(jti)
         now = int(time.time())
         if record is None or bool(record.get('revoked')) or int(record.get('expires_at', 0)) < now:
@@ -153,7 +140,7 @@ class AuthUserService:
         if settings.auth.refresh_token_rotation_enabled or revoke_only:
             record['revoked'] = True
             refresh_store[jti] = record
-            self._write_json(self.refresh_store_file, refresh_store)
+            self.store.write_namespace(self.refresh_namespace, refresh_store)
         return payload
 
     async def _resolve_current_user(self, request: Request):

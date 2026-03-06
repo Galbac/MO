@@ -7,6 +7,7 @@ from source.services.live_hub import LiveHub, live_hub
 from source.services.operations_service import OperationsService
 from source.services.portal_query_service import PortalQueryService
 from source.services.public_data_service import PublicDataService
+from source.services.runtime_state_store import RuntimeStateStore
 from source.services.user_engagement_service import UserEngagementService
 from source.services.workflow_service import WorkflowService
 
@@ -21,6 +22,7 @@ __all__ = [
     "live_hub",
     "PortalQueryService",
     "PublicDataService",
+    "RuntimeStateStore",
     "UserEngagementService",
     "WorkflowService",
 ]

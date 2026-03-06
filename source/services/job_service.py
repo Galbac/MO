@@ -1,36 +1,27 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 from source.config.settings import settings
 from source.services.cache_service import CacheService
+from source.services.runtime_state_store import RuntimeStateStore
 from source.services.workflow_service import WorkflowService
 
 
 class JobService:
     def __init__(self) -> None:
-        self.storage_path = Path(settings.jobs.storage_path)
         self.cache = CacheService()
+        self.store = RuntimeStateStore()
         self.workflows = WorkflowService()
-
-    def _ensure_storage(self) -> None:
-        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        self.namespace = 'jobs'
 
     def _read_jobs(self) -> list[dict[str, Any]]:
-        if not self.storage_path.exists():
-            return []
-        try:
-            payload = json.loads(self.storage_path.read_text())
-        except json.JSONDecodeError:
-            return []
+        payload = self.store.read_namespace(self.namespace, [])
         return payload if isinstance(payload, list) else []
 
     def _write_jobs(self, payload: list[dict[str, Any]]) -> None:
-        self._ensure_storage()
-        self.storage_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+        self.store.write_namespace(self.namespace, payload)
 
     async def enqueue(self, *, job_type: str, payload: dict[str, Any] | None = None, run_at: datetime | None = None) -> dict[str, Any]:
         jobs = self._read_jobs()
@@ -92,3 +83,6 @@ class JobService:
                 self.cache.clear()
             return
         raise ValueError(f'Unsupported job type: {job_type}')
+
+    def backend_name(self) -> str:
+        return self.store.backend_name()

@@ -1,27 +1,87 @@
 services:
-  api:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    command: uvicorn source.main:create_app --factory --host 0.0.0.0 --port 8000
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env.template
-    depends_on:
-      - postgres
-      - redis
-
   postgres:
     image: postgres:16
     environment:
       POSTGRES_DB: tennis_portal
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tennis_portal"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     ports:
       - "5432:5432"
 
   redis:
     image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     ports:
       - "6379:6379"
+
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    command: alembic upgrade head
+    environment:
+      FASTAPI_CFG__RUN__PRODUCTION: "true"
+      FASTAPI_CFG__DB__URL: postgresql+asyncpg://postgres:postgres@postgres:5432/tennis_portal
+      FASTAPI_CFG__DB__AUTO_CREATE: "false"
+      FASTAPI_CFG__DB__SEED_DEMO_DATA: "false"
+      FASTAPI_CFG__REDIS__ENABLED: "true"
+      FASTAPI_CFG__REDIS__URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    command: uvicorn source.main:create_app --factory --host 0.0.0.0 --port 8000
+    environment:
+      FASTAPI_CFG__RUN__PRODUCTION: "true"
+      FASTAPI_CFG__DB__URL: postgresql+asyncpg://postgres:postgres@postgres:5432/tennis_portal
+      FASTAPI_CFG__DB__AUTO_CREATE: "false"
+      FASTAPI_CFG__DB__SEED_DEMO_DATA: "false"
+      FASTAPI_CFG__REDIS__ENABLED: "true"
+      FASTAPI_CFG__REDIS__URL: redis://redis:6379/0
+      FASTAPI_CFG__DOCS__USERNAME: admin
+      FASTAPI_CFG__DOCS__PASSWORD: admin
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      api:
+        condition: service_started
+    volumes:
+      - ./docker/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    environment:
+      NGINX_ENTRYPOINT_QUIET_LOGS: "1"
+    ports:
+      - "8080:80"
+
+volumes:
+  postgres_data:
+  redis_data:
