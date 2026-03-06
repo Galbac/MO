@@ -15,7 +15,7 @@ from fastapi import HTTPException, UploadFile, status
 from source.config.settings import settings
 from source.db.session import db_session_manager
 from source.integrations import IntegrationSyncError, LiveScoreProviderClient, ProviderPayloadMapper, RankingsProviderClient
-from source.repositories import AuditRepository, MatchRepository
+from source.repositories import AdminSupportRepository, AuditRepository, MatchRepository
 from source.schemas.pydantic.admin import AdminIntegrationItem, AuditLogItem
 from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
 from source.schemas.pydantic.common import SuccessResponse
@@ -29,6 +29,7 @@ class OperationsService:
         self.media_index_file = self.storage_dir / 'media_index.json'
         self.integrations_file = self.storage_dir / 'integrations.json'
         self.audit_repo = AuditRepository()
+        self.admin_support = AdminSupportRepository()
         self.matches = MatchRepository()
         self.mapper = ProviderPayloadMapper()
 
@@ -298,6 +299,45 @@ class OperationsService:
                 )
         return applied
 
+    async def _apply_ranking_provider_rows(self, provider: str, rows) -> int:
+        from source.services.workflow_service import WorkflowService
+
+        if not rows:
+            return 0
+        workflows = WorkflowService()
+        async with db_session_manager.session() as session:
+            names = [row.player_name for row in rows]
+            players = {item.full_name: item for item in await self.admin_support.find_players_by_names(session, names)}
+            if len(players) != len(set(names)):
+                missing = sorted(set(names) - set(players))
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'Players not found for rankings import: {", ".join(missing)}')
+            existing_snapshots = [item for item in await self.admin_support.list_ranking_snapshots(session) if item.ranking_type == rows[0].ranking_type]
+            latest_existing_date = max((item.ranking_date for item in existing_snapshots), default=None)
+            previous = {item.player_id: item for item in await self.admin_support.get_previous_rankings(session, rows[0].ranking_type, rows[0].ranking_date)}
+            ranking_rows = []
+            for row in rows:
+                player = players[row.player_name]
+                movement = row.movement
+                if movement is None:
+                    previous_entry = previous.get(player.id)
+                    movement = 0 if previous_entry is None else int(previous_entry.rank_position) - int(row.position)
+                ranking_rows.append({
+                    'ranking_type': row.ranking_type,
+                    'ranking_date': row.ranking_date,
+                    'player_id': player.id,
+                    'rank_position': row.position,
+                    'points': row.points,
+                    'movement': movement,
+                })
+            await self.admin_support.replace_rankings(session, ranking_type=rows[0].ranking_type, ranking_date=rows[0].ranking_date, rows=ranking_rows)
+            if latest_existing_date is None or rows[0].ranking_date >= latest_existing_date:
+                affected_player_ids = [item.player_id for item in existing_snapshots]
+                await self.admin_support.clear_player_current_rankings(session, sorted(set(affected_player_ids) - {row['player_id'] for row in ranking_rows}))
+                await self.admin_support.apply_player_current_rankings(session, ranking_rows)
+            await self.admin_support.commit(session)
+        await workflows.process_ranking_updates(ranking_rows, ranking_type=rows[0].ranking_type, ranking_date=rows[0].ranking_date)
+        return len(rows)
+
     async def list_integrations(self) -> SuccessResponse[list[AdminIntegrationItem]]:
         records = self._integration_records()
         data = [AdminIntegrationItem(provider=provider, status=item.get('status', 'configured'), last_sync_at=datetime.fromisoformat(item['last_sync_at']) if item.get('last_sync_at') else None, last_error=item.get('last_error')) for provider, item in sorted(records.items())]
@@ -339,7 +379,8 @@ class OperationsService:
                         log_message = f'Fetched {len(events)} live events from provider endpoint, applied {applied}'
                     elif 'rank' in provider:
                         rows = await client.fetch_rankings(endpoint, headers=headers)
-                        log_message = f'Fetched {len(rows)} ranking rows from provider endpoint'
+                        applied = await self._apply_ranking_provider_rows(provider, rows)
+                        log_message = f'Fetched {len(rows)} ranking rows from provider endpoint, applied {applied}'
             log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'message': log_message}
             updated = current | {'status': 'ok', 'last_sync_at': log_entry['timestamp'], 'last_error': None, 'logs': [*current.get('logs', []), log_entry][-20:]}
             records[provider] = updated

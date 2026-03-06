@@ -250,3 +250,59 @@ async def test_live_integration_sync_is_idempotent_for_same_provider_event(async
     assert timeline_response.status_code == status.HTTP_200_OK
     matching = [item for item in timeline_response.json()['data'] if item['event_type'] == 'set_finished' and item['payload_json'].get('provider_event_key', '').endswith('2026-03-06T21:30:00+00:00')]
     assert len(matching) == 1
+
+
+async def test_rankings_integration_endpoint_sync_updates_current_rankings(async_client, admin_auth_headers, monkeypatch) -> None:
+    from source.integrations.provider_contracts import ProviderRankingRow
+    from source.services.operations_service import OperationsService
+
+    class SuccessfulRankingsClient:
+        async def fetch_rankings(self, endpoint: str, headers: dict | None = None):
+            return [
+                ProviderRankingRow(
+                    ranking_type='atp',
+                    ranking_date='2026-03-13',
+                    position=1,
+                    player_name='Jannik Sinner',
+                    country_code='IT',
+                    points=9400,
+                    movement=1,
+                ),
+                ProviderRankingRow(
+                    ranking_type='atp',
+                    ranking_date='2026-03-13',
+                    position=2,
+                    player_name='Novak Djokovic',
+                    country_code='RS',
+                    points=9000,
+                    movement=-1,
+                ),
+            ]
+
+    monkeypatch.setattr(OperationsService, '_integration_client', lambda self, provider, settings_payload=None: SuccessfulRankingsClient())
+
+    await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/rankings-provider",
+        json={"endpoint": "https://provider.test/rankings"},
+        headers=admin_auth_headers,
+    )
+
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/rankings-provider/sync",
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_200_OK
+
+    rankings_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/rankings/current?ranking_type=atp")
+    assert rankings_response.status_code == status.HTTP_200_OK
+    rows = rankings_response.json()['data']
+    assert rows[0]['player_name'] == 'Jannik Sinner'
+    assert rows[0]['ranking_date'] == '2026-03-13'
+
+    player_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/players/2")
+    assert player_response.status_code == status.HTTP_200_OK
+    assert player_response.json()['data']['current_rank'] == 1
+    assert player_response.json()['data']['current_points'] == 9400
+
+    logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/rankings-provider/logs", headers=admin_auth_headers)
+    assert 'Fetched 2 ranking rows from provider endpoint, applied 2' in logs_response.json()['data']['message']

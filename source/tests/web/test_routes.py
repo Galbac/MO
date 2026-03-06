@@ -129,3 +129,29 @@ async def test_detail_pages_include_accessible_landmarks(async_client) -> None:
 
     assert 'href="#main-content"' in news.text
     assert 'aria-label="Основная навигация"' in news.text
+
+
+async def test_additional_public_pages_include_accessible_filters(async_client) -> None:
+    tournaments = await async_client.get('/tournaments')
+    live = await async_client.get('/live')
+    news = await async_client.get('/news')
+    h2h = await async_client.get('/h2h')
+    tournament_detail = await async_client.get('/tournaments/australian-open-2026')
+
+    assert 'href="#main-content"' in tournaments.text
+    assert 'aria-label="Фильтр по сезону"' in tournaments.text
+    assert 'aria-label="Фильтр по категории турнира"' in tournaments.text
+
+    assert 'href="#main-content"' in live.text
+    assert 'aria-label="Основная навигация"' in live.text
+
+    assert 'href="#main-content"' in news.text
+    assert 'aria-label="Фильтр по категории новостей"' in news.text
+    assert 'aria-label="Поиск новостей"' in news.text
+
+    assert 'href="#main-content"' in h2h.text
+    assert 'aria-label="Выбор первого игрока"' in h2h.text
+    assert 'aria-label="Статистика личных встреч по покрытиям"' in h2h.text
+
+    assert 'href="#main-content"' in tournament_detail.text
+    assert 'aria-label="Основная навигация"' in tournament_detail.text

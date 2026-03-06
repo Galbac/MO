@@ -1,272 +1,18 @@
 {
-  "matches:detail:1": {
-    "expires_at": 1772825749.2384021,
+  "tournaments:detail:1": {
+    "expires_at": 1772826208.741632,
     "payload": {
       "data": {
-        "actual_end_at": "2026-01-26T13:51:00",
-        "actual_start_at": "2026-01-26T10:35:00",
-        "best_of_sets": 5,
-        "court_name": "Rod Laver Arena",
-        "h2h": {
-          "clay_player1_wins": 0,
-          "clay_player2_wins": 0,
-          "grass_player1_wins": 0,
-          "grass_player2_wins": 0,
-          "hard_player1_wins": 3,
-          "hard_player2_wins": 2,
-          "last_match_id": 1,
-          "player1_id": 1,
-          "player1_wins": 3,
-          "player2_id": 2,
-          "player2_wins": 2,
-          "total_matches": 5
-        },
-        "id": 1,
-        "player1_id": 1,
-        "player1_name": "Novak Djokovic",
-        "player2_id": 2,
-        "player2_name": "Jannik Sinner",
-        "related_news": [
+        "category": "grand_slam",
+        "champions": [
           {
-            "category": {
-              "id": 1,
-              "name": "Analysis",
-              "slug": "analysis"
-            },
-            "cover_image_url": "/media/news/djokovic-ao.jpg",
-            "id": 1,
-            "lead": "Djokovic claimed another major title after a high-level final.",
-            "published_at": "2026-03-06T12:00:00",
-            "slug": "djokovic-wins-ao-2026",
-            "status": "published",
-            "subtitle": "Veteran outlasts Sinner in four sets",
-            "tags": [],
-            "title": "Djokovic wins Australian Open 2026"
+            "player_name": "Novak Djokovic",
+            "season_year": 2026
           }
         ],
-        "round_code": "F",
-        "scheduled_at": "2026-01-26T10:30:00",
-        "score": {
-          "current_game": "6-4 3-6 7-5 6-3",
-          "serving_player_id": 1,
-          "sets": [
-            "6-4",
-            "3-6",
-            "7-5",
-            "6-3"
-          ]
-        },
-        "score_summary": "6-4 3-6 7-5 6-3",
-        "sets": [
-          {
-            "is_finished": true,
-            "player1_games": 6,
-            "player2_games": 4,
-            "set_number": 1,
-            "tiebreak_player1_points": null,
-            "tiebreak_player2_points": null
-          },
-          {
-            "is_finished": true,
-            "player1_games": 3,
-            "player2_games": 6,
-            "set_number": 2,
-            "tiebreak_player1_points": null,
-            "tiebreak_player2_points": null
-          },
-          {
-            "is_finished": true,
-            "player1_games": 7,
-            "player2_games": 5,
-            "set_number": 3,
-            "tiebreak_player1_points": null,
-            "tiebreak_player2_points": null
-          },
-          {
-            "is_finished": true,
-            "player1_games": 6,
-            "player2_games": 3,
-            "set_number": 4,
-            "tiebreak_player1_points": null,
-            "tiebreak_player2_points": null
-          }
-        ],
-        "slug": "djokovic-vs-sinner-ao-2026-final",
-        "stats": {
-          "duration_minutes": 196,
-          "player1_aces": 9,
-          "player1_break_points_saved": 7,
-          "player1_double_faults": 2,
-          "player1_first_serve_pct": 68.0,
-          "player2_aces": 14,
-          "player2_break_points_saved": 4,
-          "player2_double_faults": 4,
-          "player2_first_serve_pct": 61.0
-        },
-        "status": "finished",
-        "timeline": [
-          {
-            "created_at": "2026-01-26T11:20:00",
-            "event_type": "set_finished",
-            "game_number": 10,
-            "id": 1,
-            "payload_json": {
-              "score": "6-4"
-            },
-            "player_id": 1,
-            "set_number": 1
-          },
-          {
-            "created_at": "2026-01-26T13:51:00",
-            "event_type": "match_finished",
-            "game_number": 9,
-            "id": 2,
-            "payload_json": {
-              "score": "6-4 3-6 7-5 6-3"
-            },
-            "player_id": 1,
-            "set_number": 4
-          }
-        ],
-        "tournament_id": 1,
-        "tournament_name": "Australian Open 2026",
-        "winner_id": 1
-      },
-      "errors": null,
-      "meta": {},
-      "success": true
-    }
-  },
-  "matches:list::1:300": {
-    "expires_at": 1772825749.2327611,
-    "payload": {
-      "data": [
-        {
-          "actual_end_at": null,
-          "actual_start_at": "2026-03-06T19:03:00",
-          "court_name": "Stadium 1",
-          "id": 2,
-          "player1_id": 3,
-          "player1_name": "Daniil Medvedev",
-          "player2_id": 4,
-          "player2_name": "Andrey Rublev",
-          "round_code": "SF",
-          "scheduled_at": "2026-03-06T19:00:00",
-          "score_summary": "6-4 4-6 3-2",
-          "slug": "medvedev-vs-rublev-indian-wells-2026-sf",
-          "status": "live",
-          "tournament_id": 2,
-          "tournament_name": "Indian Wells 2026"
-        },
-        {
-          "actual_end_at": "2026-01-26T13:51:00",
-          "actual_start_at": "2026-01-26T10:35:00",
-          "court_name": "Rod Laver Arena",
-          "id": 1,
-          "player1_id": 1,
-          "player1_name": "Novak Djokovic",
-          "player2_id": 2,
-          "player2_name": "Jannik Sinner",
-          "round_code": "F",
-          "scheduled_at": "2026-01-26T10:30:00",
-          "score_summary": "6-4 3-6 7-5 6-3",
-          "slug": "djokovic-vs-sinner-ao-2026-final",
-          "status": "finished",
-          "tournament_id": 1,
-          "tournament_name": "Australian Open 2026"
-        }
-      ],
-      "errors": null,
-      "meta": {
-        "page": 1,
-        "per_page": 300,
-        "total": 2,
-        "total_pages": 1
-      },
-      "success": true
-    }
-  },
-  "news:detail:djokovic-wins-ao-2026": {
-    "expires_at": 1772825749.2411451,
-    "payload": {
-      "data": {
-        "category": {
-          "id": 1,
-          "name": "Analysis",
-          "slug": "analysis"
-        },
-        "content_html": "<p>Novak Djokovic defeated Jannik Sinner in four sets to lift the Australian Open trophy.</p>",
-        "cover_image_url": "/media/news/djokovic-ao.jpg",
-        "id": 1,
-        "lead": "Djokovic claimed another major title after a high-level final.",
-        "published_at": "2026-03-06T12:00:00",
-        "related_news": [
-          {
-            "category": {
-              "id": 1,
-              "name": "Analysis",
-              "slug": "analysis"
-            },
-            "cover_image_url": "/media/news/live-iw.jpg",
-            "id": 2,
-            "lead": "Momentum swings continue in California.",
-            "published_at": "2026-03-06T12:00:00",
-            "slug": "medvedev-rublev-live-updates",
-            "status": "published",
-            "subtitle": "Indian Wells semifinal in progress",
-            "tags": [],
-            "title": "Medvedev vs Rublev live updates"
-          }
-        ],
-        "seo_description": "Grand Slam final recap and key tactical points.",
-        "seo_title": "Djokovic wins AO 2026",
-        "slug": "djokovic-wins-ao-2026",
-        "status": "published",
-        "subtitle": "Veteran outlasts Sinner in four sets",
-        "tags": [],
-        "title": "Djokovic wins Australian Open 2026"
-      },
-      "errors": null,
-      "meta": {},
-      "success": true
-    }
-  },
-  "players:detail:1": {
-    "expires_at": 1772825749.229525,
-    "payload": {
-      "data": {
-        "backhand": "two-handed",
-        "biography": "24-time Grand Slam champion.",
-        "birth_date": "1987-05-22",
-        "country_code": "SRB",
-        "country_name": "Serbia",
-        "current_points": 9850,
-        "current_rank": 1,
-        "first_name": "Novak",
-        "form": [
-          "W"
-        ],
-        "full_name": "Novak Djokovic",
-        "hand": "right",
-        "height_cm": 188,
-        "id": 1,
-        "last_name": "Djokovic",
-        "photo_url": "/media/players/djokovic.jpg",
-        "ranking_history": [
-          {
-            "movement": 1,
-            "points": 9410,
-            "rank_position": 2,
-            "ranking_date": "2026-02-16"
-          },
-          {
-            "movement": 1,
-            "points": 9850,
-            "rank_position": 1,
-            "ranking_date": "2026-03-02"
-          }
-        ],
-        "recent_matches": [
+        "city": "Melbourne",
+        "country_code": "AUS",
+        "current_matches": [
           {
             "actual_end_at": "2026-01-26T13:51:00",
             "actual_start_at": "2026-01-26T10:35:00",
@@ -285,141 +31,93 @@
             "tournament_name": "Australian Open 2026"
           }
         ],
-        "seo": {
-          "canonical_url": "/players/novak-djokovic",
-          "description": "24-time Grand Slam champion.",
-          "title": "Novak Djokovic"
-        },
-        "slug": "novak-djokovic",
-        "stats": {
-          "clay_record": "0-0",
-          "grass_record": "0-0",
-          "hard_record": "1-0",
-          "losses": 0,
-          "matches_played": 1,
-          "season": 2026,
-          "win_rate": 100.0,
-          "wins": 1
-        },
-        "status": "active",
-        "titles": [
+        "description": "First Grand Slam of the season.",
+        "draw": [
           {
-            "category": "grand_slam",
-            "season_year": 2026,
-            "surface": "hard",
-            "tournament_name": "Australian Open 2026"
+            "player1_name": "Novak Djokovic",
+            "player2_name": "Jannik Sinner",
+            "round_code": "F",
+            "score_summary": "6-4 3-6 7-5 6-3"
           }
         ],
-        "upcoming_match": null,
-        "weight_kg": 77
+        "end_date": "2026-01-26",
+        "id": 1,
+        "indoor": false,
+        "logo_url": "/media/tournaments/ao.png",
+        "name": "Australian Open 2026",
+        "participants": [
+          {
+            "country_code": "SRB",
+            "current_points": 9850,
+            "current_rank": 1,
+            "form": [],
+            "full_name": "Novak Djokovic",
+            "id": 1,
+            "photo_url": "/media/players/djokovic.jpg",
+            "slug": "novak-djokovic"
+          },
+          {
+            "country_code": "ITA",
+            "current_points": 8610,
+            "current_rank": 2,
+            "form": [],
+            "full_name": "Jannik Sinner",
+            "id": 2,
+            "photo_url": "/media/players/sinner.jpg",
+            "slug": "jannik-sinner"
+          }
+        ],
+        "points_winner": 2000,
+        "prize_money": "$86,500,000",
+        "season_year": 2026,
+        "seo": {},
+        "short_name": "AO 2026",
+        "slug": "australian-open-2026",
+        "start_date": "2026-01-12",
+        "status": "finished",
+        "surface": "hard"
       },
       "errors": null,
       "meta": {},
       "success": true
     }
   },
-  "players:list:::::::1:300": {
-    "expires_at": 1772825749.227108,
+  "tournaments:list:1:300": {
+    "expires_at": 1772826208.739375,
     "payload": {
       "data": [
         {
-          "country_code": "POL",
-          "current_points": 10420,
-          "current_rank": 1,
-          "form": [],
-          "full_name": "Iga Swiatek",
-          "id": 5,
-          "photo_url": "/media/players/swiatek.jpg",
-          "slug": "iga-swiatek"
-        },
-        {
-          "country_code": "SRB",
-          "current_points": 9850,
-          "current_rank": 1,
-          "form": [
-            "W"
-          ],
-          "full_name": "Novak Djokovic",
-          "id": 1,
-          "photo_url": "/media/players/djokovic.jpg",
-          "slug": "novak-djokovic"
-        },
-        {
-          "country_code": "BLR",
-          "current_points": 9030,
-          "current_rank": 2,
-          "form": [],
-          "full_name": "Aryna Sabalenka",
-          "id": 6,
-          "photo_url": "/media/players/sabalenka.jpg",
-          "slug": "aryna-sabalenka"
-        },
-        {
-          "country_code": "ITA",
-          "current_points": 8610,
-          "current_rank": 2,
-          "form": [
-            "L"
-          ],
-          "full_name": "Jannik Sinner",
+          "category": "masters_1000",
+          "city": "Indian Wells",
+          "end_date": "2026-03-16",
           "id": 2,
-          "photo_url": "/media/players/sinner.jpg",
-          "slug": "jannik-sinner"
+          "name": "Indian Wells 2026",
+          "season_year": 2026,
+          "slug": "indian-wells-2026",
+          "start_date": "2026-03-05",
+          "status": "live",
+          "surface": "hard"
         },
         {
-          "country_code": "RUS",
-          "current_points": 6530,
-          "current_rank": 4,
-          "form": [],
-          "full_name": "Daniil Medvedev",
-          "id": 3,
-          "photo_url": "/media/players/medvedev.jpg",
-          "slug": "daniil-medvedev"
-        },
-        {
-          "country_code": "RUS",
-          "current_points": 5120,
-          "current_rank": 6,
-          "form": [],
-          "full_name": "Andrey Rublev",
-          "id": 4,
-          "photo_url": "/media/players/rublev.jpg",
-          "slug": "andrey-rublev"
+          "category": "grand_slam",
+          "city": "Melbourne",
+          "end_date": "2026-01-26",
+          "id": 1,
+          "name": "Australian Open 2026",
+          "season_year": 2026,
+          "slug": "australian-open-2026",
+          "start_date": "2026-01-12",
+          "status": "finished",
+          "surface": "hard"
         }
       ],
       "errors": null,
       "meta": {
         "page": 1,
         "per_page": 300,
-        "total": 6,
+        "total": 2,
         "total_pages": 1
       },
-      "success": true
-    }
-  },
-  "tournaments:news:1": {
-    "expires_at": 1772825749.237854,
-    "payload": {
-      "data": [
-        {
-          "category": {
-            "id": 1,
-            "name": "Analysis",
-            "slug": "analysis"
-          },
-          "cover_image_url": "/media/news/djokovic-ao.jpg",
-          "id": 1,
-          "lead": "Djokovic claimed another major title after a high-level final.",
-          "published_at": "2026-03-06T12:00:00",
-          "slug": "djokovic-wins-ao-2026",
-          "status": "published",
-          "subtitle": "Veteran outlasts Sinner in four sets",
-          "tags": [],
-          "title": "Djokovic wins Australian Open 2026"
-        }
-      ],
-      "errors": null,
-      "meta": {},
       "success": true
     }
   }
