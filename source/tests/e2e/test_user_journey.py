@@ -12,6 +12,7 @@ async def test_user_end_to_end_journey(async_client) -> None:
             'password': 'JourneyPass123',
             'locale': 'en',
             'timezone': 'UTC',
+            'privacy_consent': True,
         },
     )
     assert register_response.status_code == status.HTTP_201_CREATED

@@ -1,4 +1,6 @@
-from sqlalchemy import Boolean, String
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from source.db.models.base import Base
@@ -21,3 +23,5 @@ class User(Base, IdIntPkMixin, TimestampMixin):
     quiet_hours_start: Mapped[str | None] = mapped_column(String(5), nullable=True)
     quiet_hours_end: Mapped[str | None] = mapped_column(String(5), nullable=True)
     is_email_verified: Mapped[bool] = mapped_column(Boolean(), default=False)
+    privacy_consent: Mapped[bool] = mapped_column(Boolean(), default=False)
+    privacy_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

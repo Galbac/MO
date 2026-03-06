@@ -1,6 +1,9 @@
 import shutil
 import uuid
 from pathlib import Path
+from sqlalchemy import text
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import create_async_engine
 
 import pytest
 import pytest_asyncio
@@ -24,11 +27,36 @@ def prepared_test_db() -> str:
         shutil.rmtree(runtime_dir)
 
     original_url = db_session_manager.url
-    test_db_path = Path('var') / f'test_{uuid.uuid4().hex}.db'
-    test_db_path.parent.mkdir(parents=True, exist_ok=True)
-    test_db_url = f'sqlite+aiosqlite:///{test_db_path.resolve()}'
 
     import asyncio
+
+    test_db_url = None
+    test_db_path = None
+    postgres_temp_db_name = None
+
+    async def _try_prepare_postgres() -> str | None:
+        nonlocal postgres_temp_db_name
+        if not original_url.startswith('postgresql+asyncpg://'):
+            return None
+        url = make_url(original_url)
+        maintenance_db = 'postgres'
+        admin_url = url.set(database=maintenance_db)
+        postgres_temp_db_name = f"tennis_portal_test_{uuid.uuid4().hex}"
+        admin_engine = create_async_engine(admin_url.render_as_string(hide_password=False), isolation_level="AUTOCOMMIT", future=True)
+        try:
+            async with admin_engine.connect() as connection:
+                await connection.execute(text(f'CREATE DATABASE "{postgres_temp_db_name}"'))
+        except Exception:
+            await admin_engine.dispose()
+            return None
+        await admin_engine.dispose()
+        return url.set(database=postgres_temp_db_name).render_as_string(hide_password=False)
+
+    test_db_url = asyncio.run(_try_prepare_postgres())
+    if test_db_url is None:
+        test_db_path = Path('var') / f'test_{uuid.uuid4().hex}.db'
+        test_db_path.parent.mkdir(parents=True, exist_ok=True)
+        test_db_url = f'sqlite+aiosqlite:///{test_db_path.resolve()}'
 
     asyncio.run(db_session_manager.reconfigure(test_db_url))
     asyncio.run(db_session_manager.reset_models())
@@ -42,8 +70,23 @@ def prepared_test_db() -> str:
         yield test_db_url
     finally:
         asyncio.run(db_session_manager.dispose())
-        if test_db_path.exists():
+        if test_db_path and test_db_path.exists():
             test_db_path.unlink()
+        if postgres_temp_db_name:
+            async def _drop_postgres_db() -> None:
+                url = make_url(original_url)
+                admin_url = url.set(database='postgres')
+                admin_engine = create_async_engine(admin_url.render_as_string(hide_password=False), isolation_level="AUTOCOMMIT", future=True)
+                try:
+                    async with admin_engine.connect() as connection:
+                        await connection.execute(text(f'DROP DATABASE IF EXISTS "{postgres_temp_db_name}"'))
+                finally:
+                    await admin_engine.dispose()
+
+            try:
+                asyncio.run(_drop_postgres_db())
+            except Exception:
+                pass
         asyncio.run(db_session_manager.reconfigure(original_url))
 
 

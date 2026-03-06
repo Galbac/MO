@@ -482,7 +482,7 @@ async def test_user_engagement_and_auth_branch_coverage(prepared_test_db: str, a
     with pytest.raises(HTTPException):
         await auth.auth_me(_request_with_headers({}))
 
-    inactive = await async_client.post('/api/v1/auth/register', json={'email': 'inactive@example.com', 'username': 'inactive_user', 'password': 'StrongPass123'})
+    inactive = await async_client.post('/api/v1/auth/register', json={'email': 'inactive@example.com', 'username': 'inactive_user', 'password': 'StrongPass123', 'privacy_consent': True})
     assert inactive.status_code == 201
     async with db_session_manager.session() as session:
         user = await auth.users.get_by_username(session, 'inactive_user')

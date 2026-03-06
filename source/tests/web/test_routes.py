@@ -7,6 +7,15 @@ async def test_home_page_renders_html(async_client) -> None:
     assert response.status_code == status.HTTP_200_OK
     assert "text/html" in response.headers["content-type"]
     assert "Makhachkala Open" in response.text
+    assert "Начните с регистрации" in response.text
+    assert "Согласие на обработку данных" in response.text
+
+
+async def test_portal_page_renders_html(async_client) -> None:
+    response = await async_client.get("/portal")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert "text/html" in response.headers["content-type"]
     assert "Счета, новости и рейтинги" in response.text
 
 

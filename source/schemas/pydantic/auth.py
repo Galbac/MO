@@ -10,6 +10,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8)
     locale: str | None = None
     timezone: str | None = None
+    privacy_consent: bool = Field(default=False)
 
 
 class LoginRequest(BaseModel):

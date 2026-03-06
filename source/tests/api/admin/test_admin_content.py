@@ -130,6 +130,7 @@ async def test_publishing_news_creates_notifications_for_related_subscribers(asy
             'password': 'NewsPass123',
             'locale': 'en',
             'timezone': 'UTC',
+            'privacy_consent': True,
         },
     )
     assert register_response.status_code == status.HTTP_201_CREATED

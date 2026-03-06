@@ -21,6 +21,7 @@ async def test_register_creates_user_and_returns_tokens(async_client) -> None:
             "password": "StrongPass123",
             "locale": "en",
             "timezone": "UTC",
+            "privacy_consent": True,
         },
     )
 
@@ -117,6 +118,7 @@ async def test_verify_email_marks_user_verified(async_client) -> None:
             "password": "StrongPass123",
             "locale": "ru",
             "timezone": "Europe/Moscow",
+            "privacy_consent": True,
         },
     )
     assert register_response.status_code == status.HTTP_201_CREATED

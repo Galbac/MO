@@ -188,7 +188,7 @@ async def robots_txt(request: Request) -> PlainTextResponse:
 @router.get("/sitemap.xml", include_in_schema=False)
 async def sitemap_xml(request: Request) -> Response:
     base_url = str(request.base_url).rstrip("/")
-    static_paths = ["/", "/players", "/tournaments", "/matches", "/live", "/rankings", "/news", "/search", "/h2h"]
+    static_paths = ["/portal", "/players", "/tournaments", "/matches", "/live", "/rankings", "/news", "/search", "/h2h"]
     dynamic_paths: list[str] = []
 
     players = (await query_service.list_players(None, None, None, None, None, None, 1, 200)).data
@@ -208,6 +208,16 @@ async def sitemap_xml(request: Request) -> Response:
 
 @router.get("/", include_in_schema=False)
 async def home(request: Request):
+    return render(request, "public/register.html", page_title="Регистрация", page_name="register", section="public", description="Регистрация в Makhachkala Open с согласием на обработку персональных данных.", robots="noindex,nofollow")
+
+
+@router.get("/register", include_in_schema=False)
+async def register_page(request: Request):
+    return render(request, "public/register.html", page_title="Регистрация", page_name="register", section="public", description="Регистрация в Makhachkala Open с согласием на обработку персональных данных.", robots="noindex,nofollow")
+
+
+@router.get("/portal", include_in_schema=False)
+async def portal_page(request: Request):
     return render(request, "public/index.html", page_title="Makhachkala Open", page_name="home", section="public", description="Лайв-счета, рейтинги, новости, игроки и турниры Makhachkala Open.", schema_json={"@context": "https://schema.org", "@type": "WebSite", "name": "Makhachkala Open", "url": str(request.base_url).rstrip("/")})
 
 

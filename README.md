@@ -22,7 +22,7 @@ poetry install
 poetry run uvicorn source.main:create_app --factory --reload
 ```
 
-Default local runtime is PostgreSQL-first. Tests explicitly override the DB engine to an isolated SQLite file per run.
+Default local runtime is PostgreSQL-first. Tests also try PostgreSQL first by creating an isolated temporary database; if PostgreSQL is unavailable, they fall back to an isolated SQLite file to keep local runs hermetic.
 
 ## Docker stack
 

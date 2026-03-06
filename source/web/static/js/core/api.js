@@ -243,5 +243,8 @@ export function formToJson(form) {
         }
         payload[key] = value;
     });
+    form.querySelectorAll("input[type='checkbox']").forEach((input) => {
+        payload[input.name] = input.checked;
+    });
     return payload;
 }

@@ -279,6 +279,8 @@ class AuthUserService:
 
     async def register(self, request: Request | None, payload: RegisterRequest) -> AuthResponse:
         _check_password_strength(payload.password)
+        if not payload.privacy_consent:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Privacy consent is required')
         normalized_email = self._normalize_email(payload.email)
         normalized_username = self._normalize_username(payload.username)
         resolved_timezone = self._validate_timezone_name(payload.timezone)
@@ -296,6 +298,8 @@ class AuthUserService:
                 'locale': payload.locale or 'ru',
                 'timezone': resolved_timezone,
                 'is_email_verified': False,
+                'privacy_consent': True,
+                'privacy_consent_at': datetime.now(tz=UTC),
             })
         await self._log_audit(action='auth.register', entity_type='user', entity_id=user.id, before_json=None, after_json=self._entity_dict(user), user_id=user.id)
         verification_token = self._issue_action_token(
