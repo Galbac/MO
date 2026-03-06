@@ -104,6 +104,7 @@ class AdminBulkImportResult(BaseModel):
     status: str
     imported_count: int
     entity_ids: list[int]
+    message: str | None = None
     details: dict = Field(default_factory=dict)
 
 

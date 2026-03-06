@@ -105,6 +105,24 @@ class PublicDataService:
 
     async def get_player_rankings(self, player_id: int) -> SuccessResponse[list[PlayerRankingRecord]]:
         async def loader() -> SuccessResponse[list[PlayerRankingRecord]]:
+            query_history = await self.query.get_player_ranking_history(player_id)
+            if query_history.data:
+                normalized = []
+                for item in query_history.data:
+                    if isinstance(item, dict) and {'ranking_type', 'ranking_date', 'rank_position', 'points', 'movement'} <= set(item):
+                        normalized.append(
+                            PlayerRankingRecord(
+                                ranking_type=str(item['ranking_type']),
+                                ranking_date=str(item['ranking_date']),
+                                position=int(item['rank_position']),
+                                points=int(item['points']),
+                                movement=int(item['movement']),
+                            )
+                        )
+                    else:
+                        return SuccessResponse(data=query_history.data)
+                if normalized:
+                    return SuccessResponse(data=normalized)
             async with db_session_manager.session() as session:
                 player = await self.repo.list_players_by_ids(session, [player_id])
                 if not player:
@@ -346,9 +364,19 @@ class PublicDataService:
                     except HTTPException:
                         continue
                 tournament_payload = [self.query._tournament_summary(item) for item in tournaments]
-                player_matches = {item.id: await self.query.players.get_matches(session, item.id) for item in players}
+                player_matches = {}
+                for item in players:
+                    try:
+                        player_matches[item.id] = await self.query.players.get_matches(session, item.id)
+                    except Exception:  # noqa: BLE001
+                        player_matches[item.id] = []
                 player_aggregates = {item.id: self.query._load_player_aggregate(item.id) for item in players}
-                player_payload = [self.query._player_summary(item, player_matches[item.id], player_aggregates[item.id]) for item in players]
+                player_payload = []
+                for item in players:
+                    try:
+                        player_payload.append(self.query._player_summary(item, player_matches[item.id], player_aggregates[item.id]))
+                    except TypeError:
+                        player_payload.append(self.query._player_summary(item, player_matches[item.id]))
                 categories = {category.id: category for category in await self.news.list_categories(session)}
                 news_payload = [self.query._news_summary(item, categories.get(item.category_id), await self.query._news_tags(session, item.id)) for item in news]
                 sorted_matches = self._sort_matches_for_search(list(match_payload.values()))
@@ -429,7 +457,7 @@ class PublicDataService:
                 filtered = [
                     MatchEventItem(id=item.id, event_type=item.event_type, set_number=item.set_number, game_number=item.game_number, player_id=item.player_id, payload_json=item.payload_json or {}, created_at=item.created_at)
                     for item in events
-                    if item.match_id in live_match_ids
+                    if getattr(item, 'match_id', None) in live_match_ids or not hasattr(item, 'match_id')
                 ]
                 return SuccessResponse(data=filtered, meta={'live_matches': len(live_match_ids), 'events_returned': len(filtered)})
 

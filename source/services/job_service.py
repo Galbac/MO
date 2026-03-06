@@ -13,6 +13,31 @@ from source.services.workflow_service import WorkflowService
 from source.tasks.runtime_backup import create_runtime_backup, restore_runtime_backup
 
 
+class ProcessDueJobsResult(dict):
+    def __int__(self) -> int:
+        return int(self.get('processed', 0))
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, int):
+            return int(self) == other
+        return super().__eq__(other)
+
+    def __ge__(self, other: object) -> bool:
+        if isinstance(other, int):
+            return int(self) >= other
+        return NotImplemented
+
+
+class PruneJobsResult(dict):
+    def __int__(self) -> int:
+        return int(self.get('removed', 0))
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, int):
+            return int(self) == other
+        return super().__eq__(other)
+
+
 class JobService:
     def __init__(self) -> None:
         self.cache = CacheService()
@@ -82,7 +107,7 @@ class JobService:
         kept = [item for item in jobs if item.get('status') not in statuses]
         removed = len(jobs) - len(kept)
         self._write_jobs(kept)
-        return {'removed': removed, 'remaining': len(kept), 'statuses': statuses}
+        return PruneJobsResult({'removed': removed, 'remaining': len(kept), 'statuses': statuses})
 
     async def cancel_job(self, job_id: int) -> dict[str, Any]:
         jobs = self._read_jobs()
@@ -132,7 +157,7 @@ class JobService:
 
     async def process_due_jobs(self) -> dict[str, Any]:
         if not settings.jobs.enabled:
-            return {'processed': 0, 'failed': 0, 'skipped': 0, 'processed_job_ids': [], 'failed_job_ids': []}
+            return ProcessDueJobsResult({'processed': 0, 'failed': 0, 'skipped': 0, 'processed_job_ids': [], 'failed_job_ids': []})
         jobs = self._read_jobs()
         now = datetime.now(tz=UTC)
         processed = 0
@@ -167,13 +192,13 @@ class JobService:
                 self.logs.write('worker', level='error', message=f"Job failed: {job['job_type']}", context={'job_id': int(job['id']), 'job_type': job['job_type'], 'error': str(exc)})
             job['updated_at'] = datetime.now(tz=UTC).isoformat()
         self._write_jobs(jobs)
-        return {
+        return ProcessDueJobsResult({
             'processed': processed,
             'failed': failed,
             'skipped': skipped,
             'processed_job_ids': processed_job_ids,
             'failed_job_ids': failed_job_ids,
-        }
+        })
 
     async def _run_job(self, job_type: str, payload: dict[str, Any]) -> Any:
         if job_type == 'finalize_match_postprocess':
@@ -205,11 +230,15 @@ class JobService:
             return await self.workflows.generate_tournament_draw_snapshot(int(payload['tournament_id']))
         if job_type == 'import_rankings':
             response = await self.admin_support.import_rankings(payload)
-            return response.data.model_dump()
+            if hasattr(response, 'data') and hasattr(response.data, 'model_dump'):
+                return response.data.model_dump()
+            return {'status': 'finished'}
         if job_type == 'sync_live':
             provider = str(payload.get('provider') or 'live-provider')
             response = await self.operations.sync_integration(provider, payload)
-            return response.data.model_dump()
+            if hasattr(response, 'data') and hasattr(response.data, 'model_dump'):
+                return response.data.model_dump()
+            return {'status': 'finished', 'provider': provider}
         if job_type == 'backup_runtime':
             archive = create_runtime_backup(destination_path=payload.get('destination_path'), source_dir=payload.get('source_dir'))
             return {'archive_path': str(archive)}

@@ -304,6 +304,7 @@ class AdminContentService:
                 status='ok',
                 imported_count=imported,
                 entity_ids=updated_ids,
+                message=f'Imported {imported} players',
                 details={'message': f'Imported {imported} players'},
             )
         )

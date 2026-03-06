@@ -105,13 +105,14 @@ class AdminSupportService:
         updated_at = None
         if self.settings_file.exists():
             updated_at = datetime.fromtimestamp(self.settings_file.stat().st_mtime, tz=UTC)
+        model = AdminSettingsPayload(
+            values=payload or {},
+            storage_backend='local_file',
+            storage_path=str(self.settings_file),
+            updated_at=updated_at,
+        )
         return SuccessResponse(
-            data=AdminSettingsPayload(
-                values=payload or {},
-                storage_backend='local_file',
-                storage_path=str(self.settings_file),
-                updated_at=updated_at,
-            ).model_dump(),
+            data=model.model_dump() | dict(payload or {}),
             meta={'keys_count': len(payload or {}), 'writable': True},
         )
 
@@ -128,13 +129,14 @@ class AdminSupportService:
         self._write_json(self.settings_file, merged)
         self._invalidate_cache('news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:')
         updated_at = datetime.fromtimestamp(self.settings_file.stat().st_mtime, tz=UTC) if self.settings_file.exists() else None
+        model = AdminSettingsPayload(
+            values=merged,
+            storage_backend='local_file',
+            storage_path=str(self.settings_file),
+            updated_at=updated_at,
+        )
         return SuccessResponse(
-            data=AdminSettingsPayload(
-                values=merged,
-                storage_backend='local_file',
-                storage_path=str(self.settings_file),
-                updated_at=updated_at,
-            ).model_dump(),
+            data=model.model_dump() | merged,
             meta={'keys_count': len(merged), 'updated_keys': sorted(sanitized.keys()), 'invalidated_prefixes': ['news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:']},
         )
 
@@ -398,6 +400,7 @@ class AdminSupportService:
                     processed_rows=len(ranking_rows),
                     source=str(payload.get('source_file') or provider),
                     mode='provider_payload',
+                    message='Ranking import completed',
                 )
             )
 
@@ -418,6 +421,7 @@ class AdminSupportService:
                 processed_rows=0,
                 source=resolved_source or None,
                 mode='queued',
+                message='Ranking import queued',
             )
         )
 

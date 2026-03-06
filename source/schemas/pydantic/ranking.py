@@ -44,6 +44,7 @@ class RankingImportResult(BaseModel):
     processed_rows: int
     source: str | None = None
     mode: str
+    message: str | None = None
 
 
 class RankingRecalculationResult(BaseModel):
