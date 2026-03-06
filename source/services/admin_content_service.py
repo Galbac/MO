@@ -13,6 +13,8 @@ from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.match import MatchEventCreateRequest, MatchEventItem, MatchScoreUpdateRequest, MatchStatsUpdateRequest, MatchStatusUpdateRequest
 from source.schemas.pydantic.news import NewsArticleCreateRequest, NewsStatusRequest
+from source.services.cache_service import CacheService
+from source.services.job_service import JobService
 from source.services.portal_query_service import PortalQueryService
 
 
@@ -24,6 +26,8 @@ class AdminContentService:
         self.news = NewsRepository()
         self.audit = AuditRepository()
         self.query = PortalQueryService()
+        self.cache = CacheService()
+        self.jobs = JobService()
 
     @staticmethod
     def _require(payload: dict[str, Any], field: str, current: Any = None) -> Any:
@@ -147,6 +151,9 @@ class AdminContentService:
         async with db_session_manager.session() as session:
             await self.audit.create(session, {'user_id': user_id, 'action': action, 'entity_type': entity_type, 'entity_id': entity_id, 'before_json': before_json, 'after_json': after_json})
 
+    def _invalidate_cache(self, *prefixes: str) -> None:
+        self.cache.invalidate_prefixes(*prefixes)
+
     @staticmethod
     def _decide_winner(match, sets: list[Any]) -> int | None:
         if match.status == 'retired':
@@ -170,6 +177,7 @@ class AdminContentService:
             player = await self.players.create(session, self._player_payload(payload))
             after = self._entity_dict(player)
         await self._log_audit(action='player.create', entity_type='player', entity_id=player.id, before_json=None, after_json=after, user_id=actor_id)
+        self._invalidate_cache('players:', 'matches:', 'live:', 'search:')
         return await self.query.get_player(player.id)
 
     async def get_admin_player(self, player_id: int):
@@ -184,6 +192,7 @@ class AdminContentService:
             updated = await self.players.update(session, player, self._player_payload(payload, before))
             after = self._entity_dict(updated)
         await self._log_audit(action='player.update', entity_type='player', entity_id=player_id, before_json=before, after_json=after, user_id=actor_id)
+        self._invalidate_cache('players:', 'matches:', 'live:', 'search:')
         return await self.query.get_player(player_id)
 
     async def delete_admin_player(self, player_id: int, actor_id: int | None = None):
@@ -194,6 +203,7 @@ class AdminContentService:
             before = self._entity_dict(player)
             await self.players.delete(session, player)
         await self._log_audit(action='player.delete', entity_type='player', entity_id=player_id, before_json=before, after_json=None, user_id=actor_id)
+        self._invalidate_cache('players:', 'matches:', 'live:', 'search:')
         return MessageResponse(data=SimpleMessage(message='Player deleted'))
 
     async def list_admin_tournaments(self):
@@ -205,6 +215,7 @@ class AdminContentService:
             tournament = await self.tournaments.create(session, self._tournament_payload(payload))
             after = self._entity_dict(tournament)
         await self._log_audit(action='tournament.create', entity_type='tournament', entity_id=tournament.id, before_json=None, after_json=after, user_id=actor_id)
+        self._invalidate_cache('tournaments:', 'matches:', 'live:', 'news:', 'search:')
         return await self.query.get_tournament(tournament.id)
 
     async def get_admin_tournament(self, tournament_id: int):
@@ -219,6 +230,7 @@ class AdminContentService:
             updated = await self.tournaments.update(session, tournament, self._tournament_payload(payload, before))
             after = self._entity_dict(updated)
         await self._log_audit(action='tournament.update', entity_type='tournament', entity_id=tournament_id, before_json=before, after_json=after, user_id=actor_id)
+        self._invalidate_cache('tournaments:', 'matches:', 'live:', 'news:', 'search:')
         return await self.query.get_tournament(tournament_id)
 
     async def delete_admin_tournament(self, tournament_id: int, actor_id: int | None = None):
@@ -229,6 +241,7 @@ class AdminContentService:
             before = self._entity_dict(tournament)
             await self.tournaments.delete(session, tournament)
         await self._log_audit(action='tournament.delete', entity_type='tournament', entity_id=tournament_id, before_json=before, after_json=None, user_id=actor_id)
+        self._invalidate_cache('tournaments:', 'matches:', 'live:', 'news:', 'search:')
         return MessageResponse(data=SimpleMessage(message='Tournament deleted'))
 
     async def list_admin_matches(self):
@@ -240,6 +253,7 @@ class AdminContentService:
             match = await self.matches.create(session, self._match_payload(payload))
             after = self._entity_dict(match)
         await self._log_audit(action='match.create', entity_type='match', entity_id=match.id, before_json=None, after_json=after, user_id=actor_id)
+        self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:', 'search:')
         return await self.query.get_match(match.id)
 
     async def get_admin_match(self, match_id: int):
@@ -254,6 +268,7 @@ class AdminContentService:
             updated = await self.matches.update(session, match, self._match_payload(payload, before))
             after = self._entity_dict(updated)
         await self._log_audit(action='match.update', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
+        self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:', 'search:')
         return await self.query.get_match(match_id)
 
     async def delete_admin_match(self, match_id: int, actor_id: int | None = None):
@@ -264,6 +279,7 @@ class AdminContentService:
             before = self._entity_dict(match)
             await self.matches.delete(session, match)
         await self._log_audit(action='match.delete', entity_type='match', entity_id=match_id, before_json=before, after_json=None, user_id=actor_id)
+        self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:', 'search:')
         return MessageResponse(data=SimpleMessage(message='Match deleted'))
 
     async def update_admin_match_status(self, match_id: int, payload: MatchStatusUpdateRequest, actor_id: int | None = None):
@@ -280,6 +296,7 @@ class AdminContentService:
                 await self.matches.replace_sets(session, match_id, [item.model_dump() for item in payload.sets])
             after = self._entity_dict(updated)
         await self._log_audit(action='match.update_score', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
+        self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:')
         return await self.query.get_match(match_id)
 
     async def update_admin_match_stats(self, match_id: int, payload: MatchStatsUpdateRequest, actor_id: int | None = None):
@@ -289,6 +306,7 @@ class AdminContentService:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
             await self.matches.upsert_stats(session, match_id, payload.stats.model_dump())
         await self._log_audit(action='match.update_stats', entity_type='match', entity_id=match_id, before_json=None, after_json=payload.stats.model_dump(), user_id=actor_id)
+        self._invalidate_cache('matches:', 'live:')
         return await self.query.get_match(match_id)
 
     async def create_admin_match_event(self, match_id: int, payload: MatchEventCreateRequest, actor_id: int | None = None):
@@ -298,6 +316,7 @@ class AdminContentService:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
             event = await self.matches.create_event(session, {'match_id': match_id, 'event_type': payload.event_type, 'set_number': payload.set_number, 'game_number': payload.game_number, 'player_id': payload.player_id, 'payload_json': payload.payload_json, 'created_at': datetime.now(tz=UTC)})
         await self._log_audit(action='match.create_event', entity_type='match', entity_id=match_id, before_json=None, after_json={'event_id': event.id, **payload.model_dump()}, user_id=actor_id)
+        self._invalidate_cache('matches:', 'live:')
         return SuccessResponse(data=MatchEventItem(id=event.id, event_type=event.event_type, set_number=event.set_number, game_number=event.game_number, player_id=event.player_id, payload_json=event.payload_json or {}, created_at=event.created_at))
 
     async def finalize_admin_match(self, match_id: int, actor_id: int | None = None):
@@ -311,6 +330,9 @@ class AdminContentService:
             updated = await self.matches.update(session, match, {'status': 'finished', 'winner_id': winner_id, 'actual_end_at': datetime.now(tz=UTC)})
             after = self._entity_dict(updated)
         await self._log_audit(action='match.finalize', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
+        self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:', 'rankings:')
+        await self.jobs.enqueue(job_type='finalize_match_postprocess', payload={'match_id': match_id, 'actor_id': actor_id})
+        await self.jobs.process_due_jobs()
         return MessageResponse(data=SimpleMessage(message='Match finalized and post-processing queued'))
 
     async def reopen_admin_match(self, match_id: int, actor_id: int | None = None):
@@ -322,6 +344,7 @@ class AdminContentService:
             updated = await self.matches.update(session, match, {'status': 'scheduled', 'actual_end_at': None})
             after = self._entity_dict(updated)
         await self._log_audit(action='match.reopen', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
+        self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:')
         return MessageResponse(data=SimpleMessage(message='Match reopened'))
 
     async def list_admin_news(self):
@@ -333,6 +356,7 @@ class AdminContentService:
             article = await self.news.create(session, self._news_payload(payload))
             after = self._entity_dict(article)
         await self._log_audit(action='news.create', entity_type='news', entity_id=article.id, before_json=None, after_json=after, user_id=actor_id)
+        self._invalidate_cache('news:', 'search:', 'players:', 'tournaments:')
         return await self.query.get_news_article(article.slug)
 
     async def get_admin_news(self, news_id: int):
@@ -351,6 +375,7 @@ class AdminContentService:
             updated = await self.news.update(session, article, self._news_payload(payload, before))
             after = self._entity_dict(updated)
         await self._log_audit(action='news.update', entity_type='news', entity_id=news_id, before_json=before, after_json=after, user_id=actor_id)
+        self._invalidate_cache('news:', 'search:', 'players:', 'tournaments:')
         return await self.query.get_news_article(updated.slug)
 
     async def delete_admin_news(self, news_id: int, actor_id: int | None = None):
@@ -361,6 +386,7 @@ class AdminContentService:
             before = self._entity_dict(article)
             await self.news.delete(session, article)
         await self._log_audit(action='news.delete', entity_type='news', entity_id=news_id, before_json=before, after_json=None, user_id=actor_id)
+        self._invalidate_cache('news:', 'search:', 'players:', 'tournaments:')
         return MessageResponse(data=SimpleMessage(message='News deleted'))
 
     async def update_admin_news_status(self, news_id: int, payload: NewsStatusRequest, actor_id: int | None = None):
@@ -373,6 +399,7 @@ class AdminContentService:
             updated = await self.news.update(session, article, {'status': payload.status, 'published_at': publish_at})
             after = self._entity_dict(updated)
         await self._log_audit(action='news.update_status', entity_type='news', entity_id=news_id, before_json=before, after_json=after, user_id=actor_id)
+        self._invalidate_cache('news:', 'search:', 'players:', 'tournaments:')
         return await self.query.get_news_article(updated.slug)
 
     async def publish_admin_news(self, news_id: int, actor_id: int | None = None):
@@ -383,6 +410,7 @@ class AdminContentService:
         if not payload.publish_at:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='publish_at is required')
         await self.update_admin_news_status(news_id, NewsStatusRequest(status='scheduled', publish_at=payload.publish_at), actor_id=actor_id)
+        await self.jobs.enqueue(job_type='publish_scheduled_news', payload={'news_id': news_id}, run_at=datetime.fromisoformat(payload.publish_at))
         return MessageResponse(data=SimpleMessage(message=f'News scheduled for {payload.publish_at}'))
 
     async def attach_admin_news_tags(self, news_id: int):

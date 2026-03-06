@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from source.db.models import FavoriteEntity, Notification, NotificationSubscription
@@ -43,6 +43,19 @@ class EngagementRepository:
     async def find_subscription(self, session: AsyncSession, user_id: int, entity_type: str, entity_id: int) -> NotificationSubscription | None:
         stmt = select(NotificationSubscription).where(NotificationSubscription.user_id == user_id, NotificationSubscription.entity_type == entity_type, NotificationSubscription.entity_id == entity_id)
         return await session.scalar(stmt)
+
+    async def list_matching_subscriptions(self, session: AsyncSession, *, entities: list[tuple[str, int]], notification_type: str) -> list[NotificationSubscription]:
+        if not entities:
+            return []
+        conditions = [and_(NotificationSubscription.entity_type == entity_type, NotificationSubscription.entity_id == entity_id) for entity_type, entity_id in entities]
+        stmt = select(NotificationSubscription).where(NotificationSubscription.is_active.is_(True), or_(*conditions)).order_by(NotificationSubscription.id.asc())
+        items = list((await session.scalars(stmt)).all())
+        matched: list[NotificationSubscription] = []
+        for item in items:
+            types = list(item.notification_types or [])
+            if not types or notification_type in types:
+                matched.append(item)
+        return matched
 
     async def create_subscription(self, session: AsyncSession, payload: dict) -> NotificationSubscription:
         item = NotificationSubscription(**payload)
@@ -91,3 +104,13 @@ class EngagementRepository:
         await session.commit()
         await session.refresh(item)
         return item
+
+    async def find_duplicate_notification(self, session: AsyncSession, *, user_id: int, type_: str, title: str, entity_type: str | None, entity_id: int | None) -> Notification | None:
+        notifications = await self.list_notifications(session, user_id)
+        for item in notifications:
+            if item.type != type_ or item.title != title:
+                continue
+            payload = item.payload_json or {}
+            if payload.get('entity_type') == entity_type and payload.get('entity_id') == entity_id:
+                return item
+        return None

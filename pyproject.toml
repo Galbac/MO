@@ -10,7 +10,7 @@ python = "~3.12"
 fastapi = "^0.115.0"
 uvicorn = "^0.31.0"
 orjson = "^3.10.7"
-pydantic = { extras = ["email"], version = "^2.12.5" }
+pydantic = {extras = ["email"], version = "^2.12.5"}
 pydantic-settings = "^2.5.2"
 sqlalchemy = { extras = ["asyncio"], version = "^2.0.35" }
 asyncpg = "^0.29.0"

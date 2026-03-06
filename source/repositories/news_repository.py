@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +40,10 @@ class NewsRepository:
     async def get_by_slug(self, session: AsyncSession, slug: str) -> NewsArticle | None:
         stmt = select(NewsArticle).where(NewsArticle.slug == slug)
         return await session.scalar(stmt)
+
+    async def list_due_scheduled(self, session: AsyncSession, now: datetime) -> list[NewsArticle]:
+        stmt = select(NewsArticle).where(NewsArticle.status == 'scheduled', NewsArticle.published_at.is_not(None), NewsArticle.published_at <= now).order_by(NewsArticle.published_at.asc(), NewsArticle.id.asc())
+        return list((await session.scalars(stmt)).all())
 
     async def list_categories(self, session: AsyncSession) -> list[NewsCategory]:
         stmt = select(NewsCategory).order_by(NewsCategory.name.asc())

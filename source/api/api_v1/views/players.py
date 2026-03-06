@@ -41,6 +41,11 @@ async def compare_players(
     return await service.compare_players(player1_id, player2_id)
 
 
+@router.get("/h2h", response_model=SuccessResponse[H2HResponse])
+async def get_h2h(player1_id: int = Query(...), player2_id: int = Query(...)) -> SuccessResponse[H2HResponse]:
+    return await service.get_h2h(player1_id, player2_id)
+
+
 @router.get("/{player_id}", response_model=SuccessResponse[PlayerDetail])
 async def get_player(player_id: int) -> SuccessResponse[PlayerDetail]:
     return await service.get_player(player_id)
@@ -74,8 +79,3 @@ async def get_player_news(player_id: int) -> SuccessResponse[list[PlayerNewsItem
 @router.get("/{player_id}/upcoming-matches", response_model=SuccessResponse[list[UpcomingMatchItem]])
 async def get_player_upcoming_matches(player_id: int) -> SuccessResponse[list[UpcomingMatchItem]]:
     return await service.get_player_upcoming_matches(player_id)
-
-
-@router.get("/h2h", response_model=SuccessResponse[H2HResponse])
-async def get_h2h(player1_id: int = Query(...), player2_id: int = Query(...)) -> SuccessResponse[H2HResponse]:
-    return await service.get_h2h(player1_id, player2_id)

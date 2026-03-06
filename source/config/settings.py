@@ -53,6 +53,21 @@ class MediaSettings(BaseModel):
     ]
     max_upload_size_bytes: int = 1024 * 1024 * 5
 
+
+class CacheSettings(BaseModel):
+    enabled: bool = True
+    storage_path: str = "var/cache_store.json"
+    default_ttl_seconds: int = 300
+    rankings_ttl_seconds: int = 600
+    live_ttl_seconds: int = 15
+
+
+class JobsSettings(BaseModel):
+    enabled: bool = True
+    storage_path: str = "var/job_queue.json"
+    process_on_startup: bool = True
+
+
 class DocsSettings(BaseModel):
     username: str = os.getenv("FASTAPI_CFG__DOCS__USERNAME", "admin")
     password: str = os.getenv("FASTAPI_CFG__DOCS__PASSWORD", "admin")
@@ -81,6 +96,8 @@ class Settings(BaseSettings):
     middleware: MiddlewareSettings = MiddlewareSettings()
     auth: AuthSettings = AuthSettings()
     media: MediaSettings = MediaSettings()
+    cache: CacheSettings = CacheSettings()
+    jobs: JobsSettings = JobsSettings()
     docs: DocsSettings = DocsSettings()
     db: DbSettings = DbSettings()
 

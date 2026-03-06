@@ -14,12 +14,14 @@ from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.news import NewsCategoryItem, TagItem
 from source.schemas.pydantic.ranking import RankingImportJob
+from source.services.cache_service import CacheService
 
 
 class AdminSupportService:
     def __init__(self) -> None:
         self.repo = AdminSupportRepository()
         self.storage_dir = Path('var')
+        self.cache = CacheService()
         self.settings_file = self.storage_dir / 'admin_settings.json'
         self.jobs_file = self.storage_dir / 'ranking_import_jobs.json'
 
@@ -39,6 +41,9 @@ class AdminSupportService:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
 
+    def _invalidate_cache(self, *prefixes: str) -> None:
+        self.cache.invalidate_prefixes(*prefixes)
+
     async def get_settings(self) -> SuccessResponse[dict]:
         payload = self._read_json(self.settings_file)
         return SuccessResponse(data=payload or {})
@@ -47,6 +52,7 @@ class AdminSupportService:
         current = self._read_json(self.settings_file) or {}
         merged = current | {key: value for key, value in payload.items() if value not in (None, '')}
         self._write_json(self.settings_file, merged)
+        self._invalidate_cache('news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:')
         return SuccessResponse(data=merged)
 
     async def list_notification_templates(self) -> SuccessResponse[list[AdminNotificationTemplate]]:
@@ -101,6 +107,7 @@ class AdminSupportService:
     async def create_category(self, payload: dict[str, Any]) -> MessageResponse:
         async with db_session_manager.session() as session:
             await self.repo.create_category(session, {'name': self._require(payload, 'name'), 'slug': self._require(payload, 'slug')})
+            self._invalidate_cache('news:', 'search:')
             return MessageResponse(data=SimpleMessage(message='News category created'))
 
     async def update_category(self, category_id: int, payload: dict[str, Any]) -> MessageResponse:
@@ -109,6 +116,7 @@ class AdminSupportService:
             if item is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Category not found')
             await self.repo.update_category(session, item, {'name': self._require(payload | {'name': payload.get('name', item.name)}, 'name'), 'slug': self._require(payload | {'slug': payload.get('slug', item.slug)}, 'slug')})
+            self._invalidate_cache('news:', 'search:')
             return MessageResponse(data=SimpleMessage(message='News category updated'))
 
     async def delete_category(self, category_id: int) -> MessageResponse:
@@ -117,6 +125,7 @@ class AdminSupportService:
             if item is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Category not found')
             await self.repo.delete_category(session, item)
+            self._invalidate_cache('news:', 'search:')
             return MessageResponse(data=SimpleMessage(message='News category deleted'))
 
     async def list_tags(self) -> SuccessResponse[list[TagItem]]:
@@ -127,6 +136,7 @@ class AdminSupportService:
     async def create_tag(self, payload: dict[str, Any]) -> MessageResponse:
         async with db_session_manager.session() as session:
             await self.repo.create_tag(session, {'name': self._require(payload, 'name'), 'slug': self._require(payload, 'slug')})
+            self._invalidate_cache('news:', 'search:')
             return MessageResponse(data=SimpleMessage(message='Tag created'))
 
     async def update_tag(self, tag_id: int, payload: dict[str, Any]) -> MessageResponse:
@@ -135,6 +145,7 @@ class AdminSupportService:
             if item is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tag not found')
             await self.repo.update_tag(session, item, {'name': self._require(payload | {'name': payload.get('name', item.name)}, 'name'), 'slug': self._require(payload | {'slug': payload.get('slug', item.slug)}, 'slug')})
+            self._invalidate_cache('news:', 'search:')
             return MessageResponse(data=SimpleMessage(message='Tag updated'))
 
     async def delete_tag(self, tag_id: int) -> MessageResponse:
@@ -143,6 +154,7 @@ class AdminSupportService:
             if item is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tag not found')
             await self.repo.delete_tag(session, item)
+            self._invalidate_cache('news:', 'search:')
             return MessageResponse(data=SimpleMessage(message='Tag deleted'))
 
     async def list_ranking_jobs(self) -> SuccessResponse[list[RankingImportJob]]:
@@ -165,7 +177,9 @@ class AdminSupportService:
         jobs = self._read_json(self.jobs_file) or []
         jobs.append({'ranking_type': str(payload.get('ranking_type') or ranking_type), 'status': 'queued', 'imported_at': datetime.now(tz=UTC).isoformat(), 'processed_rows': 0, 'source_file': str(payload.get('source_file') or '')})
         self._write_json(self.jobs_file, jobs)
+        self._invalidate_cache('rankings:', 'players:')
         return MessageResponse(data=SimpleMessage(message='Ranking import queued'))
 
     async def recalculate_ranking_movements(self) -> MessageResponse:
+        self._invalidate_cache('rankings:', 'players:')
         return MessageResponse(data=SimpleMessage(message='Ranking movement recalculation queued'))

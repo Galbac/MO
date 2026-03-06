@@ -84,6 +84,59 @@ class MatchRepository:
         stmt = select(HeadToHead).where(HeadToHead.player1_id == left, HeadToHead.player2_id == right)
         return await session.scalar(stmt)
 
+    async def upsert_h2h(self, session: AsyncSession, *, player1_id: int, player2_id: int, winner_id: int, surface: str | None, match_id: int) -> HeadToHead:
+        left, right = sorted((player1_id, player2_id))
+        record = await self.get_h2h(session, player1_id, player2_id)
+        if record is None:
+            record = HeadToHead(
+                player1_id=left,
+                player2_id=right,
+                total_matches=0,
+                player1_wins=0,
+                player2_wins=0,
+                hard_player1_wins=0,
+                hard_player2_wins=0,
+                clay_player1_wins=0,
+                clay_player2_wins=0,
+                grass_player1_wins=0,
+                grass_player2_wins=0,
+                last_match_id=None,
+            )
+            session.add(record)
+            await session.flush()
+        if record.last_match_id == match_id:
+            await session.commit()
+            await session.refresh(record)
+            return record
+
+        record.total_matches += 1
+        winner_is_left = winner_id == left
+        if winner_is_left:
+            record.player1_wins += 1
+        else:
+            record.player2_wins += 1
+
+        if surface == 'hard':
+            if winner_is_left:
+                record.hard_player1_wins += 1
+            else:
+                record.hard_player2_wins += 1
+        elif surface == 'clay':
+            if winner_is_left:
+                record.clay_player1_wins += 1
+            else:
+                record.clay_player2_wins += 1
+        elif surface == 'grass':
+            if winner_is_left:
+                record.grass_player1_wins += 1
+            else:
+                record.grass_player2_wins += 1
+
+        record.last_match_id = match_id
+        await session.commit()
+        await session.refresh(record)
+        return record
+
     async def get_related_news(self, session: AsyncSession, limit: int = 2) -> list[NewsArticle]:
         stmt = select(NewsArticle).order_by(NewsArticle.published_at.desc()).limit(limit)
         return list((await session.scalars(stmt)).all())
