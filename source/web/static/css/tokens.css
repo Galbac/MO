@@ -1,0 +1,38 @@
+:root {
+    --bg: #f3f7fb;
+    --bg-soft: #e9f0f8;
+    --bg-alt: #0e1829;
+    --surface: rgba(255, 255, 255, 0.9);
+    --surface-strong: #ffffff;
+    --surface-dark: rgba(13, 24, 40, 0.86);
+    --surface-dark-strong: #121f34;
+    --text: #132238;
+    --text-soft: #5d718d;
+    --text-on-dark: #f5f9ff;
+    --line: rgba(19, 34, 56, 0.1);
+    --line-strong: rgba(19, 34, 56, 0.18);
+    --navy: #0f1f38;
+    --navy-2: #162b4b;
+    --graphite: #1e2c3d;
+    --lime: #c6ff3a;
+    --lime-deep: #97d90d;
+    --cyan: #50d8ff;
+    --teal: #35c8bc;
+    --orange: #ff8f4a;
+    --violet: #8f84ff;
+    --danger: #ff5f6d;
+    --warning: #ffc857;
+    --success: #42d18b;
+    --radius-xs: 0.75rem;
+    --radius-sm: 1rem;
+    --radius-md: 1.35rem;
+    --radius-lg: 1.85rem;
+    --radius-xl: 2.4rem;
+    --shadow-sm: 0 12px 30px rgba(17, 28, 45, 0.08);
+    --shadow-md: 0 24px 60px rgba(15, 24, 39, 0.12);
+    --shadow-lg: 0 36px 90px rgba(10, 18, 34, 0.18);
+    --font-display: "Sora", "Segoe UI", sans-serif;
+    --font-body: "Manrope", "Segoe UI", sans-serif;
+    --transition: 180ms ease;
+    --container-max: 1360px;
+}

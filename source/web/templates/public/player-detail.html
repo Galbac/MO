@@ -1,58 +1,72 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title }}</title>
-    <meta name="description" content="{{ meta_description | default(page_title) }}">
-    <meta name="robots" content="{{ robots | default('index,follow') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/app.css">
-    <link rel="canonical" href="{{ canonical_url }}">
-    <meta property="og:title" content="{{ og_title | default(page_title) }}">
-    <meta property="og:description" content="{{ og_description | default(meta_description | default(page_title)) }}">
-    <meta property="og:type" content="{{ og_type | default('website') }}">
-    <meta property="og:url" content="{{ canonical_url | default('') }}">
-    {% if og_image %}<meta property="og:image" content="{{ og_image }}">{% endif %}
-{% if schema_json %}<script type="application/ld+json">{{ schema_json | safe }}</script>{% endif %}
-</head>
-<body data-page="{{ page_name }}" data-entity-slug="{{ entity_slug | default("") }}">
-<a class="visually-hidden-focusable skip-link" href="#main-content">Перейти к основному контенту</a>
-<div class="site-shell">
-    <header class="topbar" role="banner">
-        <div class="container py-3 d-flex justify-content-between align-items-center gap-3">
-            <a href="/" class="brand-mark"><span class="brand-ball">MO</span><span>Makhachkala Open</span></a>
-            <nav class="nav-pills-custom" aria-label="Основная навигация"><a href="/players" class="active">Игроки</a><a href="/matches">Матчи</a><a href="/news">Новости</a></nav>
+{% extends "public/base.html" %}
+{% block content %}
+<section class="page-section hero-card">
+    <div class="player-hero">
+        <div id="player-photo" class="surface-dark rounded-5 p-3"></div>
+        <div>
+            <div class="section-kicker">Player premium card</div>
+            <h1 class="hero-title mt-3" id="player-name">Загрузка игрока...</h1>
+            <p class="section-lead mt-3" id="player-summary">Подгружаем биографию, форму и статистику игрока.</p>
+            <div class="d-flex flex-wrap gap-2 mt-3" id="player-badges"></div>
+            <div class="player-meta-grid mt-4" id="player-meta"></div>
+            <div class="content-card mt-4">
+                <div class="d-flex justify-content-between align-items-center gap-3">
+                    <div>
+                        <div class="section-kicker">Season form</div>
+                        <h2 class="section-title mt-2">Динамика формы</h2>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-ghost-dark" data-favorite-button data-entity-type="player" data-entity-id="{{ entity_slug | default('') }}">В избранное</button>
+                        <button class="btn btn-lime" data-subscribe-button data-entity-type="player" data-entity-id="{{ entity_slug | default('') }}">Подписаться</button>
+                    </div>
+                </div>
+                <div class="form-chart mt-4" id="player-form-chart"></div>
+            </div>
         </div>
-    </header>
-    <main class="container py-4" id="main-content" role="main" tabindex="-1">
-        <section class="hero-panel mb-4">
-            <div class="row g-4 align-items-center">
-                <div class="col-md-8">
-                    <div class="eyebrow">Карточка игрока</div>
-                    <h1 class="display-title" id="player-name">Загрузка игрока...</h1>
-                    <p class="lead-copy" id="player-summary">Загрузка описания...</p>
-                    <div class="d-flex flex-wrap gap-2 mt-3" id="player-badges"></div>
-                </div>
-                <div class="col-md-4">
-                    <div class="content-card" id="player-upcoming-card"></div>
-                </div>
+    </div>
+</section>
+
+<section class="page-section page-grid two">
+    <div class="d-grid gap-4">
+        <section class="content-card">
+            <div class="section-kicker">Stats</div>
+            <h2 class="section-title mt-2 mb-3">Статистика сезона и форма</h2>
+            <div class="cards-grid cards-3" id="player-stats-grid"></div>
+        </section>
+        <section class="content-card">
+            <div class="section-kicker">Recent matches</div>
+            <h2 class="section-title mt-2 mb-3">Последние матчи</h2>
+            <div class="cards-grid" id="player-recent-matches"></div>
+        </section>
+        <section class="table-card">
+            <div class="section-kicker">Ranking history</div>
+            <h2 class="section-title mt-2 mb-3">Движение в рейтинге</h2>
+            <div class="table-responsive">
+                <table class="table table-clean" aria-label="История рейтинга игрока">
+                    <thead>
+                    <tr><th>Позиция</th><th>Движение</th><th>Игрок</th><th>Страна</th><th>Очки</th></tr>
+                    </thead>
+                    <tbody id="player-ranking-history"></tbody>
+                </table>
             </div>
         </section>
-        <div class="row g-4">
-            <div class="col-lg-8">
-                <section class="content-card mb-4"><h2 class="section-title">Статистика сезона и форма</h2><div class="card-grid cols-3" id="player-stats-grid"></div></section>
-                <section class="content-card mb-4"><h2 class="section-title">Последние матчи</h2><div class="d-grid gap-3" id="player-recent-matches"></div></section>
-                <section class="content-card"><h2 class="section-title">История рейтинга</h2><table class="table table-clean" aria-label="История рейтинга игрока"><thead><tr><th>Дата</th><th>Место</th><th>Очки</th><th>Движ.</th></tr></thead><tbody id="player-ranking-history"></tbody></table></section>
-            </div>
-            <div class="col-lg-4">
-                <section class="content-card mb-4"><h2 class="section-title">Биография</h2><p class="text-muted mb-0" id="player-bio"></p></section>
-                <section class="content-card mb-4"><h2 class="section-title">Титулы</h2><div class="d-grid gap-3" id="player-titles"></div></section>
-                <section class="content-card"><h2 class="section-title">Новости игрока</h2><div class="d-grid gap-3" id="player-news"></div></section>
-            </div>
-        </div>
-    </main>
-</div>
-<script src="/static/js/app.js"></script>
-</body>
-</html>
+    </div>
+    <div class="d-grid gap-4">
+        <section class="content-card">
+            <div class="section-kicker">Upcoming</div>
+            <h2 class="section-title mt-2 mb-3">Ближайшие матчи</h2>
+            <div class="cards-grid" id="player-upcoming"></div>
+        </section>
+        <section class="content-card">
+            <div class="section-kicker">Titles</div>
+            <h2 class="section-title mt-2 mb-3">Титулы</h2>
+            <div class="cards-grid" id="player-titles"></div>
+        </section>
+        <section class="content-card">
+            <div class="section-kicker">News</div>
+            <h2 class="section-title mt-2 mb-3">Новости игрока</h2>
+            <div class="cards-grid" id="player-news"></div>
+        </section>
+    </div>
+</section>
+{% endblock %}

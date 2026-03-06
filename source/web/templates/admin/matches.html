@@ -1,34 +1,46 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title }}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/app.css">
-    <link rel="canonical" href="{{ canonical_url }}">
-</head>
-<body data-page="{{ page_name }}">
-<a class="visually-hidden-focusable skip-link" href="#admin-main-content">Перейти к содержимому админки</a>
-<div class="admin-shell">
-    <aside class="admin-sidebar" aria-label="Боковая панель админки"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav" aria-label="Навигация админки"><a href="/admin/matches" class="active">Матчи</a><a href="/admin/live-operations">Лайв-операции</a></nav></aside>
-    <main class="admin-main" id="admin-main-content" role="main" tabindex="-1">
-        <header class="admin-header d-flex justify-content-between align-items-center"><div><div class="eyebrow">Матчи</div><h1 class="section-title mb-0">Таблица управления матчами</h1></div><a class="btn btn-success rounded-pill" href="/admin/matches/2">Открыть матч</a></header>
-        <section class="entity-card mb-4" aria-label="Фильтры матчей">
-            <form id="admin-matches-filters" class="row g-3 align-items-end">
-                <div class="col-md-2"><label class="form-label" for="admin-matches-search">Search</label><input class="form-control" id="admin-matches-search" name="search" placeholder="slug матча"></div>
-                <div class="col-md-2"><label class="form-label" for="admin-matches-status">Status</label><select class="form-select" id="admin-matches-status" name="status"><option value="">Все</option><option value="scheduled">scheduled</option><option value="about_to_start">about_to_start</option><option value="live">live</option><option value="finished">finished</option></select></div>
-                <div class="col-md-2"><label class="form-label" for="admin-matches-tournament">Tournament ID</label><input class="form-control" id="admin-matches-tournament" name="tournament_id" inputmode="numeric" placeholder="1"></div>
-                <div class="col-md-2"><label class="form-label" for="admin-matches-player">Player ID</label><input class="form-control" id="admin-matches-player" name="player_id" inputmode="numeric" placeholder="2"></div>
-                <div class="col-md-2"><label class="form-label" for="admin-matches-round">Round</label><input class="form-control" id="admin-matches-round" name="round_code" placeholder="F / SF"></div>
-                <div class="col-md-2"><label class="form-label" for="admin-matches-date-from">Date from</label><input class="form-control" id="admin-matches-date-from" name="date_from" type="date"></div>
-                <div class="col-md-2"><label class="form-label" for="admin-matches-date-to">Date to</label><input class="form-control" id="admin-matches-date-to" name="date_to" type="date"></div>
-                <div class="col-md-2 d-grid"><button class="btn btn-outline-secondary" id="admin-matches-reset" type="button">Сброс</button></div>
-            </form>
-        </section>
-        <section class="table-shell"><table class="table table-clean" aria-label="Таблица матчей"><thead><tr><th>Матч</th><th>Турнир</th><th>Статус</th><th>Раунд</th><th>Дата</th><th>Действия</th></tr></thead><tbody id="admin-matches-body"></tbody></table></section>
-    </main>
-</div>
-<script src="/static/js/app.js"></script>
-</body>
-</html>
+{% extends "admin/base.html" %}
+{% block content %}
+<section class="admin-page-header content-card d-flex justify-content-between align-items-center gap-3 flex-wrap">
+    <div>
+        <div class="section-kicker">Matches admin</div>
+        <h1 class="section-title mt-2">Матчи и live-статусы</h1>
+    </div>
+    <a href="/admin/matches/new" class="btn btn-lime">Новый матч</a>
+</section>
+
+<section class="page-section content-card">
+    <form id="admin-matches-filters" class="admin-form-grid">
+        <input class="form-control span-8" id="admin-matches-search" placeholder="Поиск по игрокам или турниру">
+        <select class="form-select span-4" id="admin-matches-status"><option value="">Все статусы</option><option value="scheduled">Scheduled</option><option value="live">Live</option><option value="finished">Finished</option></select>
+        <input class="form-control span-4" id="admin-matches-tournament" placeholder="Tournament">
+        <input class="form-control span-4" id="admin-matches-player" placeholder="Player">
+        <input class="form-control span-4" id="admin-matches-round" placeholder="Round">
+        <input class="form-control span-4" id="admin-matches-date-from" placeholder="Date from">
+        <input class="form-control span-4" id="admin-matches-date-to" placeholder="Date to">
+    </form>
+</section>
+
+<section class="page-section content-card">
+    <div class="section-kicker">Quick create</div>
+    <h2 class="section-title mt-2 mb-3">Создать матч</h2>
+    <div class="admin-form-grid">
+        <input class="form-control span-6" id="admin-match-create-player1" placeholder="Player 1">
+        <input class="form-control span-6" id="admin-match-create-player2" placeholder="Player 2">
+        <input class="form-control span-6" id="admin-match-create-tournament" placeholder="Tournament">
+        <input class="form-control span-3" id="admin-match-create-round" placeholder="Round">
+        <input class="form-control span-3" id="admin-match-create-status" placeholder="scheduled">
+    </div>
+    <div class="d-flex gap-2 mt-4">
+        <button class="btn btn-primary" id="admin-match-create" type="button">Создать матч</button>
+    </div>
+</section>
+
+<section class="page-section table-card">
+    <div class="table-responsive">
+        <table class="table table-clean" aria-label="Таблица матчей">
+            <thead><tr><th>Матч</th><th>Турнир</th><th>Статус</th><th>Раунд</th><th>Действия</th></tr></thead>
+            <tbody id="admin-matches-body"></tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

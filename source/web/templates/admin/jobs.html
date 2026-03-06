@@ -1,32 +1,36 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title }}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/app.css">
-    <link rel="canonical" href="{{ canonical_url }}">
-</head>
-<body data-page="{{ page_name }}">
-<a class="visually-hidden-focusable skip-link" href="#admin-main-content">Перейти к содержимому админки</a>
-<div class="admin-shell">
-    <aside class="admin-sidebar" aria-label="Боковая панель админки"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav" aria-label="Навигация админки"><a href="/admin/jobs" class="active">Очередь задач</a><a href="/admin/rankings">Рейтинги</a><a href="/admin/audit">Аудит</a></nav></aside>
-    <main class="admin-main" id="admin-main-content" role="main" tabindex="-1">
-        <header class="admin-header"><div class="eyebrow">Job Queue</div><h1 class="section-title">Управление отложенными задачами, retry и очисткой завершенных записей.</h1></header>
-        <section class="entity-card mb-4" aria-label="Фильтры очереди задач"><form class="row g-3 align-items-end" id="admin-jobs-filters"><div class="col-md-4"><label class="form-label" for="admin-jobs-status">Status</label><select class="form-select" id="admin-jobs-status"><option value="">Все</option><option value="pending">pending</option><option value="finished">finished</option><option value="failed">failed</option><option value="cancelled">cancelled</option></select></div><div class="col-md-4"><label class="form-label" for="admin-jobs-type">Job type</label><input class="form-control" id="admin-jobs-type" placeholder="clear_cache"></div><div class="col-md-2"><label class="form-label" for="admin-jobs-limit">Limit</label><input class="form-control" id="admin-jobs-limit" value="100" inputmode="numeric"></div><div class="col-md-2 d-grid"><button class="btn btn-outline-secondary" type="button" id="admin-jobs-reset">Сброс</button></div></form></section>
-        <section class="content-card mb-4"><div class="section-title h5 mb-3">Summary</div><div id="admin-jobs-summary"></div></section>
-        <section class="entity-card mb-4" aria-label="Операции очереди задач">
-            <div class="d-flex flex-wrap gap-2">
-                <button class="btn btn-success" type="button" id="admin-jobs-process">Обработать pending</button>
-                <button class="btn btn-outline-dark" type="button" id="admin-jobs-prune">Очистить finished/failed</button>
-                <div class="success-note d-none" id="admin-jobs-feedback">Операция выполнена.</div>
-                <div class="error-note d-none" id="admin-jobs-error">Операция завершилась ошибкой.</div>
-            </div>
-        </section>
-        <section class="empty-state d-none mb-4" id="admin-jobs-empty">Очередь задач сейчас пуста.</section><section class="table-shell"><table class="table table-clean" aria-label="Таблица очереди задач"><thead><tr><th>ID</th><th>Type</th><th>Status</th><th>Run At</th><th>Attempts</th><th>Error</th><th>Action</th></tr></thead><tbody id="admin-jobs-body"></tbody></table></section><section class="content-card mt-4"><div class="section-title h5 mb-3">Детали задачи</div><div class="empty-state" id="admin-job-detail-empty">Выберите задачу из списка, чтобы посмотреть payload и result.</div><div class="d-none" id="admin-job-detail-card"><pre class="mb-0" id="admin-job-detail-content"></pre></div></section>
-    </main>
-</div>
-<script src="/static/js/app.js"></script>
-</body>
-</html>
+{% extends "admin/base.html" %}
+{% block content %}
+<section class="admin-page-header hero-card">
+    <div class="section-kicker">Job queue</div>
+    <h1 class="hero-title mt-3">Очередь задач, retry и служебные операции.</h1>
+</section>
+
+<section class="page-section content-card">
+    <form id="admin-jobs-filters" class="admin-form-grid">
+        <select class="form-select span-4" id="admin-jobs-status"><option value="">Все статусы</option></select>
+        <input class="form-control span-4" id="admin-jobs-type" placeholder="Job type">
+        <input class="form-control span-4" id="admin-jobs-limit" placeholder="Limit">
+    </form>
+    <div class="admin-note mt-4" id="admin-jobs-summary">Очередь готова к подключению к backend job endpoints.</div>
+    <div class="d-flex gap-2 mt-4">
+        <button class="btn btn-primary" id="admin-jobs-process" type="button">Обработать pending</button>
+        <button class="btn btn-ghost-dark" id="admin-jobs-prune" type="button">Очистить завершенные</button>
+    </div>
+</section>
+
+<div class="state-card d-none page-section" id="admin-jobs-empty">Очередь задач сейчас пуста.</div>
+
+<section class="page-section table-card">
+    <div class="table-responsive">
+        <table class="table table-clean" aria-label="Таблица очереди задач">
+            <thead><tr><th>ID</th><th>Type</th><th>Status</th><th>Run At</th><th>Attempts</th><th>Error</th><th>Action</th></tr></thead>
+            <tbody id="admin-jobs-body"></tbody>
+        </table>
+    </div>
+</section>
+
+<section class="page-section content-card">
+    <div class="admin-note">Выберите задачу из списка, чтобы посмотреть payload и result.</div>
+    <pre class="mt-3 mb-0" id="admin-job-detail-content">{}</pre>
+</section>
+{% endblock %}

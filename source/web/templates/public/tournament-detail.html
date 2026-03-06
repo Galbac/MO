@@ -1,39 +1,41 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title }}</title>
-    <meta name="description" content="{{ meta_description | default(page_title) }}">
-    <meta name="robots" content="{{ robots | default('index,follow') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/app.css">
-    <link rel="canonical" href="{{ canonical_url }}">
-    <meta property="og:title" content="{{ og_title | default(page_title) }}">
-    <meta property="og:description" content="{{ og_description | default(meta_description | default(page_title)) }}">
-    <meta property="og:type" content="{{ og_type | default('website') }}">
-    <meta property="og:url" content="{{ canonical_url | default('') }}">
-    {% if og_image %}<meta property="og:image" content="{{ og_image }}">{% endif %}
-{% if schema_json %}<script type="application/ld+json">{{ schema_json | safe }}</script>{% endif %}
-</head>
-<body data-page="{{ page_name }}" data-entity-slug="{{ entity_slug | default("") }}">
-<a class="visually-hidden-focusable skip-link" href="#main-content">Перейти к основному контенту</a>
-<div class="site-shell">
-    <header class="topbar" role="banner"><div class="container py-3 d-flex justify-content-between align-items-center gap-3"><a href="/" class="brand-mark"><span class="brand-ball">MO</span><span>Makhachkala Open</span></a><nav class="nav-pills-custom" aria-label="Основная навигация"><a href="/tournaments" class="active">Турниры</a><a href="/matches">Матчи</a><a href="/news">Новости</a></nav></div></header>
-    <main class="container py-4" id="main-content" role="main" tabindex="-1">
-        <section class="hero-panel mb-4"><div class="eyebrow">Карточка турнира</div><h1 class="display-title" id="tournament-name">Загрузка турнира...</h1><p class="lead-copy" id="tournament-summary"></p><div class="d-flex flex-wrap gap-2 mt-3" id="tournament-badges"></div></section>
-        <div class="row g-4">
-            <div class="col-lg-8">
-                <section class="content-card mb-4"><h2 class="section-title">Сетка</h2><div class="d-grid gap-3" id="tournament-draw"></div></section>
-                <section class="content-card"><h2 class="section-title">Матчи</h2><div class="d-grid gap-3" id="tournament-matches"></div></section>
-            </div>
-            <div class="col-lg-4">
-                <section class="content-card mb-4"><h2 class="section-title">Чемпионы</h2><div class="d-grid gap-3" id="tournament-champions"></div></section>
-                <section class="content-card"><h2 class="section-title">Новости турнира</h2><div class="d-grid gap-3" id="tournament-news"></div></section>
-            </div>
-        </div>
-    </main>
-</div>
-<script src="/static/js/app.js"></script>
-</body>
-</html>
+{% extends "public/base.html" %}
+{% block content %}
+<section class="page-section hero-card">
+    <div class="section-kicker">Tournament profile</div>
+    <h1 class="hero-title mt-3" id="tournament-name">Загрузка турнира...</h1>
+    <p class="section-lead mt-3" id="tournament-summary">Подгружаем описание, draw, champions и связанные новости.</p>
+    <div class="d-flex flex-wrap gap-2 mt-3" id="tournament-badges"></div>
+</section>
+
+<section class="page-section page-grid two">
+    <div class="d-grid gap-4">
+        <section class="content-card">
+            <div class="section-kicker">Draw</div>
+            <h2 class="section-title mt-2 mb-3">Сетка и ключевые матчи</h2>
+            <div class="cards-grid cards-2" id="tournament-draw"></div>
+        </section>
+        <section class="content-card">
+            <div class="section-kicker">Matches</div>
+            <h2 class="section-title mt-2 mb-3">Матчи турнира</h2>
+            <div class="cards-grid" id="tournament-matches"></div>
+        </section>
+    </div>
+    <div class="d-grid gap-4">
+        <section class="content-card">
+            <div class="section-kicker">Players</div>
+            <h2 class="section-title mt-2 mb-3">Участники</h2>
+            <div class="cards-grid" id="tournament-players"></div>
+        </section>
+        <section class="content-card">
+            <div class="section-kicker">Champions</div>
+            <h2 class="section-title mt-2 mb-3">История чемпионов</h2>
+            <div class="cards-grid" id="tournament-champions"></div>
+        </section>
+        <section class="content-card">
+            <div class="section-kicker">Related stories</div>
+            <h2 class="section-title mt-2 mb-3">Новости турнира</h2>
+            <div class="cards-grid" id="tournament-news"></div>
+        </section>
+    </div>
+</section>
+{% endblock %}

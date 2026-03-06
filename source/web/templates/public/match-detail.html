@@ -1,43 +1,53 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title }}</title>
-    <meta name="description" content="{{ meta_description | default(page_title) }}">
-    <meta name="robots" content="{{ robots | default('index,follow') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/app.css">
-    <link rel="canonical" href="{{ canonical_url }}">
-    <meta property="og:title" content="{{ og_title | default(page_title) }}">
-    <meta property="og:description" content="{{ og_description | default(meta_description | default(page_title)) }}">
-    <meta property="og:type" content="{{ og_type | default('website') }}">
-    <meta property="og:url" content="{{ canonical_url | default('') }}">
-    {% if og_image %}<meta property="og:image" content="{{ og_image }}">{% endif %}
-{% if schema_json %}<script type="application/ld+json">{{ schema_json | safe }}</script>{% endif %}
-</head>
-<body data-page="{{ page_name }}" data-entity-slug="{{ entity_slug | default("") }}">
-<a class="visually-hidden-focusable skip-link" href="#main-content">Перейти к основному контенту</a>
-<div class="site-shell">
-    <header class="topbar" role="banner"><div class="container py-3 d-flex justify-content-between align-items-center gap-3"><a href="/" class="brand-mark"><span class="brand-ball">MO</span><span>Makhachkala Open</span></a><nav class="nav-pills-custom" aria-label="Основная навигация"><a href="/matches" class="active">Матчи</a><a href="/live">Лайв</a><a href="/h2h">Личные встречи</a></nav></div></header>
-    <main class="container py-4" id="main-content" role="main" tabindex="-1">
-        <section class="scoreboard mb-4">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><div class="eyebrow">Центр матча</div><h1 class="section-title mb-0" id="match-title">Загрузка матча...</h1><div class="text-muted" id="match-subtitle"></div></div><span class="status-pill" id="match-status">Загрузка</span></div>
-            <div id="match-scoreboard"></div>
+{% extends "public/base.html" %}
+{% block content %}
+<section class="page-section" id="match-scoreboard">
+    <div class="scoreboard-card"><div class="skeleton card"></div></div>
+</section>
+
+<section class="page-section page-grid two">
+    <div class="d-grid gap-4">
+        <section class="content-card">
+            <div class="section-kicker">Stats</div>
+            <h2 class="section-title mt-2 mb-3">Ключевая статистика</h2>
+            <div id="match-stats" aria-label="Статистика матча"></div>
         </section>
-        <div class="row g-4">
-            <div class="col-lg-8">
-                <section class="content-card mb-4"><h2 class="section-title">Статистика</h2><table class="table table-clean" aria-label="Статистика матча"><tbody id="match-stats-table"></tbody></table></section>
-                <section class="content-card"><h2 class="section-title">Таймлайн</h2><div id="match-timeline"></div></section>
-            </div>
-            <div class="col-lg-4">
-                <section class="content-card mb-4"><h2 class="section-title">Превью</h2><div id="match-preview"></div></section>
-                <section class="content-card mb-4"><h2 class="section-title">Личные встречи</h2><div id="match-h2h"></div></section>
-                <section class="content-card"><h2 class="section-title">Похожие новости</h2><div class="d-grid gap-3" id="match-news"></div></section>
-            </div>
-        </div>
-    </main>
-</div>
-<script src="/static/js/app.js"></script>
-</body>
-</html>
+        <section class="timeline-card">
+            <div class="section-kicker">Live timeline</div>
+            <h2 class="section-title mt-2 mb-3">Лента событий</h2>
+            <div class="timeline-list" id="match-timeline"></div>
+        </section>
+        <section class="timeline-card">
+            <div class="section-kicker">Point by point</div>
+            <h2 class="section-title mt-2 mb-3">Розыгрыши</h2>
+            <div class="timeline-list" id="match-points"></div>
+        </section>
+    </div>
+    <div class="d-grid gap-4">
+        <section class="content-card">
+            <div class="section-kicker">Preview</div>
+            <h2 class="section-title mt-2 mb-3">Превью матча</h2>
+            <div id="match-preview"></div>
+        </section>
+        <section class="content-card">
+            <div class="section-kicker">Score API</div>
+            <h2 class="section-title mt-2 mb-3">Raw score service</h2>
+            <div id="match-score-service"></div>
+        </section>
+        <section class="content-card">
+            <div class="section-kicker">H2H</div>
+            <h2 class="section-title mt-2 mb-3">Личные встречи</h2>
+            <div id="match-h2h"></div>
+        </section>
+        <section class="content-card">
+            <div class="section-kicker">Recent form</div>
+            <h2 class="section-title mt-2 mb-3">Последние матчи игроков</h2>
+            <div class="cards-grid" id="match-form"></div>
+        </section>
+        <section class="content-card">
+            <div class="section-kicker">Related news</div>
+            <h2 class="section-title mt-2 mb-3">Связанные новости</h2>
+            <div class="cards-grid" id="match-news"></div>
+        </section>
+    </div>
+</section>
+{% endblock %}

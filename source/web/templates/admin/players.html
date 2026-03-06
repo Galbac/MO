@@ -1,43 +1,41 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title }}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/app.css">
-    <link rel="canonical" href="{{ canonical_url }}">
-</head>
-<body data-page="{{ page_name }}">
-<a class="visually-hidden-focusable skip-link" href="#admin-main-content">Перейти к содержимому админки</a>
-<div class="admin-shell">
-    <aside class="admin-sidebar" aria-label="Боковая панель админки"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav" aria-label="Навигация админки"><a href="/admin/players" class="active">Игроки</a><a href="/admin/tournaments">Турниры</a><a href="/admin/matches">Матчи</a></nav></aside>
-    <main class="admin-main" id="admin-main-content" role="main" tabindex="-1">
-        <header class="admin-header d-flex justify-content-between align-items-center flex-wrap gap-2"><div><div class="eyebrow">Игроки</div><h1 class="section-title mb-0">Управление каталогом игроков</h1></div><a class="btn btn-success rounded-pill" href="/admin/players/new">Создать игрока</a></header>
-        <section class="entity-card mb-4" aria-label="Фильтры игроков">
-            <form id="admin-players-filters" class="row g-3 align-items-end">
-                <div class="col-md-4"><label class="form-label" for="admin-players-search">Search</label><input class="form-control" id="admin-players-search" name="search" placeholder="имя игрока"></div>
-                <div class="col-md-3"><label class="form-label" for="admin-players-country">Country</label><input class="form-control" id="admin-players-country" name="country_code" placeholder="ESP"></div>
-                <div class="col-md-2"><label class="form-label" for="admin-players-hand">Hand</label><select class="form-select" id="admin-players-hand" name="hand"><option value="">Все</option><option value="right">right</option><option value="left">left</option></select></div>
-                <div class="col-md-2"><label class="form-label" for="admin-players-status">Status</label><select class="form-select" id="admin-players-status" name="status"><option value="">Все</option><option value="active">active</option><option value="inactive">inactive</option></select></div>
-                <div class="col-md-1 d-grid"><button class="btn btn-outline-secondary" id="admin-players-reset" type="button">Сброс</button></div>
-            </form>
-        </section>
-        <section class="entity-card mb-4" aria-label="Импорт игроков">
-            <form id="admin-player-import-form" class="row g-3 align-items-end">
-                <div class="col-lg-10">
-                    <label class="form-label" for="admin-player-import-json">JSON players[]</label>
-                    <textarea class="form-control" id="admin-player-import-json" rows="4" placeholder='[{"slug":"carlos-alcaraz","first_name":"Carlos","last_name":"Alcaraz","full_name":"Carlos Alcaraz","country_code":"ESP"}]'></textarea>
-                </div>
-                <div class="col-lg-2 d-grid">
-                    <button class="btn btn-outline-dark" type="submit">Импорт</button>
-                </div>
-                <div class="col-12"><div class="success-note d-none" id="admin-player-import-feedback">Импорт выполнен.</div><div class="error-note d-none" id="admin-player-import-error">Импорт завершился ошибкой.</div></div>
-            </form>
-        </section>
-        <section class="table-shell"><table class="table table-clean" aria-label="Таблица игроков"><thead><tr><th>Название</th><th>Страна</th><th>Место</th><th>Статус</th><th>Действия</th></tr></thead><tbody id="admin-players-body"></tbody></table></section>
-    </main>
-</div>
-<script src="/static/js/app.js"></script>
-</body>
-</html>
+{% extends "admin/base.html" %}
+{% block content %}
+<section class="admin-page-header content-card d-flex justify-content-between align-items-center gap-3 flex-wrap">
+    <div>
+        <div class="section-kicker">Players admin</div>
+        <h1 class="section-title mt-2">Игроки и импорт базы</h1>
+    </div>
+    <a href="/admin/players/new" class="btn btn-lime">Новый игрок</a>
+</section>
+
+<section class="page-section content-card">
+    <form id="admin-players-filters" class="admin-form-grid">
+        <input class="form-control span-6" id="admin-players-search" placeholder="Поиск по игрокам">
+        <input class="form-control span-3" id="admin-players-country" placeholder="Country code">
+        <select class="form-select span-3" id="admin-players-hand"><option value="">Hand</option><option value="right">Right</option><option value="left">Left</option></select>
+        <select class="form-select span-3" id="admin-players-status"><option value="">Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+    </form>
+</section>
+
+<section class="page-section content-card">
+    <div class="section-kicker">Bulk import</div>
+    <h2 class="section-title mt-2 mb-3">Импорт игроков</h2>
+    <form id="admin-player-import-form">
+        <div class="d-grid gap-3">
+            <textarea class="form-control" id="admin-player-import-json" rows="4" placeholder='[{"slug":"carlos-alcaraz","full_name":"Carlos Alcaraz","country_code":"ESP"}]'></textarea>
+            <button class="btn btn-ghost-dark" type="submit">Импортировать</button>
+            <div class="alert alert-success d-none mb-0" id="admin-player-import-feedback">Импорт выполнен.</div>
+            <div class="alert alert-danger d-none mb-0" id="admin-player-import-error">Ошибка импорта.</div>
+        </div>
+    </form>
+</section>
+
+<section class="page-section table-card">
+    <div class="table-responsive">
+        <table class="table table-clean" aria-label="Таблица игроков">
+            <thead><tr><th>Игрок</th><th>Страна</th><th>Рейтинг</th><th>Статус</th><th>Действия</th></tr></thead>
+            <tbody id="admin-players-body"></tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

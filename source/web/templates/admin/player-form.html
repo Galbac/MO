@@ -1,3 +1,37 @@
-<!DOCTYPE html>
-<html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{{ page_title }}</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><link rel="stylesheet" href="/static/css/app.css"><link rel="canonical" href="{{ canonical_url }}"></head>
-<body data-page="{{ page_name }}"><div class="admin-shell"><aside class="admin-sidebar"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav"><a href="/admin/players" class="active">Игроки</a></nav></aside><main class="admin-main"><header class="admin-header"><div class="eyebrow">Создание и редактирование игрока</div><h1 class="section-title">Форма игрока с валидацией</h1></header><section class="content-card"><form data-prevent-double-submit data-api-path="/admin/players" data-api-method="POST"><div class="row g-3"><div class="col-md-6"><input class="form-control" name="first_name" placeholder="Имя"></div><div class="col-md-6"><input class="form-control" name="last_name" placeholder="Фамилия"></div><div class="col-md-6"><input class="form-control" name="full_name" placeholder="Полное имя"></div><div class="col-md-6"><input class="form-control" name="slug" placeholder="Слаг"></div><div class="col-md-4"><input class="form-control" name="country_code" placeholder="Код страны"></div><div class="col-md-4"><select class="form-select" name="hand"><option value="right">Правша</option><option value="left">Левша</option></select></div><div class="col-md-4"><input class="form-control" name="current_rank" placeholder="Текущий рейтинг"></div><div class="col-12"><input class="form-control" name="photo_url" placeholder="URL фото"></div><div class="col-12"><textarea class="form-control" rows="5" name="biography" placeholder="Биография"></textarea></div><div class="col-12"><button class="btn btn-success rounded-pill" type="submit">Сохранить игрока</button><div class="success-note d-none mt-3" data-form-feedback>Игрок сохранен.</div><div class="error-note d-none mt-3" data-form-error>Запрос не выполнен.</div></div></div></form></section></main></div><script src="/static/js/app.js"></script></body></html>
+{% extends "admin/base.html" %}
+{% block content %}
+<section class="admin-page-header hero-card">
+    <div class="section-kicker">Player form</div>
+    <h1 class="hero-title mt-3">Создание и редактирование карточки игрока</h1>
+</section>
+
+<section class="page-section content-card">
+    <div class="admin-note mb-4" id="admin-player-form-meta">Create mode</div>
+    <form data-api-path="/admin/players" data-api-method="POST">
+        <div class="admin-form-grid">
+            <input class="form-control span-6" name="full_name" placeholder="Полное имя">
+            <input class="form-control span-6" name="slug" placeholder="Slug">
+            <input class="form-control span-4" name="country_code" placeholder="Country code">
+            <select class="form-select span-4" name="hand"><option value="right">Right</option><option value="left">Left</option></select>
+            <input class="form-control span-4" name="current_rank" placeholder="Current rank">
+            <input class="form-control span-12" name="photo_url" placeholder="Photo URL">
+            <textarea class="form-control span-12" rows="6" name="biography" placeholder="Биография"></textarea>
+        </div>
+        <div class="d-flex gap-2 mt-4">
+            <button class="btn btn-primary" type="submit">Сохранить игрока</button>
+            <div class="alert alert-success d-none mb-0" data-form-feedback>Игрок сохранен.</div>
+            <div class="alert alert-danger d-none mb-0" data-form-error>Ошибка сохранения.</div>
+        </div>
+    </form>
+    <div class="admin-form-grid mt-4">
+        <input class="form-control span-8" id="admin-player-photo-url" placeholder="Новый photo URL">
+        <button class="btn btn-ghost-dark span-4" id="admin-player-photo-save" type="button">Сохранить фото</button>
+    </div>
+    <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-ghost-dark" id="admin-player-load-detail" type="button">Загрузить детали</button>
+        <button class="btn btn-ghost-dark" id="admin-player-update" type="button">Обновить игрока</button>
+        <button class="btn btn-ghost-dark" id="admin-player-recalc" type="button">Пересчитать stats</button>
+        <button class="btn btn-outline-danger" id="admin-player-delete" type="button">Удалить</button>
+    </div>
+</section>
+{% endblock %}

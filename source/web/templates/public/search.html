@@ -1,31 +1,37 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title }}</title>
-    <meta name="description" content="{{ meta_description | default(page_title) }}">
-    <meta name="robots" content="{{ robots | default('index,follow') }}">
-    <link rel="canonical" href="{{ canonical_url }}">
-    <meta property="og:title" content="{{ og_title | default(page_title) }}">
-    <meta property="og:description" content="{{ og_description | default(meta_description | default(page_title)) }}">
-    <meta property="og:type" content="{{ og_type | default('website') }}">
-    <meta property="og:url" content="{{ canonical_url }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/app.css">
-{% if schema_json %}<script type="application/ld+json">{{ schema_json | safe }}</script>{% endif %}
-</head>
-<body data-page="{{ page_name }}">
-<a class="visually-hidden-focusable skip-link" href="#main-content">Перейти к основному контенту</a>
-<div class="site-shell">
-    <header class="topbar" role="banner"><div class="container py-3 d-flex justify-content-between align-items-center gap-3"><a href="/" class="brand-mark"><span class="brand-ball">MO</span><span>Makhachkala Open</span></a><nav class="nav-pills-custom" data-tab-group="search" aria-label="Навигация поиска"><button class="active" data-tab-target="search-all">Все</button><button data-tab-target="search-players">Игроки</button><button data-tab-target="search-news">Новости</button></nav></div></header>
-    <main id="main-content" class="container py-4" role="main" tabindex="-1">
-        <section class="hero-panel mb-4"><div class="eyebrow">Глобальный поиск</div><h1 class="display-title">Быстрый поиск по игрокам, турнирам, матчам и новостям.</h1><div class="position-relative mt-4"><input class="form-control form-control-lg" id="search-query" data-search-demo placeholder="Поиск игроков, турниров, матчей и новостей" aria-label="Поиск по сайту"><div class="list-group position-absolute start-0 end-0 mt-2 d-none" data-search-suggestions></div></div></section>
-        <section class="content-card" id="search-all" data-tab-panel="search"><h2 class="section-title">Все результаты</h2><div class="alert alert-danger d-none" id="search-error"></div><div class="empty-state mt-4 d-none" id="search-empty">Ничего не найдено по вашему запросу.</div><div class="d-grid gap-3" id="search-all-results"></div></section>
-        <section class="content-card d-none" id="search-players" data-tab-panel="search"><h2 class="section-title">Результаты по игрокам</h2><div class="d-grid gap-3" id="search-player-results"></div></section>
-        <section class="content-card d-none" id="search-news" data-tab-panel="search"><h2 class="section-title">Результаты по новостям</h2><div class="d-grid gap-3" id="search-news-results"></div></section>
-    </main>
-</div>
-<script src="/static/js/app.js"></script>
-</body>
-</html>
+{% extends "public/base.html" %}
+{% block content %}
+<section class="page-section hero-card">
+    <div class="section-kicker">Global search</div>
+    <h1 class="hero-title mt-3">Поиск по игрокам, турнирам, матчам и новостям с быстрыми suggestion-выпадашками.</h1>
+    <div class="mt-4" data-search-shell>
+        <input class="form-control form-control-lg" id="search-query" data-search-input placeholder="Начните искать игрока, турнир, матч или новость" aria-label="Глобальный поиск">
+        <div class="dropdown-menu w-100 p-2 search-overlay-list d-none" data-search-suggestions></div>
+    </div>
+</section>
+
+<section class="page-section toolbar">
+    <div class="toolbar__tabs" data-tab-group="search">
+        <button class="toolbar__tab is-active" data-tab-target="search-all">Все</button>
+        <button class="toolbar__tab" data-tab-target="search-players">Игроки</button>
+        <button class="toolbar__tab" data-tab-target="search-news">Новости</button>
+    </div>
+</section>
+
+<section class="page-section content-card" id="search-all" data-tab-panel="search">
+    <div class="alert alert-danger d-none" id="search-error"></div>
+    <div class="state-card d-none" id="search-empty">Ничего не найдено.</div>
+    <div class="search-grid" id="search-all-results"></div>
+</section>
+
+<section class="page-section content-card d-none" id="search-players" data-tab-panel="search">
+    <div class="section-kicker">Players</div>
+    <h2 class="section-title mt-2 mb-3">Игроки</h2>
+    <div class="cards-grid cards-2" id="search-player-results"></div>
+</section>
+
+<section class="page-section content-card d-none" id="search-news" data-tab-panel="search">
+    <div class="section-kicker">News</div>
+    <h2 class="section-title mt-2 mb-3">Новости</h2>
+    <div class="cards-grid cards-2" id="search-news-results"></div>
+</section>
+{% endblock %}

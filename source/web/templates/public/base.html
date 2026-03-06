@@ -14,52 +14,120 @@
     {% if og_image %}<meta property="og:image" content="{{ og_image }}">{% endif %}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/app.css">
-{% if schema_json %}<script type="application/ld+json">{{ schema_json | safe }}</script>{% endif %}
+    {% if schema_json %}<script type="application/ld+json">{{ schema_json | safe }}</script>{% endif %}
+    {% block head_extra %}{% endblock %}
 </head>
-<body>
-    <a class="visually-hidden-focusable skip-link" href="#main-content">Перейти к основному контенту</a>
-    <div class="site-shell">
-        <header class="topbar" role="banner">
-            <div class="container py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
-                <a href="/" class="brand-mark">
-                    <span class="brand-ball">MO</span>
-                    <span>Makhachkala Open</span>
-                </a>
-                <nav class="nav-pills-custom" aria-label="Основная навигация">
-                    <a href="/">Главная</a>
-                    <a href="/players">Игроки</a>
-                    <a href="/tournaments">Турниры</a>
-                    <a href="/matches">Матчи</a>
-                    <a href="/live">Лайв</a>
-                    <a href="/rankings">Рейтинги</a>
-                    <a href="/news">Новости</a>
-                    <a href="/search">Поиск</a>
-                    <a href="/account">Профиль</a>
-                </nav>
-            </div>
-        </header>
-        <main id="main-content" class="container py-4" role="main" tabindex="-1">
-            <div class="hero-panel">
-                <div class="eyebrow">Public Layout</div>
-                <h1 class="display-title">Базовый публичный шаблон Makhachkala Open.</h1>
-                <p class="lead-copy mb-0">Этот файл задает общую визуальную систему публичного интерфейса.</p>
-            </div>
-        </main>
-        <footer class="footer-shell mt-5" role="contentinfo">
-            <div class="container py-4 d-flex flex-wrap justify-content-between gap-3">
-                <div>
-                    <strong>Makhachkala Open</strong>
-                    <div class="text-muted">Лайв-центр, rankings, tournaments, news.</div>
+<body data-page="{{ page_name }}" data-section="public">
+<a class="visually-hidden-focusable skip-link" href="#main-content">Перейти к основному контенту</a>
+<div class="page-shell">
+    <header class="site-header">
+        <div class="container-xxl px-3 px-lg-4">
+            <div class="site-header__inner px-3 px-lg-4 py-3">
+                <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                    <div class="d-flex align-items-center gap-3">
+                        <button class="btn btn-ghost-dark d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNav" aria-controls="mobileNav">Меню</button>
+                        <a href="/" class="brand">
+                            <span class="brand__ball">MO</span>
+                            <span>
+                                <strong class="d-block">Makhachkala Open</strong>
+                                <small class="text-muted d-block">Premium tennis portal</small>
+                            </span>
+                        </a>
+                    </div>
+                    <nav class="top-nav d-none d-lg-flex" aria-label="Основная навигация">
+                        <a class="top-nav__link" data-nav-link href="/">Главная</a>
+                        <a class="top-nav__link" data-nav-link href="/players">Игроки</a>
+                        <a class="top-nav__link" data-nav-link href="/tournaments">Турниры</a>
+                        <a class="top-nav__link" data-nav-link href="/matches">Матчи</a>
+                        <a class="top-nav__link live-link" data-nav-link href="/live">Live Center</a>
+                        <a class="top-nav__link" data-nav-link href="/rankings">Рейтинги</a>
+                        <a class="top-nav__link" data-nav-link href="/news">Новости</a>
+                        <a class="top-nav__link" data-nav-link href="/h2h">H2H</a>
+                    </nav>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="dropdown">
+                            <button class="btn btn-ghost-dark dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Уведомления
+                                <span class="badge text-bg-dark rounded-pill ms-1 d-none" id="notifications-unread-count">0</span>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end p-3" style="width:min(24rem, 92vw)">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <strong>Live alerts</strong>
+                                    <a href="/notifications" class="small text-decoration-underline">Открыть все</a>
+                                </div>
+                                <div class="notification-list" id="notifications-dropdown-list">
+                                    <div class="notification-item" data-notifications-fallback>Загрузка...</div>
+                                </div>
+                            </div>
+                        </div>
+                        <a href="/search" class="btn btn-ghost-dark">Поиск</a>
+                        <a href="/account" class="btn btn-lime">Кабинет</a>
+                    </div>
                 </div>
-                <div class="d-flex gap-3 text-muted">
-                    <a href="/news">Новости</a>
-                    <a href="/live">Лайв</a>
-                    <a href="/404">404</a>
-                    <a href="/500">500</a>
-                </div>
             </div>
-        </footer>
+        </div>
+    </header>
+
+    <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileNav" aria-labelledby="mobileNavLabel">
+        <div class="offcanvas-header">
+            <h5 id="mobileNavLabel" class="mb-0">Makhachkala Open</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Закрыть"></button>
+        </div>
+        <div class="offcanvas-body">
+            <nav class="d-grid gap-2">
+                <a class="top-nav__link" data-nav-link href="/">Главная</a>
+                <a class="top-nav__link" data-nav-link href="/players">Игроки</a>
+                <a class="top-nav__link" data-nav-link href="/tournaments">Турниры</a>
+                <a class="top-nav__link" data-nav-link href="/matches">Матчи</a>
+                <a class="top-nav__link" data-nav-link href="/live">Live Center</a>
+                <a class="top-nav__link" data-nav-link href="/rankings">Рейтинги</a>
+                <a class="top-nav__link" data-nav-link href="/news">Новости</a>
+                <a class="top-nav__link" data-nav-link href="/search">Поиск</a>
+                <a class="top-nav__link" data-nav-link href="/account">Кабинет</a>
+            </nav>
+        </div>
     </div>
-    <script src="/static/js/app.js"></script>
+
+    <main id="main-content" class="page-main" tabindex="-1" role="main">
+        <div class="container-xxl px-3 px-lg-4">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container-xxl px-3 px-lg-4">
+            <div class="footer__inner">
+                <div class="row g-4 align-items-start">
+                    <div class="col-lg-4">
+                        <div class="brand mb-3">
+                            <span class="brand__ball">MO</span>
+                            <span>Makhachkala Open</span>
+                        </div>
+                        <div class="text-muted">Live-центр, рейтинги, матчи, редакционный контент и персональные уведомления в одном спортивном интерфейсе.</div>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="footer__links">
+                            <a href="/live">Live Center</a>
+                            <a href="/matches">Матчи</a>
+                            <a href="/players">Игроки</a>
+                            <a href="/tournaments">Турниры</a>
+                            <a href="/rankings">Рейтинги</a>
+                            <a href="/news">Новости</a>
+                            <a href="/search">Поиск</a>
+                        </div>
+                    </div>
+                    <div class="col-lg-3">
+                        <div class="section-kicker mb-2">Sports digital experience</div>
+                        <div class="text-muted">Оптимизировано для desktop, tablet и mobile. Поддержка Fetch API и WebSocket live-обновлений.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+</div>
+
+<div class="toast-container position-fixed top-0 end-0 p-3" id="toast-container"></div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module" src="/static/js/app.js"></script>
 </body>
 </html>

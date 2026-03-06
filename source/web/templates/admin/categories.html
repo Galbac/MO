@@ -1,3 +1,34 @@
-<!DOCTYPE html>
-<html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{{ page_title }}</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><link rel="stylesheet" href="/static/css/app.css"><link rel="canonical" href="{{ canonical_url }}"></head>
-<body data-page="{{ page_name }}"><div class="admin-shell"><aside class="admin-sidebar"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav"><a href="/admin/categories" class="active">Категории</a><a href="/admin/tags">Теги</a></nav></aside><main class="admin-main"><header class="admin-header"><div class="eyebrow">Таксономия</div><h1 class="section-title">Управление категориями новостей</h1></header><section class="content-card"><form data-prevent-double-submit data-api-path="/admin/news-categories" data-api-method="POST"><div class="row g-3"><div class="col-md-6"><input class="form-control" name="name" placeholder="Название категории"></div><div class="col-md-6"><input class="form-control" name="slug" placeholder="Слаг"></div><div class="col-12"><button class="btn btn-success rounded-pill" type="submit">Создать категорию</button><div class="success-note d-none mt-3" data-form-feedback>Категория создана.</div><div class="error-note d-none mt-3" data-form-error>Запрос не выполнен.</div></div></div></form><div id="admin-categories-list"></div></section></main></div><script src="/static/js/app.js"></script></body></html>
+{% extends "admin/base.html" %}
+{% block content %}
+<section class="admin-page-header content-card">
+    <div class="section-kicker">Taxonomy</div>
+    <h1 class="section-title mt-2">Категории новостей</h1>
+</section>
+
+<section class="page-section content-card">
+    <form data-api-path="/admin/news-categories" data-api-method="POST">
+        <div class="admin-form-grid">
+            <input class="form-control span-6" name="name" placeholder="Название категории">
+            <input class="form-control span-6" name="slug" placeholder="Slug">
+        </div>
+        <div class="d-flex gap-2 mt-4">
+            <button class="btn btn-primary" type="submit">Создать категорию</button>
+            <div class="alert alert-success d-none mb-0" data-form-feedback>Категория создана.</div>
+            <div class="alert alert-danger d-none mb-0" data-form-error>Не удалось создать категорию.</div>
+        </div>
+    </form>
+</section>
+
+<section class="page-section content-card">
+    <div class="admin-form-grid mb-4">
+        <input class="form-control span-4" id="admin-category-id" placeholder="Category ID">
+        <input class="form-control span-4" id="admin-category-name" placeholder="New name">
+        <input class="form-control span-4" id="admin-category-slug" placeholder="New slug">
+    </div>
+    <div class="d-flex gap-2 mb-4">
+        <button class="btn btn-ghost-dark" id="admin-category-update" type="button">Обновить</button>
+        <button class="btn btn-outline-danger" id="admin-category-delete" type="button">Удалить</button>
+    </div>
+    <div class="notification-list" id="admin-categories-list"></div>
+</section>
+{% endblock %}
