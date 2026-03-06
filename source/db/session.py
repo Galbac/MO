@@ -9,7 +9,12 @@ from source.db.models import Base
 
 class DatabaseSessionManager:
     def __init__(self, url: str) -> None:
+        self.url = url
         self.engine = create_async_engine(url, future=True)
+        self.session_factory = async_sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
+
+    def _rebuild_engine(self) -> None:
+        self.engine = create_async_engine(self.url, future=True)
         self.session_factory = async_sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
 
     @asynccontextmanager
@@ -24,6 +29,8 @@ class DatabaseSessionManager:
             await connection.run_sync(Base.metadata.create_all)
 
     async def reset_models(self) -> None:
+        await self.dispose()
+        self._rebuild_engine()
         async with self.engine.begin() as connection:
             await connection.run_sync(lambda conn: Base.metadata.drop_all(conn, checkfirst=True))
             await connection.run_sync(lambda conn: Base.metadata.create_all(conn, checkfirst=True))

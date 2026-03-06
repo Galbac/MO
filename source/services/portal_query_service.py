@@ -274,19 +274,19 @@ class PortalQueryService:
                     winner = players.get(final_match.winner_id)
                     if winner is not None:
                         champions.append(ChampionItem(player_id=winner.id, player_name=winner.full_name, season_year=tournament.season_year))
-                data = TournamentDetail(**self._tournament_summary(tournament).model_dump(), short_name=tournament.short_name, indoor=tournament.indoor, country_code=tournament.country_code, prize_money=tournament.prize_money, points_winner=tournament.points_winner, logo_url=tournament.logo_url, description=tournament.description, matches=current_matches, draw=[DrawMatchItem(match_id=match.id, round_code=match.round_code, player1_name=players.get(match.player1_id).full_name if players.get(match.player1_id) else '', player2_name=players.get(match.player2_id).full_name if players.get(match.player2_id) else '', score_summary=match.score_summary) for match in matches], players=participants, champions=champions)
+                data = TournamentDetail(**self._tournament_summary(tournament).model_dump(), short_name=tournament.short_name, indoor=tournament.indoor, country_code=tournament.country_code, prize_money=tournament.prize_money, points_winner=tournament.points_winner, logo_url=tournament.logo_url, description=tournament.description, current_matches=current_matches, draw=[DrawMatchItem(round_code=match.round_code, player1_name=players.get(match.player1_id).full_name if players.get(match.player1_id) else '', player2_name=players.get(match.player2_id).full_name if players.get(match.player2_id) else '', score_summary=match.score_summary) for match in matches], participants=participants, champions=champions)
                 return SuccessResponse(data=data)
 
         return await self._cached(f'tournaments:detail:{tournament_id}', SuccessResponse[TournamentDetail], loader)
 
     async def get_tournament_matches(self, tournament_id: int):
-        return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.matches)
+        return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.current_matches)
 
     async def get_tournament_draw(self, tournament_id: int):
         return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.draw)
 
     async def get_tournament_players(self, tournament_id: int):
-        return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.players)
+        return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.participants)
 
     async def get_tournament_champions(self, tournament_id: int):
         return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.champions)
@@ -353,7 +353,30 @@ class PortalQueryService:
         return SuccessResponse(data=(await self.get_match(match_id)).data.timeline)
 
     async def get_match_h2h(self, match_id: int):
-        return SuccessResponse(data=H2HResponse.model_validate((await self.get_match(match_id)).data.h2h))
+        async with db_session_manager.session() as session:
+            match = await self.matches.get(session, match_id)
+            if match is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
+            left, right = sorted((match.player1_id, match.player2_id))
+            h2h = await self.matches.get_h2h(session, match.player1_id, match.player2_id)
+            if h2h is None:
+                return SuccessResponse(
+                    data=H2HResponse(
+                        player1_id=left,
+                        player2_id=right,
+                        total_matches=0,
+                        player1_wins=0,
+                        player2_wins=0,
+                        hard_player1_wins=0,
+                        hard_player2_wins=0,
+                        clay_player1_wins=0,
+                        clay_player2_wins=0,
+                        grass_player1_wins=0,
+                        grass_player2_wins=0,
+                        last_match_id=None,
+                    )
+                )
+            return SuccessResponse(data=H2HResponse.model_validate(h2h, from_attributes=True))
 
     async def get_match_preview(self, match_id: int):
         async def loader() -> SuccessResponse[MatchPreview]:
