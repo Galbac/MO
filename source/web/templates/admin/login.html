@@ -19,6 +19,12 @@
         <section class="content-card">
             <div class="section-kicker">Безопасный вход</div>
             <h2 class="section-title mt-2 mb-4">Авторизация</h2>
+            {% if request.query_params.get('reason') == 'admin_only' %}
+            <div class="alert alert-warning mb-4">Текущий аккаунт не имеет прав администратора. Войдите под учетной записью администратора, чтобы открыть этот раздел.</div>
+            {% endif %}
+            {% if current_user and current_user.role != 'admin' %}
+            <div class="alert alert-info mb-4">Сейчас вы вошли как {{ current_user.first_name or current_user.username }}. Для доступа к админке нужен аккаунт администратора.</div>
+            {% endif %}
             <form data-api-path="/auth/login" data-api-method="POST">
                 <div class="d-grid gap-3">
                     <input class="form-control form-control-lg" name="email_or_username" placeholder="Электронная почта или имя пользователя">
@@ -28,6 +34,11 @@
                     <div class="alert alert-danger d-none mb-0" data-form-error>Не удалось войти.</div>
                 </div>
             </form>
+            {% if current_user and current_user.role != 'admin' %}
+            <form data-api-path="/auth/logout" data-api-method="POST" class="mt-3">
+                <button class="btn btn-ghost-dark w-100" type="submit">Выйти из текущего аккаунта</button>
+            </form>
+            {% endif %}
         </section>
     </div>
 </main>

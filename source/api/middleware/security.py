@@ -123,14 +123,17 @@ class WebAccessMiddleware(BaseHTTPMiddleware):
 
         user = await self._current_user(request)
 
-        if path in {"/", "/register", "/admin/login"} and user is not None:
+        if path in {"/", "/register"} and user is not None:
             return self._redirect('/admin' if user.role == 'admin' else '/portal')
+
+        if path == "/admin/login" and user is not None and user.role == 'admin':
+            return self._redirect('/admin')
 
         if path.startswith('/admin') and path != '/admin/login':
             if user is None:
                 return self._redirect(f"/admin/login?next={self._next_value(request)}")
             if user.role != 'admin':
-                return self._redirect('/portal')
+                return self._redirect('/admin/login?reason=admin_only')
 
         if any(path == prefix or path.startswith(f"{prefix}/") for prefix in self.protected_prefixes):
             if user is None:

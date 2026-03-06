@@ -2,6 +2,17 @@ import { toQuery } from "/static/js/core/utils.js";
 
 const API_BASE = document.body.dataset.apiBase || "/api/v1";
 
+function friendlyFallbackMessage(status, rawMessage) {
+    const message = String(rawMessage || "").trim();
+    if (message) return message;
+    if (status === 401) return "Нужно войти в аккаунт, чтобы продолжить.";
+    if (status === 403) return "У вас нет доступа к этому действию.";
+    if (status === 404) return "Данные не найдены.";
+    if (status === 422) return "Проверьте заполненные поля и попробуйте еще раз.";
+    if (status >= 500) return "Сервис временно недоступен. Попробуйте чуть позже.";
+    return "Не удалось выполнить запрос. Попробуйте еще раз.";
+}
+
 async function request(path, options = {}) {
     const response = await fetch(`${API_BASE}${path}`, {
         headers: {
@@ -22,8 +33,8 @@ async function request(path, options = {}) {
     }
 
     if (!response.ok) {
-        const message = payload?.errors?.[0]?.message || payload?.detail || `HTTP ${response.status}`;
-        throw new Error(message);
+        const message = payload?.errors?.[0]?.message || payload?.detail || "";
+        throw new Error(friendlyFallbackMessage(response.status, message));
     }
 
     return payload;

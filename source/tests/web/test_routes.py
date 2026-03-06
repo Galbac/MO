@@ -57,7 +57,7 @@ async def test_error_pages_render_html(async_client) -> None:
     assert response_404.status_code == status.HTTP_200_OK
     assert response_500.status_code == status.HTTP_200_OK
     assert "Страница не найдена" in response_404.text
-    assert "Что-то пошло не так" in response_500.text
+    assert "Мы уже разбираемся" in response_500.text
 
 
 async def test_robots_and_sitemap_are_exposed(async_client) -> None:
@@ -231,4 +231,4 @@ async def test_non_admin_is_redirected_from_admin_pages(user_session_client) -> 
     response = await user_session_client.get('/admin/users', follow_redirects=False)
 
     assert response.status_code == status.HTTP_303_SEE_OTHER
-    assert response.headers["location"] == '/portal'
+    assert response.headers["location"] == '/admin/login?reason=admin_only'

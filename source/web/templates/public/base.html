@@ -45,6 +45,9 @@
                         <a class="top-nav__link" data-nav-link href="/h2h">Личные встречи</a>
                     </nav>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
+                        {% if current_user %}
+                        <span class="badge-soft">{{ current_user.first_name or current_user.username }}{% if current_user.last_name %} {{ current_user.last_name }}{% endif %}</span>
+                        {% endif %}
                         <div class="dropdown">
                             <button class="btn btn-ghost-dark dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 Уведомления
@@ -62,6 +65,11 @@
                         </div>
                         <a href="/search" class="btn btn-ghost-dark">Поиск</a>
                         <a href="/account" class="btn btn-lime">Кабинет</a>
+                        {% if current_user %}
+                        <form data-api-path="/auth/logout" data-api-method="POST" class="m-0">
+                            <button class="btn btn-ghost-dark" type="submit">Выйти</button>
+                        </form>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -84,6 +92,11 @@
                 <a class="top-nav__link" data-nav-link href="/news">Новости</a>
                 <a class="top-nav__link" data-nav-link href="/search">Поиск</a>
                 <a class="top-nav__link" data-nav-link href="/account">Кабинет</a>
+                {% if current_user %}
+                <form data-api-path="/auth/logout" data-api-method="POST" class="mt-2">
+                    <button class="btn btn-ghost-dark w-100" type="submit">Выйти</button>
+                </form>
+                {% endif %}
             </nav>
         </div>
     </div>

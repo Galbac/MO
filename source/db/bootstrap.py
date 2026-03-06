@@ -288,7 +288,14 @@ async def seed_demo_data(session: AsyncSession, *, force: bool = False) -> None:
         ),
     ]
 
-    session.add_all([admin, user, editor, operator, *players, *tournaments, *matches])
+    session.add_all([admin, user, editor, operator])
+    await session.flush()
+    session.add_all(players)
+    await session.flush()
+    session.add_all(tournaments)
+    await session.flush()
+    session.add_all(matches)
+    await session.flush()
     session.add_all([
         MatchSet(id=1, match_id=1, set_number=1, player1_games=6, player2_games=4, is_finished=True),
         MatchSet(id=2, match_id=1, set_number=2, player1_games=3, player2_games=6, is_finished=True),
