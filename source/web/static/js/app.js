@@ -731,19 +731,46 @@ async function initAdminJobsPage() {
             errorNode.textContent = ok ? errorNode.textContent : message;
         }
     };
+    const renderDetail = async (jobId) => {
+        try {
+            const payload = await apiGet(`/admin/jobs/${jobId}`);
+            const item = payload.data;
+            showNode("admin-job-detail-empty", false);
+            document.getElementById("admin-job-detail-card")?.classList.remove("d-none");
+            setHtml("admin-job-detail-content", escapeHtml(JSON.stringify(item, null, 2)));
+        } catch (error) {
+            showState(false, error.message);
+        }
+    };
     const render = async () => {
         const payload = await apiGet("/admin/jobs");
         const items = extractList(payload);
         setHtml(
             "admin-jobs-body",
-            items.map((item) => `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.job_type)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.run_at)}</td><td>${escapeHtml(item.attempts)}</td><td>${escapeHtml(item.error || "-")}</td><td>${item.status === "failed" ? `<button class="btn btn-sm btn-outline-dark" type="button" data-job-retry="${escapeHtml(item.id)}">Retry</button>` : "-"}</td></tr>`).join(""),
+            items.map((item) => `<tr><td><button class="btn btn-link btn-sm p-0" type="button" data-job-view="${escapeHtml(item.id)}">${escapeHtml(item.id)}</button></td><td>${escapeHtml(item.job_type)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.run_at)}</td><td>${escapeHtml(item.attempts)}</td><td>${escapeHtml(item.error || "-")}</td><td class="d-flex gap-2">${item.status === "failed" ? `<button class="btn btn-sm btn-outline-dark" type="button" data-job-retry="${escapeHtml(item.id)}">Retry</button>` : ""}${item.status === "pending" ? `<button class="btn btn-sm btn-outline-danger" type="button" data-job-cancel="${escapeHtml(item.id)}">Cancel</button>` : ""}${item.status !== "failed" && item.status !== "pending" ? "-" : ""}</td></tr>`).join(""),
         );
         showNode("admin-jobs-empty", items.length === 0, 'Очередь задач сейчас пуста.');
+        document.querySelectorAll("[data-job-view]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                await renderDetail(button.dataset.jobView);
+            });
+        });
         document.querySelectorAll("[data-job-retry]").forEach((button) => {
             button.addEventListener("click", async () => {
                 try {
                     await apiRequest(`/admin/jobs/${button.dataset.jobRetry}/retry`, { method: "POST" });
                     showState(true, `Job ${button.dataset.jobRetry} повторно поставлен в очередь.`);
+                    await render();
+                } catch (error) {
+                    showState(false, error.message);
+                }
+            });
+        });
+        document.querySelectorAll("[data-job-cancel]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                try {
+                    await apiRequest(`/admin/jobs/${button.dataset.jobCancel}/cancel`, { method: "POST" });
+                    showState(true, `Job ${button.dataset.jobCancel} отменена.`);
                     await render();
                 } catch (error) {
                     showState(false, error.message);

@@ -157,6 +157,48 @@ class PortalQueryService:
         )
 
     @staticmethod
+    def _tokenize_news_text(*parts: str | None) -> set[str]:
+        tokens: set[str] = set()
+        for part in parts:
+            for token in re.findall(r"[A-Za-z0-9А-Яа-я]+", str(part or "").lower()):
+                if len(token) >= 3:
+                    tokens.add(token)
+        return tokens
+
+    async def _published_news_items(self, session, *, limit: int = 100) -> list[NewsArticle]:
+        items, _ = await self.news.list(session, page=1, per_page=limit, status='published')
+        return items
+
+    async def _scored_related_news(self, session, article: NewsArticle, *, limit: int = 4) -> list[NewsArticle]:
+        items = await self._published_news_items(session, limit=100)
+        source_tags = {item.id for item in await self.news.get_tags_by_ids(session, self._news_tag_mapping().get(str(article.id), []))}
+        source_tokens = self._tokenize_news_text(article.title, article.subtitle, article.lead)
+        scored: list[tuple[int, NewsArticle]] = []
+        for candidate in items:
+            if candidate.id == article.id:
+                continue
+            score = 0
+            if article.category_id and candidate.category_id == article.category_id:
+                score += 5
+            candidate_tags = {item.id for item in await self.news.get_tags_by_ids(session, self._news_tag_mapping().get(str(candidate.id), []))}
+            shared_tags = len(source_tags & candidate_tags)
+            score += shared_tags * 4
+            candidate_tokens = self._tokenize_news_text(candidate.title, candidate.subtitle, candidate.lead)
+            shared_tokens = len(source_tokens & candidate_tokens)
+            score += min(shared_tokens, 6)
+            if score > 0:
+                scored.append((score, candidate))
+        scored.sort(
+            key=lambda item: (
+                item[0],
+                item[1].published_at or datetime.min,
+                item[1].id,
+            ),
+            reverse=True,
+        )
+        return [item for _, item in scored[:limit]]
+
+    @staticmethod
     def _tournament_summary(tournament: Tournament) -> TournamentSummary:
         return TournamentSummary(
             id=tournament.id,
@@ -192,6 +234,19 @@ class PortalQueryService:
     @staticmethod
     def _match_score(sets: list[MatchSet], summary: str | None, serving_player_id: int | None) -> MatchScore:
         return MatchScore(sets=[f"{item.player1_games}-{item.player2_games}" for item in sets], current_game=summary, serving_player_id=serving_player_id)
+
+    @staticmethod
+    def _point_event_types() -> set[str]:
+        return {'point_updated', 'break_point', 'set_point', 'match_point'}
+
+    @staticmethod
+    def _serving_player_id(events: list[MatchEvent], fallback: int | None = None) -> int | None:
+        for event in reversed(events):
+            payload = event.payload_json or {}
+            serving_player_id = payload.get('serving_player_id') or payload.get('server_id')
+            if serving_player_id not in (None, ''):
+                return int(serving_player_id)
+        return fallback
 
     @staticmethod
     def _resolve_opponent(match: Match, player_id: int, players: dict[int, Player]) -> Player | None:
@@ -293,7 +348,42 @@ class PortalQueryService:
         return await self._cached(f'players:news:{player_id}', SuccessResponse[list[PlayerNewsItem]], loader)
 
     async def get_player_upcoming_matches(self, player_id: int):
-        return SuccessResponse(data=[(await self.get_player(player_id)).data.upcoming_match] if (await self.get_player(player_id)).data.upcoming_match else [])
+        async def loader() -> SuccessResponse[list[UpcomingMatchItem]]:
+            async with db_session_manager.session() as session:
+                player = await self.players.get(session, player_id)
+                if player is None:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Player not found')
+                matches = await self.players.get_matches(session, player_id)
+                upcoming_matches = [
+                    item
+                    for item in sorted(matches, key=lambda match: match.scheduled_at or datetime.max)
+                    if item.status in {'scheduled', 'about_to_start', 'live'}
+                ]
+                if not upcoming_matches:
+                    return SuccessResponse(data=[])
+                player_ids = {value for match in upcoming_matches for value in (match.player1_id, match.player2_id)}
+                players = await self._players_map(session, player_ids)
+                tournaments = {match.tournament_id: await self.tournaments.get(session, match.tournament_id) for match in upcoming_matches}
+                data = []
+                for match in upcoming_matches:
+                    tournament = tournaments.get(match.tournament_id)
+                    if tournament is None:
+                        continue
+                    opponent = self._resolve_opponent(match, player_id, players)
+                    scheduled_at = match.scheduled_at.isoformat() if match.scheduled_at else ''
+                    data.append(
+                        UpcomingMatchItem(
+                            match_id=match.id,
+                            slug=match.slug,
+                            tournament_name=tournament.name,
+                            opponent_name=opponent.full_name if opponent else '',
+                            scheduled_at=scheduled_at,
+                            status=match.status,
+                        )
+                    )
+                return SuccessResponse(data=data)
+
+        return await self._cached(f'players:upcoming:{player_id}', SuccessResponse[list[UpcomingMatchItem]], loader, ttl_seconds=settings.cache.live_ttl_seconds)
 
     async def get_h2h(self, player1_id: int, player2_id: int):
         left, right = sorted((player1_id, player2_id))
@@ -356,7 +446,32 @@ class PortalQueryService:
         return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.draw)
 
     async def get_tournament_players(self, tournament_id: int):
-        return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.participants)
+        async def loader() -> SuccessResponse[list[PlayerSummary]]:
+            async with db_session_manager.session() as session:
+                tournament = await self.tournaments.get(session, tournament_id)
+                if tournament is None:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+                matches = await self.tournaments.get_matches(session, tournament_id)
+                player_ids = {value for match in matches for value in (match.player1_id, match.player2_id)}
+                players = await self._players_map(session, player_ids)
+                player_matches = {item.id: await self.players.get_matches(session, item.id) for item in players.values()}
+                aggregates = {item.id: self._load_player_aggregate(item.id) for item in players.values()}
+                ordered_players = sorted(
+                    players.values(),
+                    key=lambda item: (
+                        item.current_rank is None,
+                        item.current_rank or 10**9,
+                        item.full_name.lower(),
+                    ),
+                )
+                return SuccessResponse(
+                    data=[
+                        self._player_summary(item, player_matches.get(item.id, []), aggregates.get(item.id))
+                        for item in ordered_players
+                    ]
+                )
+
+        return await self._cached(f'tournaments:players:{tournament_id}', SuccessResponse[list[PlayerSummary]], loader)
 
     async def get_tournament_champions(self, tournament_id: int):
         return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.champions)
@@ -376,8 +491,17 @@ class PortalQueryService:
 
     async def get_tournament_calendar(self):
         async def loader() -> SuccessResponse[list[TournamentSummary]]:
-            payload = await self.list_tournaments(1, 100)
-            return SuccessResponse(data=payload.data)
+            async with db_session_manager.session() as session:
+                items, _ = await self.tournaments.list(session, page=1, per_page=200)
+                ordered = sorted(
+                    items,
+                    key=lambda item: (
+                        0 if item.status == 'live' else 1 if item.status in {'scheduled', 'published'} else 2,
+                        item.start_date or date.max,
+                        item.name.lower(),
+                    ),
+                )
+                return SuccessResponse(data=[self._tournament_summary(item) for item in ordered])
 
         return await self._cached('tournaments:calendar', SuccessResponse[list[TournamentSummary]], loader)
 
@@ -408,7 +532,8 @@ class PortalQueryService:
                 events = await self.matches.get_events(session, match_id)
                 h2h = await self.matches.get_h2h(session, match.player1_id, match.player2_id)
                 related_news = await self.get_tournament_news(match.tournament_id)
-                data = MatchDetail(**self._match_summary(match, tournament, players).model_dump(), best_of_sets=match.best_of_sets, winner_id=match.winner_id, score=self._match_score(sets, match.score_summary, match.player1_id), sets=[self._set_item(item) for item in sets], stats=self._stats_item(stats), timeline=[self._event_item(item) for item in events], h2h=self._h2h_item(h2h), related_news=related_news.data[:2])
+                serving_player_id = self._serving_player_id(events, match.player1_id)
+                data = MatchDetail(**self._match_summary(match, tournament, players).model_dump(), best_of_sets=match.best_of_sets, winner_id=match.winner_id, score=self._match_score(sets, match.score_summary, serving_player_id), sets=[self._set_item(item) for item in sets], stats=self._stats_item(stats), timeline=[self._event_item(item) for item in events], h2h=self._h2h_item(h2h), related_news=related_news.data[:2])
                 return SuccessResponse(data=data)
 
         return await self._cached(f'matches:detail:{match_id}', SuccessResponse[MatchDetail], loader)
@@ -454,12 +579,38 @@ class PortalQueryService:
             async with db_session_manager.session() as session:
                 player1_matches = await self.players.get_matches(session, detail.player1_id or 0) if detail.player1_id else []
                 player2_matches = await self.players.get_matches(session, detail.player2_id or 0) if detail.player2_id else []
-            return SuccessResponse(data=MatchPreview(h2h_summary=detail.h2h, player1_form=self._player_form(player1_matches, detail.player1_id or 0), player2_form=self._player_form(player2_matches, detail.player2_id or 0), notes=[detail.status, str(detail.best_of_sets)]))
+                tournament = await self.tournaments.get(session, detail.tournament_id or 0) if detail.tournament_id else None
+            notes = [
+                f'status:{detail.status}',
+                f'format:best_of_{detail.best_of_sets}',
+            ]
+            if tournament is not None:
+                notes.extend([
+                    f'surface:{tournament.surface}',
+                    f'round:{detail.round_code or "unknown"}',
+                    f'tournament:{tournament.name}',
+                ])
+            if detail.h2h:
+                notes.append(f'h2h_total:{detail.h2h.get("total_matches", 0)}')
+            return SuccessResponse(data=MatchPreview(h2h_summary=detail.h2h, player1_form=self._player_form(player1_matches, detail.player1_id or 0), player2_form=self._player_form(player2_matches, detail.player2_id or 0), notes=notes))
 
         return await self._cached(f'matches:preview:{match_id}', SuccessResponse[MatchPreview], loader)
 
     async def get_match_point_by_point(self, match_id: int):
-        return await self.get_match_timeline(match_id)
+        async def loader() -> SuccessResponse[list[MatchEventItem]]:
+            async with db_session_manager.session() as session:
+                match = await self.matches.get(session, match_id)
+                if match is None:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
+                events = await self.matches.get_events(session, match_id)
+                filtered = [
+                    self._event_item(item)
+                    for item in events
+                    if item.event_type in self._point_event_types()
+                ]
+                return SuccessResponse(data=filtered)
+
+        return await self._cached(f'matches:point-by-point:{match_id}', SuccessResponse[list[MatchEventItem]], loader, ttl_seconds=settings.cache.live_ttl_seconds)
 
     async def get_upcoming_matches(self):
         async def loader() -> SuccessResponse[list[MatchSummary]]:
@@ -510,17 +661,32 @@ class PortalQueryService:
     async def get_featured_news(self):
         async def loader() -> SuccessResponse[list[NewsArticleSummary]]:
             async with db_session_manager.session() as session:
-                items = await self.news.list_featured(session)
+                items = await self._published_news_items(session, limit=12)
                 categories = {category.id: category for category in await self.news.list_categories(session)}
-                return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for item in items])
+                ordered = sorted(
+                    items,
+                    key=lambda item: (
+                        item.cover_image_url is None,
+                        item.published_at or datetime.min,
+                        item.id,
+                    ),
+                    reverse=True,
+                )
+                return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for item in ordered[:3]])
 
         return await self._cached('news:featured', SuccessResponse[list[NewsArticleSummary]], loader)
 
     async def get_related_news(self, slug: str | None = None):
         async def loader() -> SuccessResponse[list[NewsArticleSummary]]:
             async with db_session_manager.session() as session:
-                items = await self.news.list_related(session, slug=slug)
                 categories = {category.id: category for category in await self.news.list_categories(session)}
+                if slug:
+                    article = await self.news.get_by_slug(session, slug)
+                    if article is None:
+                        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Article not found')
+                    items = await self._scored_related_news(session, article, limit=4)
+                else:
+                    items = await self._published_news_items(session, limit=4)
                 return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for item in items])
 
         return await self._cached(f'news:related:{slug or ""}', SuccessResponse[list[NewsArticleSummary]], loader)
@@ -532,7 +698,7 @@ class PortalQueryService:
                 if article is None:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Article not found')
                 categories = {category.id: category for category in await self.news.list_categories(session)}
-                related = await self.news.list_related(session, slug=slug)
+                related = await self._scored_related_news(session, article, limit=4)
                 data = NewsArticleDetail(**self._news_summary(article, categories.get(article.category_id), await self._news_tags(session, article.id)).model_dump(), content_html=article.content_html, seo_title=article.seo_title, seo_description=article.seo_description, related_news=[self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for item in related])
                 return SuccessResponse(data=data)
 

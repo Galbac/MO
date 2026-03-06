@@ -16,6 +16,7 @@ class TournamentSummary(BaseModel):
 
 class ChampionItem(BaseModel):
     season_year: int
+    player_id: int | None = None
     player_name: str
 
 

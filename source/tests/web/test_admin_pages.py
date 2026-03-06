@@ -253,3 +253,11 @@ async def test_admin_maintenance_page_has_backups_section(async_client) -> None:
     assert response.status_code == status.HTTP_200_OK
     assert 'admin-backups-list' in response.text
     assert 'data-maintenance-run="backup_runtime"' in response.text
+
+
+async def test_admin_jobs_page_has_detail_panel(async_client) -> None:
+    response = await async_client.get('/admin/jobs')
+
+    assert response.status_code == status.HTTP_200_OK
+    assert 'id="admin-job-detail-content"' in response.text
+    assert 'Выберите задачу из списка' in response.text

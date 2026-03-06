@@ -1,0 +1,19 @@
+[
+  {
+    "attempts": 1,
+    "created_at": "2026-03-06T21:31:52.679142+00:00",
+    "error": null,
+    "id": 1,
+    "job_type": "backup_runtime",
+    "payload": {
+      "destination_path": null,
+      "source_dir": null
+    },
+    "result": {
+      "archive_path": "var/backups/runtime-backup-20260306T213152Z.tar.gz"
+    },
+    "run_at": "2026-03-06T21:31:52.679142+00:00",
+    "status": "finished",
+    "updated_at": "2026-03-06T21:31:52.686991+00:00"
+  }
+]

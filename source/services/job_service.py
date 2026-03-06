@@ -33,6 +33,9 @@ class JobService:
     def list_jobs(self) -> list[dict[str, Any]]:
         return self._read_jobs()
 
+    def get_job(self, job_id: int) -> dict[str, Any] | None:
+        return next((item for item in self._read_jobs() if int(item.get('id', 0)) == job_id), None)
+
     def prune_jobs(self, *, statuses: list[str] | None = None) -> dict[str, Any]:
         statuses = statuses or ['finished', 'failed']
         jobs = self._read_jobs()
@@ -40,6 +43,20 @@ class JobService:
         removed = len(jobs) - len(kept)
         self._write_jobs(kept)
         return {'removed': removed, 'remaining': len(kept), 'statuses': statuses}
+
+    async def cancel_job(self, job_id: int) -> dict[str, Any]:
+        jobs = self._read_jobs()
+        target = next((item for item in jobs if int(item.get('id', 0)) == job_id), None)
+        if target is None:
+            raise ValueError(f'Job not found: {job_id}')
+        if str(target.get('status')) != 'pending':
+            raise ValueError(f'Only pending jobs can be cancelled: {job_id}')
+        target['status'] = 'cancelled'
+        target['error'] = None
+        target['updated_at'] = datetime.now(tz=UTC).isoformat()
+        self._write_jobs(jobs)
+        self.logs.write('worker', message=f"Job cancelled: {target['job_type']}", context={'job_id': int(target['id']), 'job_type': target['job_type']})
+        return target
 
     async def retry_failed_job(self, job_id: int) -> dict[str, Any]:
         jobs = self._read_jobs()

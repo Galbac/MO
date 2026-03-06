@@ -505,3 +505,24 @@ async def test_admin_maintenance_backups_runtime(async_client, admin_auth_header
     )
     assert list_response.status_code == status.HTTP_200_OK
     assert list_response.json()["data"]
+
+
+async def test_admin_jobs_detail_and_cancel_runtime(async_client, admin_auth_headers) -> None:
+    from source.services import JobService
+
+    job_service = JobService()
+    pending = await job_service.enqueue(job_type='clear_cache', payload={'prefixes': ['matches:']})
+
+    detail_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/jobs/{pending['id']}",
+        headers=admin_auth_headers,
+    )
+    assert detail_response.status_code == status.HTTP_200_OK
+    assert detail_response.json()["data"]["job_type"] == 'clear_cache'
+
+    cancel_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/jobs/{pending['id']}/cancel",
+        headers=admin_auth_headers,
+    )
+    assert cancel_response.status_code == status.HTTP_200_OK
+    assert cancel_response.json()["data"]["status"] == 'cancelled'

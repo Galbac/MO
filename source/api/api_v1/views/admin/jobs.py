@@ -13,6 +13,23 @@ async def list_admin_jobs() -> SuccessResponse[list[AdminJobItem]]:
     return SuccessResponse(data=[AdminJobItem.model_validate(item) for item in service.list_jobs()])
 
 
+@router.get("/{job_id}", response_model=SuccessResponse[AdminJobItem])
+async def get_admin_job(job_id: int) -> SuccessResponse[AdminJobItem]:
+    item = service.get_job(job_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Job not found: {job_id}')
+    return SuccessResponse(data=AdminJobItem.model_validate(item))
+
+
+@router.post("/{job_id}/cancel", response_model=SuccessResponse[AdminJobItem])
+async def cancel_admin_job(job_id: int) -> SuccessResponse[AdminJobItem]:
+    try:
+        item = await service.cancel_job(job_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return SuccessResponse(data=AdminJobItem.model_validate(item))
+
+
 @router.post("/{job_id}/retry", response_model=SuccessResponse[AdminJobItem])
 async def retry_admin_job(job_id: int) -> SuccessResponse[AdminJobItem]:
     try:

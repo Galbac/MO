@@ -16,3 +16,6 @@ class SearchResults(BaseModel):
 class SearchSuggestion(BaseModel):
     text: str
     entity_type: str
+    entity_id: int | None = None
+    slug: str | None = None
+    url: str | None = None

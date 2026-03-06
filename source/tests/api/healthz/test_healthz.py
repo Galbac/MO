@@ -19,3 +19,8 @@ async def test_readiness_returns_dependency_status(async_client) -> None:
     assert payload['dependencies']['database']['status'] == 'ok'
     assert payload['dependencies']['runtime_state']['status'] == 'ok'
     assert payload['dependencies']['runtime_state']['backend'] in {'local', 'redis'}
+    assert payload['dependencies']['job_queue']['status'] in {'ok', 'degraded'}
+    assert payload['dependencies']['job_queue']['backend'] in {'local', 'redis'}
+    assert payload['dependencies']['maintenance']['status'] == 'ok'
+    assert payload['dependencies']['logging']['status'] == 'ok'
+    assert payload['dependencies']['logging']['backend'] == 'jsonl'

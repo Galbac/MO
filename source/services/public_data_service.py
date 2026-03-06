@@ -44,6 +44,14 @@ class PublicDataService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Ranking player not found')
         return RankingEntry(position=snapshot.rank_position, player_id=player.id, player_name=player.full_name, country_code=player.country_code, points=snapshot.points, movement=snapshot.movement, ranking_type=snapshot.ranking_type, ranking_date=snapshot.ranking_date)
 
+    @staticmethod
+    def _sort_matches_for_search(matches: list[MatchSummary]) -> list[MatchSummary]:
+        def rank(item: MatchSummary) -> tuple[int, datetime, int]:
+            status_rank = 0 if item.status == 'live' else 1 if item.status in {'about_to_start', 'scheduled'} else 2
+            return (status_rank, item.scheduled_at, item.id)
+
+        return sorted(matches, key=rank)
+
     async def get_rankings(self, page: int = 1, per_page: int = 100, ranking_type: str | None = None, ranking_date: str | None = None) -> PaginatedResponse[RankingEntry]:
         async def loader() -> PaginatedResponse[RankingEntry]:
             async with db_session_manager.session() as session:
@@ -72,16 +80,23 @@ class PublicDataService:
         async def loader() -> SuccessResponse[list[RankingSnapshotItem]]:
             async with db_session_manager.session() as session:
                 dates = await self.repo.list_ranking_dates(session, ranking_type=ranking_type)
-                players = {item.id: item for item in await self.repo.list_players_by_ids(session, [item.player_id for item in await self.repo.list_rankings(session, ranking_type=ranking_type)])}
+                if not dates:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Ranking history not found')
+                all_snapshots = await self.repo.list_rankings(session, ranking_type=ranking_type)
+                grouped: dict[str, list[RankingSnapshot]] = {}
+                for item in all_snapshots:
+                    grouped.setdefault(item.ranking_date, []).append(item)
+                player_ids = sorted({item.player_id for item in all_snapshots})
+                players = {item.id: item for item in await self.repo.list_players_by_ids(session, player_ids)}
                 history = []
                 for ranking_date in dates:
-                    snapshots = await self.repo.list_rankings(session, ranking_type=ranking_type, ranking_date=ranking_date)
+                    snapshots = grouped.get(ranking_date, [])
                     history.append(RankingSnapshotItem(ranking_type=ranking_type, ranking_date=ranking_date, entries=[self._ranking_entry(item, players) for item in snapshots]))
                 return SuccessResponse(data=history)
 
         return await self._cached(f'rankings:history:{ranking_type}', SuccessResponse[list[RankingSnapshotItem]], loader, ttl_seconds=settings.cache.rankings_ttl_seconds)
 
-    async def get_player_rankings(self, player_id: int) -> SuccessResponse[list[dict]]:
+    async def get_player_rankings(self, player_id: int) -> SuccessResponse[list[PlayerRankingRecord]]:
         async def loader() -> SuccessResponse[list[PlayerRankingRecord]]:
             async with db_session_manager.session() as session:
                 player = await self.repo.list_players_by_ids(session, [player_id])
@@ -300,7 +315,7 @@ class PublicDataService:
                             matches.extend(await self.repo.search_matches(session, title, limit=3))
 
                 query_terms = [item for item in normalized_query.lower().replace('-', ' ').split() if item]
-                direct_match_payload = []
+                direct_match_payload: list[MatchSummary] = []
                 if len(query_terms) >= 2:
                     supplemental_player_ids = {item.id for item in players}
                     for term in query_terms:
@@ -317,18 +332,20 @@ class PublicDataService:
                                 direct_match_payload.append(item)
 
                 dedup_matches: dict[int, Match] = {item.id: item for item in matches}
-                match_payload = {item.id: item for item in direct_match_payload}
+                match_payload: dict[int, MatchSummary] = {item.id: item for item in direct_match_payload}
                 for match in dedup_matches.values():
                     try:
-                        match_payload[match.id] = (await self.query.get_match(match.id)).data
+                        match_payload[match.id] = MatchSummary.model_validate((await self.query.get_match(match.id)).data.model_dump())
                     except HTTPException:
                         continue
                 tournament_payload = [self.query._tournament_summary(item) for item in tournaments]
-                player_matches = {item.id: [] for item in players}
-                player_payload = [self.query._player_summary(item, player_matches[item.id]) for item in players]
+                player_matches = {item.id: await self.query.players.get_matches(session, item.id) for item in players}
+                player_aggregates = {item.id: self.query._load_player_aggregate(item.id) for item in players}
+                player_payload = [self.query._player_summary(item, player_matches[item.id], player_aggregates[item.id]) for item in players]
                 categories = {category.id: category for category in await self.news.list_categories(session)}
-                news_payload = [self.query._news_summary(item, categories.get(item.category_id)) for item in news]
-                return SuccessResponse(data=SearchResults(players=player_payload, tournaments=tournament_payload, matches=[MatchSummary.model_validate(item.model_dump()) for item in match_payload.values()], news=news_payload))
+                news_payload = [self.query._news_summary(item, categories.get(item.category_id), await self.query._news_tags(session, item.id)) for item in news]
+                sorted_matches = self._sort_matches_for_search(list(match_payload.values()))
+                return SuccessResponse(data=SearchResults(players=player_payload, tournaments=tournament_payload, matches=sorted_matches, news=news_payload))
 
         normalized_query = self._normalize_search_query(q)
         normalized_types = sorted(self._normalize_search_types(types))
@@ -340,13 +357,13 @@ class PublicDataService:
             results = (await self.search(q, types=types)).data
             suggestions: list[SearchSuggestion] = []
             for item in results.players[:3]:
-                suggestions.append(SearchSuggestion(text=item.full_name, entity_type='player'))
+                suggestions.append(SearchSuggestion(text=item.full_name, entity_type='player', entity_id=item.id, slug=item.slug, url=f'/players/{item.slug}'))
             for item in results.tournaments[:3]:
-                suggestions.append(SearchSuggestion(text=item.name, entity_type='tournament'))
+                suggestions.append(SearchSuggestion(text=item.name, entity_type='tournament', entity_id=item.id, slug=item.slug, url=f'/tournaments/{item.slug}'))
             for item in results.news[:3]:
-                suggestions.append(SearchSuggestion(text=item.title, entity_type='news'))
+                suggestions.append(SearchSuggestion(text=item.title, entity_type='news', entity_id=item.id, slug=item.slug, url=f'/news/{item.slug}'))
             for item in results.matches[:3]:
-                suggestions.append(SearchSuggestion(text=f'{item.player1_name} vs {item.player2_name}', entity_type='match'))
+                suggestions.append(SearchSuggestion(text=f'{item.player1_name} vs {item.player2_name}', entity_type='match', entity_id=item.id, slug=item.slug, url=f'/matches/{item.slug}'))
             deduped: list[SearchSuggestion] = []
             seen = set()
             for item in suggestions:
@@ -388,12 +405,25 @@ class PublicDataService:
         return await self._cached('live:list', SuccessResponse[list[MatchSummary]], loader, ttl_seconds=settings.cache.live_ttl_seconds)
 
     async def get_live_match(self, match_id: int) -> SuccessResponse[MatchDetail]:
-        return await self._cached(f'live:match:{match_id}', SuccessResponse[MatchDetail], lambda: self.query.get_match(match_id), ttl_seconds=settings.cache.live_ttl_seconds)
+        async def loader() -> SuccessResponse[MatchDetail]:
+            detail = (await self.query.get_match(match_id)).data
+            if detail.status not in {'live', 'about_to_start'}:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Live match not found')
+            return SuccessResponse(data=detail)
+
+        return await self._cached(f'live:match:{match_id}', SuccessResponse[MatchDetail], loader, ttl_seconds=settings.cache.live_ttl_seconds)
 
     async def get_live_feed(self) -> SuccessResponse[list[MatchEventItem]]:
         async def loader() -> SuccessResponse[list[MatchEventItem]]:
             async with db_session_manager.session() as session:
+                live_matches = await self.repo.list_live_matches(session, today=date.today())
+                live_match_ids = {item.id for item in live_matches}
                 events = await self.repo.list_live_events(session)
-                return SuccessResponse(data=[MatchEventItem(id=item.id, event_type=item.event_type, set_number=item.set_number, game_number=item.game_number, player_id=item.player_id, payload_json=item.payload_json or {}, created_at=item.created_at) for item in events])
+                filtered = [
+                    MatchEventItem(id=item.id, event_type=item.event_type, set_number=item.set_number, game_number=item.game_number, player_id=item.player_id, payload_json=item.payload_json or {}, created_at=item.created_at)
+                    for item in events
+                    if item.match_id in live_match_ids
+                ]
+                return SuccessResponse(data=filtered)
 
         return await self._cached('live:feed', SuccessResponse[list[MatchEventItem]], loader, ttl_seconds=settings.cache.live_ttl_seconds)
