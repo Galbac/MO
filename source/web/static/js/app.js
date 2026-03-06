@@ -1114,16 +1114,21 @@ async function initAdminSettingsPage() {
     try {
         const payload = await apiGet("/admin/settings");
         const data = payload.data || {};
+        const values = data.values || {};
         const seo = document.querySelector("[name=seo_title]");
         const support = document.querySelector("[name=support_email]");
         const notes = document.querySelector("[name=provider_notes]");
-        if (seo) seo.value = data.seo_title || "";
-        if (support) support.value = data.support_email || "";
-        if (notes) notes.value = data.provider_notes || "";
-        setHtml("admin-settings-summary", `<div class="entity-card"><strong>${escapeHtml(data.seo_title || "Не задано")}</strong><div class="text-muted">support: ${escapeHtml(data.support_email || "-")}</div></div>`);
-        setHtml("admin-settings-notes-preview", `<div class="entity-card"><div class="text-muted">${escapeHtml((data.provider_notes || "").slice(0, 180) || "Заметки отсутствуют")}</div></div>`);
+        if (seo) seo.value = values.seo_title || "";
+        if (support) support.value = values.support_email || "";
+        if (notes) notes.value = values.provider_notes || "";
+        setHtml("admin-settings-summary", `<div class="entity-card"><strong>${escapeHtml(values.seo_title || "Не задано")}</strong><div class="text-muted">support: ${escapeHtml(values.support_email || "-")}</div><div class="text-muted">keys: ${escapeHtml(Object.keys(values).length)}</div></div>`);
+        setHtml("admin-settings-notes-preview", `<div class="entity-card"><div class="text-muted">${escapeHtml((values.provider_notes || "").slice(0, 180) || "Заметки отсутствуют")}</div></div>`);
+        setHtml("admin-settings-storage", `<div class="entity-card"><div><strong>Backend:</strong> ${escapeHtml(data.storage_backend || '-')}</div><div class="text-muted">${escapeHtml(data.storage_path || '-')}</div><div class="text-muted">updated: ${escapeHtml(data.updated_at || '-')}</div></div>`);
         showNode("admin-settings-error", false);
     } catch (error) {
+        setHtml("admin-settings-summary", "");
+        setHtml("admin-settings-notes-preview", "");
+        setHtml("admin-settings-storage", "");
         showNode("admin-settings-error", true, escapeHtml(error.message || String(error)));
     }
 }
@@ -1194,9 +1199,17 @@ async function initAdminNotificationsPage() {
         setHtml("admin-delivery-log", items.map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.created_at)}</div><strong>${escapeHtml(item.notification_type)} · ${escapeHtml(item.channel)}</strong><div class="text-muted">${escapeHtml(item.status)}${item.reason ? ` · ${escapeHtml(item.reason)}` : ""}</div><div class="text-muted">${escapeHtml(item.title)}</div></div>`).join(""));
         showNode("admin-delivery-log-empty", items.length === 0, 'Delivery log пока пуст.');
     };
-    const [templatesPayload, historyPayload] = await Promise.all([apiGet("/admin/notifications/templates"), apiGet("/admin/notifications")]);
+    const [templatesPayload, historyPayload, summaryPayload] = await Promise.all([
+        apiGet("/admin/notifications/templates"),
+        apiGet("/admin/notifications"),
+        apiGet("/admin/notifications/summary"),
+    ]);
     const templates = extractList(templatesPayload);
     const history = extractList(historyPayload);
+    const summary = summaryPayload?.data || {};
+    const byStatus = Object.entries(summary.by_status || {}).map(([key, value]) => `<span class="badge text-bg-light me-2">${escapeHtml(key)}: ${escapeHtml(value)}</span>`).join("") || '<span class="text-muted">Нет данных по статусам</span>';
+    const byChannel = Object.entries(summary.by_channel || {}).map(([key, value]) => `<span class="badge text-bg-light me-2">${escapeHtml(key)}: ${escapeHtml(value)}</span>`).join("") || '<span class="text-muted">Нет данных по каналам</span>';
+    setHtml("admin-notifications-summary", `<div class="d-flex flex-column gap-2"><div><strong>Templates:</strong> ${escapeHtml(summary.total_templates ?? 0)} · <strong>Broadcasts:</strong> ${escapeHtml(summary.total_broadcasts ?? 0)} · <strong>Deliveries:</strong> ${escapeHtml(summary.total_delivery_logs ?? 0)}</div><div><strong>Latest delivery:</strong> ${escapeHtml(summary.latest_delivery_at || '-')}</div><div>${byStatus}</div><div>${byChannel}</div></div>`);
     setHtml("admin-notification-templates", templates.map((item) => `<tr><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.channel)}</td><td>${escapeHtml(item.is_active ? "активен" : "отключен")}</td><td>${escapeHtml(item.updated_at)}</td></tr>`).join(""));
     setHtml("admin-notification-history", history.map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.created_at)}</div><strong>${escapeHtml(item.title)}</strong><div class="text-muted">${escapeHtml(item.status)} · sent ${escapeHtml(item.sent_count)} · channels ${escapeHtml((item.channels || []).join(", "))}</div></div>`).join(""));
     showNode("admin-notification-templates-empty", templates.length === 0, 'Шаблоны пока недоступны.');

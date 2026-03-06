@@ -207,6 +207,7 @@ class OperationsService:
         missing_files = 0
         latest_created_at = None
         items = [self._admin_media_item(item) for item in self._media_records()]
+        largest_item = None
         for item in items:
             content_types[item.content_type] = content_types.get(item.content_type, 0) + 1
             total_size_bytes += int(item.size or 0)
@@ -214,6 +215,8 @@ class OperationsService:
                 missing_files += 1
             if item.created_at is not None and (latest_created_at is None or item.created_at > latest_created_at):
                 latest_created_at = item.created_at
+            if largest_item is None or int(item.size or 0) > int(largest_item.size or 0):
+                largest_item = item
         return SuccessResponse(
             data=AdminMediaSummary(
                 total=len(items),
@@ -223,7 +226,15 @@ class OperationsService:
                 latest_created_at=latest_created_at,
                 storage_backend='local_fs',
                 storage_path=str(self.media_dir),
-            )
+            ),
+            meta={
+                'healthy': missing_files == 0,
+                'largest_file': {
+                    'id': largest_item.id,
+                    'filename': largest_item.filename,
+                    'size': largest_item.size,
+                } if largest_item is not None else None,
+            },
         )
 
     async def get_media(self, media_id: int) -> SuccessResponse[MediaFile]:
@@ -522,7 +533,8 @@ class OperationsService:
                 last_sync_at=datetime.fromisoformat(updated['last_sync_at']) if updated.get('last_sync_at') else None,
                 last_error=updated.get('last_error'),
                 settings=dict(updated.get('settings') or {}),
-            )
+            ),
+            meta={'updated_keys': sorted(normalized_payload.keys())},
         )
 
     async def get_integration_detail(self, provider: str) -> SuccessResponse[AdminIntegrationDetail]:
@@ -555,8 +567,10 @@ class OperationsService:
         provider_payload = payload.get('provider_payload')
         log_message = 'Manual sync executed'
         applied = 0
+        sync_mode = 'noop'
         try:
             if isinstance(provider_payload, dict):
+                sync_mode = 'provider_payload'
                 if 'live' in provider:
                     events = self.mapper.parse_live_events(provider, provider_payload)
                     applied = await self._apply_live_provider_events(provider, events)
@@ -570,6 +584,7 @@ class OperationsService:
                 headers = current.get('settings', {}).get('headers') or {}
                 client = self._integration_client(provider, current.get('settings', {}))
                 if endpoint and client is not None:
+                    sync_mode = 'remote_fetch'
                     if 'live' in provider:
                         events = await client.fetch_events(endpoint, headers=headers)
                         applied = await self._apply_live_provider_events(provider, events)
@@ -592,7 +607,8 @@ class OperationsService:
                     message=log_message,
                     applied_count=applied,
                     logs_count=len(updated.get('logs') or []),
-                )
+                ),
+                meta={'sync_mode': sync_mode, 'provider_has_endpoint': bool(current.get('settings', {}).get('endpoint') or payload.get('endpoint')), 'used_payload': isinstance(provider_payload, dict)},
             )
         except IntegrationSyncError as exc:
             log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'level': 'error', 'message': f'Provider sync failed: {exc}'}

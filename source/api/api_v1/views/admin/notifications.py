@@ -4,6 +4,7 @@ from source.schemas.pydantic.admin import (
     AdminActionResult,
     AdminNotificationBroadcast,
     AdminNotificationDeliveryLogItem,
+    AdminNotificationSummary,
     AdminNotificationTemplate,
 )
 from source.schemas.pydantic.common import SuccessResponse
@@ -21,6 +22,11 @@ async def get_admin_notification_templates() -> SuccessResponse[list[AdminNotifi
 @router.get("", response_model=SuccessResponse[list[AdminNotificationBroadcast]])
 async def get_admin_notifications() -> SuccessResponse[list[AdminNotificationBroadcast]]:
     return await service.list_notification_history()
+
+
+@router.get("/summary", response_model=SuccessResponse[AdminNotificationSummary])
+async def get_admin_notifications_summary() -> SuccessResponse[AdminNotificationSummary]:
+    return await service.summarize_notifications()
 
 
 @router.get("/delivery-log", response_model=SuccessResponse[list[AdminNotificationDeliveryLogItem]])

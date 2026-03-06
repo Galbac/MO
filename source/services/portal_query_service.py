@@ -365,7 +365,8 @@ class PortalQueryService:
                     if score > 0:
                         related.append((score, item))
                 related.sort(key=lambda pair: (pair[0], pair[1].published_at or datetime.min, pair[1].id), reverse=True)
-                return SuccessResponse(data=[PlayerNewsItem(id=item.id, slug=item.slug, title=item.title, published_at=item.published_at.isoformat() if item.published_at else None, relevance_score=score, category_name=categories.get(item.category_id).name if categories.get(item.category_id) else None) for score, item in related[:12]])
+                payload = [PlayerNewsItem(id=item.id, slug=item.slug, title=item.title, published_at=item.published_at.isoformat() if item.published_at else None, relevance_score=score, category_name=categories.get(item.category_id).name if categories.get(item.category_id) else None) for score, item in related[:12]]
+                return SuccessResponse(data=payload, meta={'total_related': len(related), 'returned': len(payload)})
 
         return await self._cached(f'players:news:{player_id}', SuccessResponse[list[PlayerNewsItem]], loader)
 
@@ -534,7 +535,8 @@ class PortalQueryService:
                     if score > 0:
                         related.append((score, item))
                 related.sort(key=lambda pair: (pair[0], pair[1].published_at or datetime.min, pair[1].id), reverse=True)
-                return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for _, item in related[:12]])
+                payload = [self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for _, item in related[:12]]
+                return SuccessResponse(data=payload, meta={'total_related': len(related), 'returned': len(payload)})
 
         return await self._cached(f'tournaments:news:{tournament_id}', SuccessResponse[list[NewsArticleSummary]], loader)
 
@@ -556,7 +558,7 @@ class PortalQueryService:
                     matches = tournament_matches.get(item.id, [])
                     participants = {value for match in matches for value in (match.player1_id, match.player2_id)}
                     payload.append(self._tournament_summary(item).model_copy(update={'live_matches_count': sum(1 for match in matches if match.status == 'live'), 'participants_count': len(participants)}))
-                return SuccessResponse(data=payload)
+                return SuccessResponse(data=payload, meta={'total': len(payload), 'live': sum(1 for item in payload if item.status == 'live'), 'scheduled': sum(1 for item in payload if item.status in {'scheduled', 'published'})})
 
         return await self._cached('tournaments:calendar', SuccessResponse[list[TournamentSummary]], loader)
 

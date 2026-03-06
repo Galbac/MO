@@ -246,3 +246,13 @@ class AdminNotificationDeliveryLogItem(BaseModel):
     status: str
     reason: str | None = None
     created_at: datetime
+
+
+class AdminNotificationSummary(BaseModel):
+    total_templates: int
+    total_broadcasts: int
+    total_delivery_logs: int
+    by_status: dict[str, int] = Field(default_factory=dict)
+    by_channel: dict[str, int] = Field(default_factory=dict)
+    by_type: dict[str, int] = Field(default_factory=dict)
+    latest_delivery_at: datetime | None = None

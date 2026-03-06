@@ -63,7 +63,9 @@ class PublicDataService:
                 page_items = snapshots[(page - 1) * per_page:(page - 1) * per_page + per_page]
                 players = {item.id: item for item in await self.repo.list_players_by_ids(session, [item.player_id for item in page_items])}
                 data = [self._ranking_entry(item, players) for item in page_items]
-                return PaginatedResponse(data=data, meta=self._meta(page, per_page, len(snapshots)))
+                response = PaginatedResponse(data=data, meta=self._meta(page, per_page, len(snapshots)))
+                response.meta = response.meta.model_copy(update={'total': len(snapshots)})
+                return response
 
         key = f'rankings:list:{ranking_type or ""}:{ranking_date or "latest"}:{page}:{per_page}'
         return await self._cached(key, PaginatedResponse[RankingEntry], loader, ttl_seconds=settings.cache.rankings_ttl_seconds)

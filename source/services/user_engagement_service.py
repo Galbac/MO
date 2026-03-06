@@ -219,4 +219,14 @@ class UserEngagementService:
             for channel in settings.notifications.active_channels:
                 self.workflows._record_delivery(user_id=user_id, channel=channel, notification_type='test', title='Test notification', entity_type='notification', entity_id=item.id, status='sent' if channel == 'web' else 'queued', reason=None if channel == 'web' else 'transport_not_configured')
             inactive_channels = [item for item in settings.notifications.allowed_channels if item not in settings.notifications.active_channels]
-            return self._action_result(action='notification.test', resource_type='notification', resource_id=item.id, message='Test notification sent', details={'type': 'test', 'active_channels': list(settings.notifications.active_channels), 'inactive_channels': inactive_channels, 'delivery_backend': 'web+runtime-log'})
+            return SuccessResponse(
+                data=ActionResult(
+                    action='notification.test',
+                    status='ok',
+                    message='Test notification sent',
+                    resource_type='notification',
+                    resource_id=item.id,
+                    details={'type': 'test', 'active_channels': list(settings.notifications.active_channels), 'inactive_channels': inactive_channels, 'delivery_backend': 'web+runtime-log'},
+                ),
+                meta={'user_id': user_id, 'delivery_channels': list(settings.notifications.active_channels), 'inactive_channels': inactive_channels},
+            )

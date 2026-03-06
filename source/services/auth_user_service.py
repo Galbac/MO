@@ -4,10 +4,12 @@ import base64
 import hashlib
 import hmac
 import os
+import re
 import time
 import uuid
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, Request, status
 
@@ -108,6 +110,28 @@ class AuthUserService:
             refresh_expires_at=datetime.fromtimestamp(int(refresh_payload['exp']), tz=UTC),
             refresh_token_id=str(refresh_payload['jti']),
         )
+
+    @staticmethod
+    def _normalize_email(value: str) -> str:
+        return value.strip().lower()
+
+    @staticmethod
+    def _normalize_username(value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 3:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Username is too short')
+        if not re.match(r'^[A-Za-z0-9_.-]+$', normalized):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Username contains unsupported characters')
+        return normalized
+
+    @staticmethod
+    def _validate_timezone_name(value: str | None) -> str:
+        candidate = (value or 'Europe/Moscow').strip()
+        try:
+            ZoneInfo(candidate)
+        except Exception as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsupported timezone') from exc
+        return candidate
 
     def _issue_action_token(self, *, user_id: int, purpose: str, ttl_minutes: int) -> str:
         now = int(time.time())
@@ -255,28 +279,39 @@ class AuthUserService:
 
     async def register(self, request: Request | None, payload: RegisterRequest) -> AuthResponse:
         _check_password_strength(payload.password)
+        normalized_email = self._normalize_email(payload.email)
+        normalized_username = self._normalize_username(payload.username)
+        resolved_timezone = self._validate_timezone_name(payload.timezone)
         async with db_session_manager.session() as session:
-            if await self.users.get_by_email(session, payload.email):
+            if await self.users.get_by_email(session, normalized_email):
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Email already exists')
-            if await self.users.get_by_username(session, payload.username):
+            if await self.users.get_by_username(session, normalized_username):
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Username already exists')
             user = await self.users.create(session, {
-                'email': payload.email,
-                'username': payload.username,
+                'email': normalized_email,
+                'username': normalized_username,
                 'password_hash': _hash_password(payload.password),
                 'role': 'user',
                 'status': 'active',
                 'locale': payload.locale or 'ru',
-                'timezone': payload.timezone or 'Europe/Moscow',
+                'timezone': resolved_timezone,
                 'is_email_verified': False,
             })
         await self._log_audit(action='auth.register', entity_type='user', entity_id=user.id, before_json=None, after_json=self._entity_dict(user), user_id=user.id)
-        self._issue_action_token(
+        verification_token = self._issue_action_token(
             user_id=user.id,
             purpose='verify_email',
             ttl_minutes=settings.auth.email_verification_token_ttl_minutes,
         )
-        return AuthResponse(data=self._bundle(user))
+        bundle = self._bundle(user)
+        return AuthResponse(
+            data=bundle,
+            meta={
+                'verification_token_issued': bool(verification_token),
+                'email_verification_required': True,
+                'registered_at': datetime.now(tz=UTC).isoformat(),
+            },
+        )
 
     async def login(self, request: Request | None, payload: LoginRequest) -> AuthResponse:
         self._rate_limit_guard(request, payload.email_or_username)
@@ -299,7 +334,15 @@ class AuthUserService:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='User not found')
             if user.status != 'active':
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='User is not active')
-            return AuthResponse(data=self._bundle(user))
+            bundle = self._bundle(user)
+            return AuthResponse(
+                data=bundle,
+                meta={
+                    'rotated': bool(settings.auth.refresh_token_rotation_enabled),
+                    'previous_refresh_token_id': str(token_payload.get('jti') or ''),
+                    'refreshed_at': datetime.now(tz=UTC).isoformat(),
+                },
+            )
 
     async def logout(self, request: Request | None, payload: LogoutRequest) -> SuccessResponse[ActionResult]:
         self._consume_refresh_token(payload.refresh_token, revoke_only=True)
@@ -356,7 +399,18 @@ class AuthUserService:
         return self._action_result(action='auth.verify_email', message='Email verified', resource_type='user', resource_id=user_id, details={'is_email_verified': True})
 
     async def auth_me(self, request: Request) -> SuccessResponse[UserProfile]:
-        return SuccessResponse(data=self._profile(await self._resolve_current_user(request)))
+        user = await self._resolve_current_user(request)
+        auth_header = request.headers.get('authorization', '')
+        token = auth_header.split(' ', 1)[1] if auth_header.startswith('Bearer ') else ''
+        payload = token_codec.decode(token) if token else {}
+        return SuccessResponse(
+            data=self._profile(user),
+            meta={
+                'authenticated_at': datetime.now(tz=UTC).isoformat(),
+                'token_subject': int(payload['sub']) if payload.get('sub') is not None else None,
+                'token_expires_at': datetime.fromtimestamp(int(payload['exp']), tz=UTC).isoformat() if payload.get('exp') is not None else None,
+            },
+        )
 
     async def users_me(self, request: Request) -> SuccessResponse[UserProfile]:
         return SuccessResponse(data=self._profile(await self._resolve_current_user(request)))

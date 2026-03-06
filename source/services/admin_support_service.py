@@ -15,6 +15,7 @@ from source.schemas.pydantic.admin import (
     AdminActionResult,
     AdminNotificationBroadcast,
     AdminNotificationDeliveryLogItem,
+    AdminNotificationSummary,
     AdminNotificationTemplate,
     AdminSettingsPayload,
 )
@@ -50,6 +51,14 @@ class AdminSupportService:
     def _write_json(self, path: Path, payload: Any) -> None:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+
+    @staticmethod
+    def _ensure_json_safe(value: Any) -> Any:
+        try:
+            json.dumps(value, ensure_ascii=True, sort_keys=True)
+        except TypeError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Settings payload must be JSON-serializable') from exc
+        return value
 
     def _invalidate_cache(self, *prefixes: str) -> None:
         self.cache.invalidate_prefixes(*prefixes)
@@ -107,8 +116,15 @@ class AdminSupportService:
         )
 
     async def update_settings(self, payload: dict[str, Any]) -> SuccessResponse[dict]:
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Settings payload must be an object')
+        sanitized = {
+            str(key).strip(): self._ensure_json_safe(value)
+            for key, value in payload.items()
+            if str(key).strip() and value not in (None, '')
+        }
         current = self._read_json(self.settings_file) or {}
-        merged = current | {key: value for key, value in payload.items() if value not in (None, '')}
+        merged = current | sanitized
         self._write_json(self.settings_file, merged)
         self._invalidate_cache('news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:')
         updated_at = datetime.fromtimestamp(self.settings_file.stat().st_mtime, tz=UTC) if self.settings_file.exists() else None
@@ -119,7 +135,7 @@ class AdminSupportService:
                 storage_path=str(self.settings_file),
                 updated_at=updated_at,
             ).model_dump(),
-            meta={'keys_count': len(merged), 'invalidated_prefixes': ['news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:']},
+            meta={'keys_count': len(merged), 'updated_keys': sorted(sanitized.keys()), 'invalidated_prefixes': ['news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:']},
         )
 
     async def list_notification_templates(self) -> SuccessResponse[list[AdminNotificationTemplate]]:
@@ -161,7 +177,41 @@ class AdminSupportService:
                         delivery_stats=self._delivery_stats(matching_logs),
                     )
                 )
-            return SuccessResponse(data=data)
+            return SuccessResponse(data=data, meta={'total_broadcasts': len(data), 'delivery_backend': 'runtime_log'})
+
+    async def summarize_notifications(self) -> SuccessResponse[AdminNotificationSummary]:
+        templates_response = await self.list_notification_templates()
+        history_response = await self.list_notification_history()
+        delivery_logs = self._delivery_logs()
+        by_status: dict[str, int] = {}
+        by_channel: dict[str, int] = {}
+        by_type: dict[str, int] = {}
+        latest_delivery_at = None
+        for entry in delivery_logs:
+            status_value = str(entry.get('status') or 'unknown')
+            channel_value = str(entry.get('channel') or 'web')
+            type_value = str(entry.get('notification_type') or '')
+            by_status[status_value] = by_status.get(status_value, 0) + 1
+            by_channel[channel_value] = by_channel.get(channel_value, 0) + 1
+            if type_value:
+                by_type[type_value] = by_type.get(type_value, 0) + 1
+            created_at = entry.get('created_at')
+            if created_at:
+                parsed = datetime.fromisoformat(str(created_at))
+                if latest_delivery_at is None or parsed > latest_delivery_at:
+                    latest_delivery_at = parsed
+        return SuccessResponse(
+            data=AdminNotificationSummary(
+                total_templates=len(templates_response.data),
+                total_broadcasts=len(history_response.data),
+                total_delivery_logs=len(delivery_logs),
+                by_status=by_status,
+                by_channel=by_channel,
+                by_type=by_type,
+                latest_delivery_at=latest_delivery_at,
+            )
+        )
+
 
     async def list_notification_delivery_log(
         self,
@@ -197,7 +247,7 @@ class AdminSupportService:
             )
             if len(filtered) >= max(1, min(limit, 500)):
                 break
-        return SuccessResponse(data=filtered, meta={'returned': len(filtered), 'filters': {'notification_type': notification_type, 'channel': channel, 'status': status_value}})
+        return SuccessResponse(data=filtered, meta={'total_entries': len(items), 'returned': len(filtered), 'filters': {'notification_type': notification_type, 'channel': channel, 'status': status_value}})
 
     async def send_test_notification(self) -> SuccessResponse[AdminActionResult]:
         async with db_session_manager.session() as session:

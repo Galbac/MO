@@ -227,6 +227,7 @@ async def test_admin_notifications_page_has_delivery_log_controls(async_client) 
     assert 'id="admin-delivery-log-channel"' in response.text
     assert 'id="admin-delivery-log-status"' in response.text
     assert 'id="admin-delivery-log"' in response.text
+    assert 'id="admin-notifications-summary"' in response.text
 
 
 async def test_admin_media_and_settings_pages_have_operational_states(async_client) -> None:
@@ -245,6 +246,7 @@ async def test_admin_media_and_settings_pages_have_operational_states(async_clie
     assert 'id="admin-settings-error"' in settings.text
     assert 'id="admin-settings-summary"' in settings.text
     assert 'id="admin-settings-notes-preview"' in settings.text
+    assert 'id="admin-settings-storage"' in settings.text
 
 
 async def test_admin_logs_page_has_controls(async_client) -> None:

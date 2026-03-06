@@ -10,11 +10,13 @@ async def test_admin_settings_persist(async_client, admin_auth_headers) -> None:
         headers=admin_auth_headers,
     )
     assert patch_response.status_code == status.HTTP_200_OK
-    assert patch_response.json()["data"]["seo_title"] == "Portal SEO"
+    assert patch_response.json()["data"]["values"]["seo_title"] == "Portal SEO"
+    assert patch_response.json()["data"]["storage_backend"] == "local_file"
 
     get_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/settings", headers=admin_auth_headers)
     assert get_response.status_code == status.HTTP_200_OK
-    assert get_response.json()["data"]["support_email"] == "support@example.com"
+    assert get_response.json()["data"]["values"]["support_email"] == "support@example.com"
+    assert get_response.json()["data"]["storage_path"].endswith("admin_settings.json")
 
 
 async def test_admin_taxonomy_crud(async_client, admin_auth_headers) -> None:
@@ -196,3 +198,10 @@ async def test_admin_notification_delivery_log_filters(async_client, admin_auth_
     )
     assert delivery_response.status_code == status.HTTP_200_OK
     assert isinstance(delivery_response.json()["data"], list)
+
+    summary_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/notifications/summary",
+        headers=admin_auth_headers,
+    )
+    assert summary_response.status_code == status.HTTP_200_OK
+    assert summary_response.json()["data"]["total_delivery_logs"] >= 1
