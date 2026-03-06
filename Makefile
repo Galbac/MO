@@ -3,7 +3,7 @@ PYTEST ?= ./.venv/bin/pytest
 UVICORN ?= ./.venv/bin/uvicorn
 ALEMBIC ?= ./.venv/bin/alembic
 
-.PHONY: dev test lint format typecheck migrate-up migrate-down compose-up compose-down
+.PHONY: dev test lint format typecheck migrate-up migrate-down compose-up compose-down test-contract test-load worker backup-runtime restore-runtime
 
 dev:
 	$(UVICORN) source.main:create_app --factory --reload
@@ -42,3 +42,11 @@ test-load:
 
 worker:
 	./.venv/bin/python -m source.tasks.worker
+
+
+backup-runtime:
+	$(PYTHON) -m source.tasks.runtime_backup backup
+
+restore-runtime:
+	@test -n "$(ARCHIVE)" || (echo "ARCHIVE is required" && exit 1)
+	$(PYTHON) -m source.tasks.runtime_backup restore $(ARCHIVE)

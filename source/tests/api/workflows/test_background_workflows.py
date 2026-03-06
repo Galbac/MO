@@ -194,3 +194,26 @@ async def test_match_start_notification_skips_unsupported_active_channel(async_c
     )
     assert notifications_response.status_code == 200
     assert not any(item['type'] == 'match_start' and item['payload_json']['entity_id'] == 2 for item in notifications_response.json()['data'])
+
+async def test_maintenance_jobs_generate_artifacts() -> None:
+    jobs = JobService()
+    await jobs.enqueue(job_type='generate_sitemap', payload={'base_url': 'https://example.test'})
+    await jobs.enqueue(job_type='rebuild_search_index')
+
+    processed = await jobs.process_due_jobs()
+    assert processed >= 2
+
+    sitemap_path = Path(settings.maintenance.artifacts_dir) / 'sitemap_snapshot.json'
+    search_index_path = Path(settings.maintenance.artifacts_dir) / 'search_index.json'
+
+    assert sitemap_path.exists()
+    assert search_index_path.exists()
+
+    sitemap_payload = json.loads(sitemap_path.read_text())
+    search_index_payload = json.loads(search_index_path.read_text())
+
+    assert sitemap_payload['base_url'] == 'https://example.test'
+    assert sitemap_payload['url_count'] >= 9
+    assert any(url.endswith('/players/novak-djokovic') for url in sitemap_payload['urls'])
+    assert search_index_payload['total_documents'] >= 4
+    assert any(item['slug'] == 'novak-djokovic' for item in search_index_payload['players'])

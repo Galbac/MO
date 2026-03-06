@@ -12,3 +12,5 @@ def test_makefile_has_worker_and_contract_targets() -> None:
     assert "worker:" in content
     assert "test-contract:" in content
     assert "test-load:" in content
+    assert "backup-runtime:" in content
+    assert "restore-runtime:" in content

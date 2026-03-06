@@ -82,6 +82,12 @@ class JobService:
             else:
                 self.cache.clear()
             return
+        if job_type == 'generate_sitemap':
+            await self.workflows.generate_sitemap_snapshot(payload.get('base_url'))
+            return
+        if job_type == 'rebuild_search_index':
+            await self.workflows.rebuild_search_index()
+            return
         raise ValueError(f'Unsupported job type: {job_type}')
 
     def backend_name(self) -> str:

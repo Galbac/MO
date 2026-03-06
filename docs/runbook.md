@@ -26,3 +26,14 @@
 - Postgres: periodic logical dumps and WAL strategy in production.
 - Redis: enable AOF/RDB according to retention needs.
 - Media: backup object storage or persisted media volume.
+
+
+## Maintenance jobs
+- `generate_sitemap`: writes `var/maintenance/sitemap_snapshot.json`.
+- `rebuild_search_index`: writes `var/maintenance/search_index.json`.
+- `clear_cache`: clears runtime cache prefixes or the whole cache store.
+
+## Backup and restore
+- Create local runtime backup: `make backup-runtime`.
+- Restore local runtime backup: `make restore-runtime ARCHIVE=var/backups/<archive>.tar.gz`.
+- Runtime backup includes local cache, jobs, auth state, maintenance artifacts and media files under `var/`.

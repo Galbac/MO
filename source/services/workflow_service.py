@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, time as clock_time
+import json
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
@@ -40,6 +42,11 @@ class WorkflowService:
         self.tournaments = TournamentRepository()
         self.users = UserRepository()
         self.cache = CacheService()
+        self.artifacts_dir = Path(settings.maintenance.artifacts_dir)
+
+    def _artifact_path(self, filename: str) -> Path:
+        self.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        return self.artifacts_dir / filename
 
     async def process_finalized_match(self, match_id: int) -> None:
         async with db_session_manager.session() as session:
@@ -167,3 +174,55 @@ class WorkflowService:
         if published:
             self.cache.invalidate_prefixes('news:', 'search:', 'players:', 'tournaments:')
         return published
+
+    async def generate_sitemap_snapshot(self, base_url: str | None = None) -> dict[str, object]:
+        base = (base_url or '').rstrip('/')
+        async with db_session_manager.session() as session:
+            players, _ = await self.players.list(session, search=None, country_code=None, hand=None, status=None, rank_from=None, rank_to=None, page=1, per_page=500)
+            tournaments, _ = await self.tournaments.list(session, page=1, per_page=500)
+            matches, _ = await self.matches.list(session, page=1, per_page=500, status=None)
+            articles, _ = await self.news.list(session, page=1, per_page=500)
+        urls = ['/', '/players', '/tournaments', '/matches', '/news', '/rankings', '/live', '/h2h', '/search']
+        urls.extend(f'/players/{item.slug}' for item in players if item.slug)
+        urls.extend(f'/tournaments/{item.slug}' for item in tournaments if item.slug)
+        urls.extend(f'/matches/{item.slug}' for item in matches if item.slug)
+        urls.extend(f'/news/{item.slug}' for item in articles if item.slug)
+        unique_urls = sorted(set(urls))
+        payload = {
+            'generated_at': datetime.now(tz=UTC).isoformat(),
+            'base_url': base,
+            'url_count': len(unique_urls),
+            'urls': [f'{base}{url}' if base else url for url in unique_urls],
+        }
+        self._artifact_path('sitemap_snapshot.json').write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+        return payload
+
+    async def rebuild_search_index(self) -> dict[str, object]:
+        async with db_session_manager.session() as session:
+            players, _ = await self.players.list(session, search=None, country_code=None, hand=None, status=None, rank_from=None, rank_to=None, page=1, per_page=500)
+            tournaments, _ = await self.tournaments.list(session, page=1, per_page=500)
+            matches, _ = await self.matches.list(session, page=1, per_page=500, status=None)
+            articles, _ = await self.news.list(session, page=1, per_page=500)
+        index = {
+            'generated_at': datetime.now(tz=UTC).isoformat(),
+            'players': [
+                {'id': item.id, 'slug': item.slug, 'title': item.full_name, 'keywords': [item.full_name, item.country_code or '', item.country_name or '']}
+                for item in players
+            ],
+            'tournaments': [
+                {'id': item.id, 'slug': item.slug, 'title': item.name, 'keywords': [item.name, item.city or '', item.surface or '', item.category or '']}
+                for item in tournaments
+            ],
+            'matches': [
+                {'id': item.id, 'slug': item.slug, 'title': item.slug.replace('-', ' '), 'keywords': [item.slug, item.status or '', item.score_summary or '']}
+                for item in matches
+            ],
+            'news': [
+                {'id': item.id, 'slug': item.slug, 'title': item.title, 'keywords': [item.title, item.lead or '', item.subtitle or '']}
+                for item in articles
+            ],
+        }
+        index['total_documents'] = sum(len(index[key]) for key in ('players', 'tournaments', 'matches', 'news'))
+        self._artifact_path('search_index.json').write_text(json.dumps(index, ensure_ascii=True, indent=2, sort_keys=True))
+        return index
+

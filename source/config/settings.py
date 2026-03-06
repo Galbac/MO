@@ -120,6 +120,12 @@ class NotificationSettings(BaseModel):
     active_channels: list[str] = ["web"]
 
 
+class MaintenanceSettings(BaseModel):
+    artifacts_dir: str = "var/maintenance"
+    backups_dir: str = "var/backups"
+
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env.template", ".env"),
@@ -141,6 +147,7 @@ class Settings(BaseSettings):
     db: DbSettings = DbSettings()
     security: SecuritySettings = SecuritySettings()
     notifications: NotificationSettings = NotificationSettings()
+    maintenance: MaintenanceSettings = MaintenanceSettings()
 
 
 settings = Settings()

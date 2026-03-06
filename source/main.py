@@ -32,9 +32,9 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.names.title,
         root_path=settings.names.path,
-        docs_url=None,
-        redoc_url=None,
-        openapi_url=None,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
         lifespan=lifespan,
     )
 
