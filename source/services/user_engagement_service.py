@@ -12,6 +12,7 @@ from source.schemas.pydantic.common import ActionResult, SuccessResponse
 from source.schemas.pydantic.notification import NotificationItem, NotificationUnreadCount
 from source.schemas.pydantic.user import FavoriteCreateRequest, FavoriteItem, NotificationSubscriptionCreateRequest, NotificationSubscriptionItem, NotificationSubscriptionUpdateRequest
 from source.services.auth_user_service import AuthUserService
+from source.services.workflow_service import WorkflowService
 
 
 class UserEngagementService:
@@ -22,6 +23,7 @@ class UserEngagementService:
         self.tournaments = TournamentRepository()
         self.matches = MatchRepository()
         self.news = NewsRepository()
+        self.workflows = WorkflowService()
 
     async def _current_user_id(self, request: Request) -> int:
         user = await self.auth._resolve_current_user(request)
@@ -214,4 +216,7 @@ class UserEngagementService:
         user_id = await self._current_user_id(request)
         async with db_session_manager.session() as session:
             item = await self.repo.create_notification(session, {'user_id': user_id, 'type': 'test', 'title': 'Test notification', 'body': 'This is a test notification.', 'payload_json': {'source': 'api'}, 'status': 'unread', 'read_at': None})
-            return self._action_result(action='notification.test', resource_type='notification', resource_id=item.id, message='Test notification sent', details={'type': 'test'})
+            for channel in settings.notifications.active_channels:
+                self.workflows._record_delivery(user_id=user_id, channel=channel, notification_type='test', title='Test notification', entity_type='notification', entity_id=item.id, status='sent' if channel == 'web' else 'queued', reason=None if channel == 'web' else 'transport_not_configured')
+            inactive_channels = [item for item in settings.notifications.allowed_channels if item not in settings.notifications.active_channels]
+            return self._action_result(action='notification.test', resource_type='notification', resource_id=item.id, message='Test notification sent', details={'type': 'test', 'active_channels': list(settings.notifications.active_channels), 'inactive_channels': inactive_channels, 'delivery_backend': 'web+runtime-log'})

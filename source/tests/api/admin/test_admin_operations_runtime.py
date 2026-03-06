@@ -16,6 +16,19 @@ async def test_media_and_audit_runtime(async_client, admin_auth_headers) -> None
     assert media_list.status_code == status.HTTP_200_OK
     assert any(item["id"] == media_id for item in media_list.json()["data"])
 
+    media_summary = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/media/summary", headers=admin_auth_headers)
+    assert media_summary.status_code == status.HTTP_200_OK
+    assert media_summary.json()["data"]["total"] >= 1
+    assert media_summary.json()["data"]["storage_backend"] == "local_fs"
+
+    filtered_media = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/media",
+        params={"content_type": "text/plain", "exists": True},
+        headers=admin_auth_headers,
+    )
+    assert filtered_media.status_code == status.HTTP_200_OK
+    assert any(item["id"] == media_id for item in filtered_media.json()["data"])
+
     audit_list = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/audit-logs", headers=admin_auth_headers)
     assert audit_list.status_code == status.HTTP_200_OK
     assert audit_list.json()["data"]
@@ -412,6 +425,15 @@ async def test_audit_logs_support_filters(async_client, admin_auth_headers) -> N
     assert date_response.status_code == status.HTTP_200_OK
     assert date_response.json()["data"]
 
+    summary_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/audit-logs/summary",
+        params={"entity_type": "user"},
+        headers=admin_auth_headers,
+    )
+    assert summary_response.status_code == status.HTTP_200_OK
+    assert summary_response.json()["data"]["total"] >= 1
+    assert "user" in summary_response.json()["data"]["by_entity_type"]
+
 
 
 async def test_admin_jobs_runtime(async_client, admin_auth_headers) -> None:
@@ -427,6 +449,22 @@ async def test_admin_jobs_runtime(async_client, admin_auth_headers) -> None:
     )
     assert jobs_response.status_code == status.HTTP_200_OK
     assert isinstance(jobs_response.json()["data"], list)
+
+    summary_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/jobs/summary",
+        headers=admin_auth_headers,
+    )
+    assert summary_response.status_code == status.HTTP_200_OK
+    assert "total" in summary_response.json()["data"]
+    assert "backend" in summary_response.json()["data"]
+
+    filtered_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/jobs",
+        params={"status": "pending", "limit": 10},
+        headers=admin_auth_headers,
+    )
+    assert filtered_response.status_code == status.HTTP_200_OK
+    assert isinstance(filtered_response.json()["data"], list)
 
     prune_response = await async_client.post(
         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/jobs/prune",
@@ -470,6 +508,20 @@ async def test_admin_integrations_support_filters(async_client, admin_auth_heade
     )
     assert response.status_code == status.HTTP_200_OK
     assert any(item["provider"] == "live-provider" for item in response.json()["data"])
+
+    summary = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/summary",
+        headers=admin_auth_headers,
+    )
+    assert summary.status_code == status.HTTP_200_OK
+    assert "total" in summary.json()["data"]
+
+    detail = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+        headers=admin_auth_headers,
+    )
+    assert detail.status_code == status.HTTP_200_OK
+    assert detail.json()["data"]["provider"] == "live-provider"
 
 
 async def test_admin_logs_runtime(async_client, admin_auth_headers) -> None:

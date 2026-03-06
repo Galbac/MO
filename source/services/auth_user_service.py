@@ -6,6 +6,7 @@ import hmac
 import os
 import time
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException, Request, status
@@ -94,10 +95,19 @@ class AuthUserService:
     def _bundle(self, user) -> UserTokenBundle:
         access_token = token_codec.issue_access_token(user.id)
         refresh_token, refresh_payload = token_codec.issue_refresh_token(user.id)
+        access_payload = token_codec.decode(access_token)
         refresh_store = self.store.read_namespace(self.refresh_namespace, {})
         refresh_store[refresh_payload['jti']] = {'user_id': user.id, 'expires_at': refresh_payload['exp'], 'revoked': False}
         self.store.write_namespace(self.refresh_namespace, refresh_store)
-        return UserTokenBundle(access_token=access_token, refresh_token=refresh_token, user=self._profile(user))
+        return UserTokenBundle(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user=self._profile(user),
+            token_type='Bearer',
+            access_expires_at=datetime.fromtimestamp(int(access_payload['exp']), tz=UTC),
+            refresh_expires_at=datetime.fromtimestamp(int(refresh_payload['exp']), tz=UTC),
+            refresh_token_id=str(refresh_payload['jti']),
+        )
 
     def _issue_action_token(self, *, user_id: int, purpose: str, ttl_minutes: int) -> str:
         now = int(time.time())
@@ -233,6 +243,8 @@ class AuthUserService:
         if not auth_header.startswith('Bearer '):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Authentication required')
         payload = token_codec.decode(auth_header.split(' ', 1)[1])
+        if payload.get('typ') != 'access':
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid access token')
         async with db_session_manager.session() as session:
             user = await self.users.get(session, int(payload['sub']))
             if user is None:

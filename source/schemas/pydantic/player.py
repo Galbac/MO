@@ -41,6 +41,7 @@ class PlayerStats(BaseModel):
 
 
 class RankingHistoryPoint(BaseModel):
+    ranking_type: str | None = None
     ranking_date: str
     rank_position: int
     points: int
@@ -65,6 +66,8 @@ class PlayerNewsItem(BaseModel):
     slug: str
     title: str
     published_at: str | None = None
+    relevance_score: int = 0
+    category_name: str | None = None
 
 
 class UpcomingMatchItem(BaseModel):

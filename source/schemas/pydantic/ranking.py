@@ -18,6 +18,7 @@ class RankingSnapshotItem(BaseModel):
     ranking_type: str
     ranking_date: str
     entries: list[RankingEntry]
+    total_entries: int = 0
 
 
 class PlayerRankingRecord(BaseModel):

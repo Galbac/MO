@@ -18,15 +18,18 @@ from source.integrations import IntegrationSyncError, LiveScoreProviderClient, P
 from source.repositories import AdminSupportRepository, AuditRepository, MatchRepository
 from source.schemas.pydantic.admin import (
     AdminActionResult,
+    AdminIntegrationDetail,
     AdminIntegrationItem,
     AdminIntegrationLogItem,
+    AdminIntegrationLogSummary,
     AdminIntegrationSummary,
     AdminIntegrationSyncResult,
     AdminIntegrationUpdateResult,
+    AdminMediaItem,
+    AdminMediaSummary,
     AuditLogItem,
     AuditLogSummary,
 )
-from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.media import MediaFile
 from source.services.log_service import LogService
@@ -92,6 +95,22 @@ class OperationsService:
     @staticmethod
     def _media_item(payload: dict) -> MediaFile:
         return MediaFile(id=payload['id'], filename=payload['filename'], content_type=payload['content_type'], url=payload['url'], size=payload.get('size'))
+
+    @staticmethod
+    def _admin_media_item(payload: dict) -> AdminMediaItem:
+        stored_path = str(payload.get('stored_path') or '')
+        created_at = payload.get('created_at')
+        resolved_created_at = datetime.fromisoformat(created_at) if created_at else None
+        return AdminMediaItem(
+            id=payload['id'],
+            filename=payload['filename'],
+            content_type=payload['content_type'],
+            url=payload['url'],
+            size=payload.get('size'),
+            created_at=resolved_created_at,
+            exists=bool(stored_path) and Path(stored_path).exists(),
+            stored_path=stored_path,
+        )
 
     @staticmethod
     def _sanitize_filename(filename: str) -> str:
@@ -162,11 +181,62 @@ class OperationsService:
     async def list_media(self) -> SuccessResponse[list[MediaFile]]:
         return SuccessResponse(data=[self._media_item(item) for item in self._media_records()])
 
+    async def list_admin_media(
+        self,
+        *,
+        content_type: str | None = None,
+        exists: bool | None = None,
+        limit: int = 200,
+    ) -> SuccessResponse[list[AdminMediaItem]]:
+        records = self._media_records()
+        payload: list[AdminMediaItem] = []
+        for item in sorted(records, key=lambda value: (str(value.get('created_at') or ''), int(value.get('id') or 0)), reverse=True):
+            model = self._admin_media_item(item)
+            if content_type and model.content_type != content_type:
+                continue
+            if exists is not None and model.exists != exists:
+                continue
+            payload.append(model)
+            if len(payload) >= max(1, min(limit, 500)):
+                break
+        return SuccessResponse(data=payload)
+
+    async def summarize_media(self) -> SuccessResponse[AdminMediaSummary]:
+        content_types: dict[str, int] = {}
+        total_size_bytes = 0
+        missing_files = 0
+        latest_created_at = None
+        items = [self._admin_media_item(item) for item in self._media_records()]
+        for item in items:
+            content_types[item.content_type] = content_types.get(item.content_type, 0) + 1
+            total_size_bytes += int(item.size or 0)
+            if not item.exists:
+                missing_files += 1
+            if item.created_at is not None and (latest_created_at is None or item.created_at > latest_created_at):
+                latest_created_at = item.created_at
+        return SuccessResponse(
+            data=AdminMediaSummary(
+                total=len(items),
+                total_size_bytes=total_size_bytes,
+                missing_files=missing_files,
+                content_types=content_types,
+                latest_created_at=latest_created_at,
+                storage_backend='local_fs',
+                storage_path=str(self.media_dir),
+            )
+        )
+
     async def get_media(self, media_id: int) -> SuccessResponse[MediaFile]:
         record = next((item for item in self._media_records() if item['id'] == media_id), None)
         if record is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Media not found')
         return SuccessResponse(data=self._media_item(record))
+
+    async def get_admin_media(self, media_id: int) -> SuccessResponse[AdminMediaItem]:
+        record = next((item for item in self._media_records() if item['id'] == media_id), None)
+        if record is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Media not found')
+        return SuccessResponse(data=self._admin_media_item(record))
 
     async def upload_media_file(self, file: UploadFile) -> SuccessResponse[MediaFile]:
         raw_filename = (file.filename or '').strip()
@@ -400,8 +470,16 @@ class OperationsService:
                 continue
             if status and integration_status != status:
                 continue
-            data.append(AdminIntegrationItem(provider=provider_name, status=integration_status, last_sync_at=datetime.fromisoformat(item['last_sync_at']) if item.get('last_sync_at') else None, last_error=item.get('last_error')))
-        return SuccessResponse(data=data)
+            data.append(
+                AdminIntegrationItem(
+                    provider=provider_name,
+                    status=integration_status,
+                    last_sync_at=datetime.fromisoformat(item['last_sync_at']) if item.get('last_sync_at') else None,
+                    last_error=item.get('last_error'),
+                    logs_count=len(item.get('logs') or []),
+                )
+            )
+        return SuccessResponse(data=data, meta={'total': len(data), 'filters': {'provider': provider, 'status': status}})
 
     async def summarize_integrations(self) -> SuccessResponse[AdminIntegrationSummary]:
         records = self._integration_records()
@@ -445,6 +523,29 @@ class OperationsService:
                 last_error=updated.get('last_error'),
                 settings=dict(updated.get('settings') or {}),
             )
+        )
+
+    async def get_integration_detail(self, provider: str) -> SuccessResponse[AdminIntegrationDetail]:
+        records = self._integration_records()
+        current = records.get(provider)
+        if current is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Integration not found')
+        logs = current.get('logs') or []
+        latest_log = logs[-1] if logs else None
+        return SuccessResponse(
+            data=AdminIntegrationDetail(
+                provider=provider,
+                status=str(current.get('status') or 'configured'),
+                last_sync_at=datetime.fromisoformat(current['last_sync_at']) if current.get('last_sync_at') else None,
+                last_error=current.get('last_error'),
+                settings=dict(current.get('settings') or {}),
+                logs_count=len(logs),
+                latest_log_at=datetime.fromisoformat(latest_log['timestamp']) if latest_log and latest_log.get('timestamp') else None,
+                latest_log_level=str(latest_log.get('level')) if latest_log and latest_log.get('level') else None,
+                storage_backend='local_json',
+                storage_path=str(self.integrations_file),
+            ),
+            meta={'available_logs': len(logs)},
         )
 
     async def sync_integration(self, provider: str, payload: dict[str, Any] | None = None) -> SuccessResponse[AdminIntegrationSyncResult]:
@@ -502,7 +603,13 @@ class OperationsService:
             self.logs.write('integration', level='error', message=f'Provider sync failed: {exc}', context={'provider': provider, 'status': 'error'})
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
-    async def get_integration_logs(self, provider: str) -> SuccessResponse[list[AdminIntegrationLogItem]]:
+    async def get_integration_logs(
+        self,
+        provider: str,
+        *,
+        level: str | None = None,
+        limit: int = 100,
+    ) -> SuccessResponse[list[AdminIntegrationLogItem]]:
         records = self._integration_records()
         current = records.get(provider)
         if current is None:
@@ -515,9 +622,37 @@ class OperationsService:
                 message=str(item.get('message') or ''),
             )
             for item in logs
-            if item.get('timestamp') and item.get('message')
+            if item.get('timestamp') and item.get('message') and (level is None or str(item.get('level') or 'info') == level)
         ]
-        return SuccessResponse(data=payload)
+        limited = payload[-max(1, min(limit, 500)):]
+        return SuccessResponse(data=limited, meta={'total': len(payload), 'returned': len(limited), 'level': level})
+
+    async def summarize_integration_logs(self, provider: str) -> SuccessResponse[AdminIntegrationLogSummary]:
+        records = self._integration_records()
+        current = records.get(provider)
+        if current is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Integration not found')
+        by_level: dict[str, int] = {}
+        latest_at = None
+        total = 0
+        for item in current.get('logs', []):
+            if not item.get('timestamp') or not item.get('message'):
+                continue
+            total += 1
+            level_value = str(item.get('level') or 'info')
+            by_level[level_value] = by_level.get(level_value, 0) + 1
+            parsed = datetime.fromisoformat(item['timestamp'])
+            if latest_at is None or parsed > latest_at:
+                latest_at = parsed
+        return SuccessResponse(
+            data=AdminIntegrationLogSummary(
+                provider=provider,
+                total=total,
+                by_level=by_level,
+                latest_at=latest_at,
+            ),
+            meta={'storage_path': str(self.integrations_file)},
+        )
 
     async def list_audit_logs(
         self,

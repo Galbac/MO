@@ -102,7 +102,8 @@ class AdminSupportService:
                 storage_backend='local_file',
                 storage_path=str(self.settings_file),
                 updated_at=updated_at,
-            ).model_dump()
+            ).model_dump(),
+            meta={'keys_count': len(payload or {}), 'writable': True},
         )
 
     async def update_settings(self, payload: dict[str, Any]) -> SuccessResponse[dict]:
@@ -117,7 +118,8 @@ class AdminSupportService:
                 storage_backend='local_file',
                 storage_path=str(self.settings_file),
                 updated_at=updated_at,
-            ).model_dump()
+            ).model_dump(),
+            meta={'keys_count': len(merged), 'invalidated_prefixes': ['news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:']},
         )
 
     async def list_notification_templates(self) -> SuccessResponse[list[AdminNotificationTemplate]]:
@@ -130,7 +132,7 @@ class AdminSupportService:
                     grouped[item.type] = item
             data = [AdminNotificationTemplate(id=item.id, code=item.type, title=item.title, channel='web', is_active=True, updated_at=item.created_at) for item in grouped.values()]
             data.sort(key=lambda item: item.code)
-            return SuccessResponse(data=data)
+            return SuccessResponse(data=data, meta={'total_broadcasts': len(data), 'delivery_backend': 'runtime_log'})
 
     async def list_notification_history(self) -> SuccessResponse[list[AdminNotificationBroadcast]]:
         async with db_session_manager.session() as session:
@@ -195,7 +197,7 @@ class AdminSupportService:
             )
             if len(filtered) >= max(1, min(limit, 500)):
                 break
-        return SuccessResponse(data=filtered)
+        return SuccessResponse(data=filtered, meta={'returned': len(filtered), 'filters': {'notification_type': notification_type, 'channel': channel, 'status': status_value}})
 
     async def send_test_notification(self) -> SuccessResponse[AdminActionResult]:
         async with db_session_manager.session() as session:
@@ -214,12 +216,13 @@ class AdminSupportService:
                 'read_at': None,
             }
             created = await self.repo.create_notification(session, payload)
+            self.workflows._record_delivery(user_id=user.id, channel='web', notification_type=payload['type'], title=payload['title'], entity_type='notification', entity_id=created.id, status='sent')
             return self._action_result(
                 entity_type='notification',
                 action='test.send',
                 entity_id=created.id,
                 message='Test notification sent',
-                details={'user_id': user.id, 'notification_type': payload['type']},
+                details={'user_id': user.id, 'notification_type': payload['type'], 'delivery_backend': 'web+runtime-log'},
             )
 
     async def list_categories(self) -> SuccessResponse[list[NewsCategoryItem]]:

@@ -17,12 +17,33 @@ class AdminIntegrationItem(BaseModel):
     status: str
     last_sync_at: datetime | None = None
     last_error: str | None = None
+    logs_count: int = 0
 
 
 class AdminIntegrationLogItem(BaseModel):
     timestamp: datetime
     level: str
     message: str
+
+
+class AdminIntegrationDetail(BaseModel):
+    provider: str
+    status: str
+    last_sync_at: datetime | None = None
+    last_error: str | None = None
+    settings: dict = Field(default_factory=dict)
+    logs_count: int = 0
+    latest_log_at: datetime | None = None
+    latest_log_level: str | None = None
+    storage_backend: str
+    storage_path: str
+
+
+class AdminIntegrationLogSummary(BaseModel):
+    provider: str
+    total: int
+    by_level: dict[str, int] = Field(default_factory=dict)
+    latest_at: datetime | None = None
 
 
 class AdminSystemLogItem(BaseModel):
@@ -143,6 +164,27 @@ class AdminRuntimeBackupItem(BaseModel):
     path: str
     size_bytes: int
     created_at: datetime
+
+
+class AdminMediaItem(BaseModel):
+    id: int
+    filename: str
+    content_type: str
+    url: str
+    size: int | None = None
+    created_at: datetime | None = None
+    exists: bool
+    stored_path: str
+
+
+class AdminMediaSummary(BaseModel):
+    total: int
+    total_size_bytes: int = 0
+    missing_files: int = 0
+    content_types: dict[str, int] = Field(default_factory=dict)
+    latest_created_at: datetime | None = None
+    storage_backend: str
+    storage_path: str
 
 
 class AdminSettingsPayload(BaseModel):

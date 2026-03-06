@@ -735,6 +735,8 @@ async function initAdminMaintenancePage() {
 async function initAdminJobsPage() {
     const feedback = document.getElementById("admin-jobs-feedback");
     const errorNode = document.getElementById("admin-jobs-error");
+    const filterForm = document.getElementById("admin-jobs-filters");
+    const resetButton = document.getElementById("admin-jobs-reset");
     const showState = (ok, message) => {
         if (feedback) {
             feedback.classList.toggle("d-none", !ok);
@@ -757,8 +759,24 @@ async function initAdminJobsPage() {
         }
     };
     const render = async () => {
-        const payload = await apiGet("/admin/jobs");
+        const params = new URLSearchParams();
+        const statusValue = document.getElementById("admin-jobs-status")?.value || "";
+        const jobType = document.getElementById("admin-jobs-type")?.value?.trim() || "";
+        const limit = document.getElementById("admin-jobs-limit")?.value?.trim() || "100";
+        if (statusValue) params.set("status", statusValue);
+        if (jobType) params.set("job_type", jobType);
+        if (limit) params.set("limit", limit);
+        const query = params.toString();
+        const suffix = query ? `?${query}` : "";
+        const [payload, summaryPayload] = await Promise.all([
+            apiGet(`/admin/jobs${suffix}`),
+            apiGet("/admin/jobs/summary"),
+        ]);
         const items = extractList(payload);
+        const summary = summaryPayload?.data || {};
+        const byStatus = Object.entries(summary.by_status || {}).map(([key, value]) => `<span class="badge text-bg-light me-2">${escapeHtml(key)}: ${escapeHtml(value)}</span>`).join("") || '<span class="text-muted">Нет данных по статусам</span>';
+        const byType = Object.entries(summary.by_type || {}).slice(0, 4).map(([key, value]) => `<span class="badge text-bg-light me-2">${escapeHtml(key)}: ${escapeHtml(value)}</span>`).join("") || '<span class="text-muted">Нет данных по типам</span>';
+        setHtml("admin-jobs-summary", `<div class="d-flex flex-column gap-2"><div><strong>Total:</strong> ${escapeHtml(summary.total ?? 0)} · <strong>Pending:</strong> ${escapeHtml(summary.pending ?? 0)} · <strong>Failed:</strong> ${escapeHtml(summary.failed ?? 0)} · <strong>Backend:</strong> ${escapeHtml(summary.backend || '-')}</div><div><strong>Latest:</strong> ${escapeHtml(summary.latest_updated_at || '-')}</div><div>${byStatus}</div><div>${byType}</div></div>`);
         setHtml(
             "admin-jobs-body",
             items.map((item) => `<tr><td><button class="btn btn-link btn-sm p-0" type="button" data-job-view="${escapeHtml(item.id)}">${escapeHtml(item.id)}</button></td><td>${escapeHtml(item.job_type)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.run_at)}</td><td>${escapeHtml(item.attempts)}</td><td>${escapeHtml(item.error || "-")}</td><td class="d-flex gap-2">${item.status === "failed" ? `<button class="btn btn-sm btn-outline-dark" type="button" data-job-retry="${escapeHtml(item.id)}">Retry</button>` : ""}${item.status === "pending" ? `<button class="btn btn-sm btn-outline-danger" type="button" data-job-cancel="${escapeHtml(item.id)}">Cancel</button>` : ""}${item.status !== "failed" && item.status !== "pending" ? "-" : ""}</td></tr>`).join(""),
@@ -810,6 +828,16 @@ async function initAdminJobsPage() {
             showState(false, error.message);
         }
     });
+    filterForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await render();
+    });
+    resetButton?.addEventListener("click", async () => {
+        filterForm?.reset();
+        const limitInput = document.getElementById("admin-jobs-limit");
+        if (limitInput) limitInput.value = "100";
+        await render();
+    });
     await render();
 }
 
@@ -829,7 +857,14 @@ async function initAdminAuditPage() {
         if (dateFrom) params.set("date_from", dateFrom);
         if (dateTo) params.set("date_to", dateTo);
         const suffix = params.toString() ? `?${params.toString()}` : "";
-        const payload = await apiGet(`/admin/audit-logs${suffix}`);
+        const [payload, summaryPayload] = await Promise.all([
+            apiGet(`/admin/audit-logs${suffix}`),
+            apiGet(`/admin/audit-logs/summary${suffix}`),
+        ]);
+        const summary = summaryPayload?.data || {};
+        const byAction = Object.entries(summary.by_action || {}).slice(0, 4).map(([key, value]) => `<span class="badge text-bg-light me-2">${escapeHtml(key)}: ${escapeHtml(value)}</span>`).join("") || '<span class="text-muted">Нет данных по действиям</span>';
+        const byEntity = Object.entries(summary.by_entity_type || {}).slice(0, 4).map(([key, value]) => `<span class="badge text-bg-light me-2">${escapeHtml(key)}: ${escapeHtml(value)}</span>`).join("") || '<span class="text-muted">Нет данных по сущностям</span>';
+        setHtml("admin-audit-summary", `<div class="d-flex flex-column gap-2"><div><strong>Total:</strong> ${escapeHtml(summary.total ?? 0)} · <strong>Latest:</strong> ${escapeHtml(summary.latest_at || '-')}</div><div>${byAction}</div><div>${byEntity}</div></div>`);
         setHtml(
             "admin-audit-body",
             extractList(payload).map((item) => `<tr><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.entity_type)} #${escapeHtml(item.entity_id)}</td><td>${escapeHtml(item.user_id || "-")}</td><td>${escapeHtml(item.created_at)}</td></tr>`).join(""),
@@ -943,8 +978,20 @@ async function initAdminIntegrationsPage() {
         }
     };
     const renderLogs = async (provider) => {
-        const payload = await apiGet(`/admin/integrations/${encodeURIComponent(provider)}/logs`);
-        setHtml("admin-integrations-logs", extractList(payload).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.timestamp)}</div><strong>${escapeHtml(item.level)}</strong><div class="text-muted">${escapeHtml(item.message)}</div></div>`).join("") || '<div class="text-muted">Логи отсутствуют</div>');
+        const [payload, summaryPayload] = await Promise.all([
+            apiGet(`/admin/integrations/${encodeURIComponent(provider)}/logs`),
+            apiGet(`/admin/integrations/${encodeURIComponent(provider)}/logs/summary`),
+        ]);
+        const summary = summaryPayload?.data || {};
+        const byLevel = Object.entries(summary.by_level || {}).map(([key, value]) => `<span class="badge text-bg-light me-2">${escapeHtml(key)}: ${escapeHtml(value)}</span>`).join("") || '<span class="text-muted">Нет данных по уровням</span>';
+        setHtml("admin-integrations-logs", `<div class="mb-3"><strong>Total:</strong> ${escapeHtml(summary.total ?? 0)} · <strong>Latest:</strong> ${escapeHtml(summary.latest_at || '-')}<div class="mt-2">${byLevel}</div></div>` + (extractList(payload).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.timestamp)}</div><strong>${escapeHtml(item.level)}</strong><div class="text-muted">${escapeHtml(item.message)}</div></div>`).join("") || '<div class="text-muted">Логи отсутствуют</div>'));
+    };
+    const renderDetail = async (provider) => {
+        const payload = await apiGet(`/admin/integrations/${encodeURIComponent(provider)}`);
+        const item = payload?.data || {};
+        const settingsView = escapeHtml(JSON.stringify(item.settings || {}, null, 2));
+        setHtml("admin-integrations-detail", `<div class="entity-card"><div><strong>${escapeHtml(item.provider || provider)}</strong> · ${escapeHtml(item.status || '-')}</div><div class="text-muted">storage: ${escapeHtml(item.storage_backend || '-')} · ${escapeHtml(item.storage_path || '-')}</div><div class="text-muted">logs: ${escapeHtml(item.logs_count ?? 0)} · latest: ${escapeHtml(item.latest_log_at || '-')} (${escapeHtml(item.latest_log_level || '-')})</div><pre class="mt-3 mb-0">${settingsView}</pre></div>`);
+        if (endpointInput && item.settings?.endpoint) endpointInput.value = item.settings.endpoint;
     };
     const render = async () => {
         const params = new URLSearchParams();
@@ -953,10 +1000,29 @@ async function initAdminIntegrationsPage() {
         if (provider) params.set("provider", provider);
         if (status) params.set("status", status);
         const suffix = params.toString() ? `?${params.toString()}` : "";
-        const payload = await apiGet(`/admin/integrations${suffix}`);
+        const [payload, summaryPayload] = await Promise.all([
+            apiGet(`/admin/integrations${suffix}`),
+            apiGet("/admin/integrations/summary"),
+        ]);
         const items = extractList(payload);
-        setHtml("admin-integrations-body", items.map((item) => `<tr><td>${escapeHtml(item.provider)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.last_sync_at || "-")}</td><td>${escapeHtml(item.last_error || "-")}</td></tr>`).join(""));
+        const summary = summaryPayload?.data || {};
+        const byStatus = Object.entries(summary.by_status || {}).map(([key, value]) => `<span class="badge text-bg-light me-2">${escapeHtml(key)}: ${escapeHtml(value)}</span>`).join("") || '<span class="text-muted">Нет данных по статусам</span>';
+        setHtml("admin-integrations-summary", `<div class="d-flex flex-column gap-2"><div><strong>Total:</strong> ${escapeHtml(summary.total ?? 0)} · <strong>Errors:</strong> ${escapeHtml(summary.with_errors ?? 0)} · <strong>Latest sync:</strong> ${escapeHtml(summary.latest_sync_at || '-')}</div><div>${byStatus}</div></div>`);
+        setHtml("admin-integrations-body", items.map((item) => `<tr><td><button class="btn btn-link btn-sm p-0" type="button" data-integration-view="${escapeHtml(item.provider)}">${escapeHtml(item.provider)}</button></td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.last_sync_at || "-")}</td><td>${escapeHtml(item.last_error || "-")}</td></tr>`).join(""));
         if (!providerInput?.value && items[0]?.provider) providerInput.value = items[0].provider;
+        document.querySelectorAll("[data-integration-view]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                const providerName = button.dataset.integrationView;
+                if (providerInput) providerInput.value = providerName;
+                await renderDetail(providerName);
+                await renderLogs(providerName);
+            });
+        });
+        if (providerInput?.value) {
+            await renderDetail(providerInput.value);
+        } else {
+            setHtml("admin-integrations-detail", '<div class="text-muted">Выберите провайдера из списка, чтобы посмотреть детали.</div>');
+        }
     };
     await render();
     filterForm?.addEventListener("submit", async (event) => {
@@ -990,12 +1056,14 @@ async function initAdminIntegrationsPage() {
     logsButton?.addEventListener("click", async () => {
         try {
             if (!providerInput?.value) return;
+            await renderDetail(providerInput.value);
             await renderLogs(providerInput.value);
         } catch (error) {
             showState(false, error.message);
         }
     });
 }
+
 
 async function initAdminLogsPage() {
     const form = document.getElementById("admin-logs-filters");
@@ -1009,12 +1077,19 @@ async function initAdminLogsPage() {
         if (level) params.set("level", level);
         if (limit) params.set("limit", limit);
         try {
-            const payload = await apiGet(`/admin/logs?${params.toString()}`);
+            const [payload, summaryPayload] = await Promise.all([
+                apiGet(`/admin/logs?${params.toString()}`),
+                apiGet(`/admin/logs/summary?${params.toString()}`),
+            ]);
             const items = extractList(payload);
+            const summary = summaryPayload?.data || {};
+            const byLevel = Object.entries(summary.by_level || {}).map(([key, value]) => `<span class="badge text-bg-light me-2">${escapeHtml(key)}: ${escapeHtml(value)}</span>`).join("") || '<span class="text-muted">Нет данных по уровням</span>';
+            setHtml("admin-logs-summary", `<div class="d-flex flex-wrap gap-3 align-items-center"><div><strong>Total:</strong> ${escapeHtml(summary.total ?? 0)}</div><div><strong>Latest:</strong> ${escapeHtml(summary.latest_at || '-')}</div><div>${byLevel}</div></div>`);
             setHtml("admin-logs-list", items.map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.timestamp)} · ${escapeHtml(item.level)}</div><strong>${escapeHtml(item.message)}</strong><div class="text-muted">${escapeHtml(item.category)}</div><div class="text-muted">${escapeHtml(JSON.stringify(item.context || {}))}</div></div>`).join(""));
             showNode("admin-logs-empty", items.length === 0, 'Логи по выбранным параметрам не найдены.');
             showNode("admin-logs-error", false);
         } catch (error) {
+            setHtml("admin-logs-summary", "");
             setHtml("admin-logs-list", "");
             showNode("admin-logs-empty", false);
             showNode("admin-logs-error", true, escapeHtml(error.message || String(error)));
@@ -1054,27 +1129,53 @@ async function initAdminSettingsPage() {
 }
 
 async function initAdminMediaPage() {
-    try {
-        const payload = await apiGet("/admin/media");
-        const items = extractList(payload);
-        setHtml("admin-media-list", items.map((item) => `<div class="entity-card"><strong>${escapeHtml(item.filename)}</strong><div class="text-muted">${escapeHtml(item.content_type)}</div><div class="text-muted">${escapeHtml(item.url)}</div><div class="mt-2">${escapeHtml(item.size || 0)} байт</div><div class="mt-3 d-flex gap-2"><button class="btn btn-sm btn-outline-danger" type="button" data-media-delete="${escapeHtml(item.id)}">Delete</button></div></div>`).join(""));
-        showNode("admin-media-empty", items.length === 0, 'Медиатека пока пуста.');
-        showNode("admin-media-error", false);
-        document.querySelectorAll("[data-media-delete]").forEach((button) => {
-            button.addEventListener("click", async () => {
-                try {
-                    await apiRequest(`/admin/media/${button.dataset.mediaDelete}`, { method: "DELETE" });
-                    await initAdminMediaPage();
-                } catch (error) {
-                    showNode("admin-media-error", true, escapeHtml(error.message || String(error)));
-                }
+    const filtersForm = document.getElementById("admin-media-filters");
+    const resetButton = document.getElementById("admin-media-reset");
+    const render = async () => {
+        try {
+            const params = new URLSearchParams();
+            const contentType = document.getElementById("admin-media-content-type")?.value?.trim() || "";
+            const exists = document.getElementById("admin-media-exists")?.value || "";
+            if (contentType) params.set("content_type", contentType);
+            if (exists) params.set("exists", exists);
+            const suffix = params.toString() ? `?${params.toString()}` : "";
+            const [payload, summaryPayload] = await Promise.all([
+                apiGet(`/admin/media${suffix}`),
+                apiGet("/admin/media/summary"),
+            ]);
+            const items = extractList(payload);
+            const summary = summaryPayload?.data || {};
+            const contentTypes = Object.entries(summary.content_types || {}).map(([key, value]) => `<span class="badge text-bg-light me-2">${escapeHtml(key)}: ${escapeHtml(value)}</span>`).join("") || '<span class="text-muted">Нет данных по типам</span>';
+            setHtml("admin-media-summary", `<div class="d-flex flex-column gap-2"><div><strong>Total:</strong> ${escapeHtml(summary.total ?? 0)} · <strong>Size:</strong> ${escapeHtml(summary.total_size_bytes ?? 0)} bytes · <strong>Missing:</strong> ${escapeHtml(summary.missing_files ?? 0)}</div><div><strong>Backend:</strong> ${escapeHtml(summary.storage_backend || '-')} · <strong>Path:</strong> ${escapeHtml(summary.storage_path || '-')}</div><div><strong>Latest:</strong> ${escapeHtml(summary.latest_created_at || '-')}</div><div>${contentTypes}</div></div>`);
+            setHtml("admin-media-list", items.map((item) => `<div class="entity-card"><strong>${escapeHtml(item.filename)}</strong><div class="text-muted">${escapeHtml(item.content_type)}</div><div class="text-muted">${escapeHtml(item.url)}</div><div class="text-muted">exists: ${escapeHtml(item.exists ? "yes" : "no")}</div><div class="mt-2">${escapeHtml(item.size || 0)} байт</div><div class="text-muted small">${escapeHtml(item.stored_path || "-")}</div><div class="mt-3 d-flex gap-2"><button class="btn btn-sm btn-outline-danger" type="button" data-media-delete="${escapeHtml(item.id)}">Delete</button></div></div>`).join(""));
+            showNode("admin-media-empty", items.length === 0, 'Медиатека пока пуста.');
+            showNode("admin-media-error", false);
+            document.querySelectorAll("[data-media-delete]").forEach((button) => {
+                button.addEventListener("click", async () => {
+                    try {
+                        await apiRequest(`/admin/media/${button.dataset.mediaDelete}`, { method: "DELETE" });
+                        await render();
+                    } catch (error) {
+                        showNode("admin-media-error", true, escapeHtml(error.message || String(error)));
+                    }
+                });
             });
-        });
-    } catch (error) {
-        setHtml("admin-media-list", "");
-        showNode("admin-media-empty", false);
-        showNode("admin-media-error", true, escapeHtml(error.message || String(error)));
-    }
+        } catch (error) {
+            setHtml("admin-media-summary", "");
+            setHtml("admin-media-list", "");
+            showNode("admin-media-empty", false);
+            showNode("admin-media-error", true, escapeHtml(error.message || String(error)));
+        }
+    };
+    filtersForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await render();
+    });
+    resetButton?.addEventListener("click", async () => {
+        filtersForm?.reset();
+        await render();
+    });
+    await render();
 }
 
 async function initAdminNotificationsPage() {

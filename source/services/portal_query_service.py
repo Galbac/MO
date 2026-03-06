@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 import json
 from pathlib import Path
+import re
 from typing import Any, Awaitable, Callable
 
 from fastapi import HTTPException, status
@@ -121,7 +122,7 @@ class PortalQueryService:
 
     @staticmethod
     def _ranking_points(snapshots: list[RankingSnapshot]) -> list[RankingHistoryPoint]:
-        return [RankingHistoryPoint(ranking_date=item.ranking_date, rank_position=item.rank_position, points=item.points, movement=item.movement) for item in snapshots]
+        return [RankingHistoryPoint(ranking_type=item.ranking_type, ranking_date=item.ranking_date, rank_position=item.rank_position, points=item.points, movement=item.movement) for item in snapshots]
 
 
     def _news_tag_mapping(self) -> dict[str, list[int]]:
@@ -211,11 +212,18 @@ class PortalQueryService:
             end_date=tournament.end_date.isoformat() if tournament.end_date else None,
             status=tournament.status,
             city=tournament.city,
+            live_matches_count=0,
+            participants_count=0,
         )
 
     @staticmethod
     def _event_item(item: MatchEvent) -> MatchEventItem:
-        return MatchEventItem(id=item.id, event_type=item.event_type, set_number=item.set_number, game_number=item.game_number, player_id=item.player_id, payload_json=item.payload_json or {}, created_at=item.created_at)
+        importance = 'normal'
+        if item.event_type in {'match_finished', 'set_finished', 'match_point'}:
+            importance = 'high'
+        elif item.event_type in {'break_point', 'set_point', 'point_updated'}:
+            importance = 'medium'
+        return MatchEventItem(id=item.id, event_type=item.event_type, set_number=item.set_number, game_number=item.game_number, player_id=item.player_id, payload_json=item.payload_json or {}, created_at=item.created_at, importance=importance)
 
     @staticmethod
     def _set_item(item: MatchSet) -> MatchSetItem:
@@ -225,15 +233,15 @@ class PortalQueryService:
     def _stats_item(item: MatchStats | None) -> MatchStatsSchema:
         if item is None:
             return MatchStatsSchema()
-        return MatchStatsSchema(player1_aces=item.player1_aces, player2_aces=item.player2_aces, player1_double_faults=item.player1_double_faults, player2_double_faults=item.player2_double_faults, player1_first_serve_pct=float(item.player1_first_serve_pct), player2_first_serve_pct=float(item.player2_first_serve_pct), player1_break_points_saved=item.player1_break_points_saved, player2_break_points_saved=item.player2_break_points_saved, duration_minutes=item.duration_minutes)
+        return MatchStatsSchema(player1_aces=item.player1_aces, player2_aces=item.player2_aces, player1_double_faults=item.player1_double_faults, player2_double_faults=item.player2_double_faults, player1_first_serve_pct=float(item.player1_first_serve_pct), player2_first_serve_pct=float(item.player2_first_serve_pct), player1_break_points_saved=item.player1_break_points_saved, player2_break_points_saved=item.player2_break_points_saved, duration_minutes=item.duration_minutes, player1_break_points_faced=item.player2_break_points_saved, player2_break_points_faced=item.player1_break_points_saved)
 
     @staticmethod
     def _h2h_item(item: HeadToHead | None) -> dict:
         return H2HResponse.model_validate(item, from_attributes=True).model_dump() if item else {}
 
     @staticmethod
-    def _match_score(sets: list[MatchSet], summary: str | None, serving_player_id: int | None) -> MatchScore:
-        return MatchScore(sets=[f"{item.player1_games}-{item.player2_games}" for item in sets], current_game=summary, serving_player_id=serving_player_id)
+    def _match_score(match: Match, sets: list[MatchSet], summary: str | None, serving_player_id: int | None) -> MatchScore:
+        return MatchScore(sets=[f"{item.player1_games}-{item.player2_games}" for item in sets], current_game=summary, serving_player_id=serving_player_id, winner_id=match.winner_id, status=match.status, completed_sets=sum(1 for item in sets if item.is_finished))
 
     @staticmethod
     def _point_event_types() -> set[str]:
@@ -327,6 +335,9 @@ class PortalQueryService:
     async def get_player_ranking_history(self, player_id: int):
         async def loader() -> SuccessResponse[list[RankingHistoryPoint]]:
             async with db_session_manager.session() as session:
+                player = await self.players.get(session, player_id)
+                if player is None:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Player not found')
                 rankings = await self.players.get_ranking_history(session, player_id)
                 return SuccessResponse(data=self._ranking_points(rankings))
 
@@ -341,9 +352,20 @@ class PortalQueryService:
                 player = await self.players.get(session, player_id)
                 if player is None:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Player not found')
-                items, _ = await self.news.list(session, page=1, per_page=100)
-                related = [item for item in items if player.full_name.lower() in ' '.join(filter(None, [item.title, item.subtitle, item.lead, item.content_html])).lower()]
-                return SuccessResponse(data=[PlayerNewsItem(id=item.id, slug=item.slug, title=item.title, published_at=item.published_at.isoformat() if item.published_at else None) for item in related])
+                items, _ = await self.news.list(session, page=1, per_page=100, status='published')
+                categories = {item.id: item for item in await self.news.list_categories(session)}
+                name_tokens = self._tokenize_news_text(player.full_name, player.first_name, player.last_name)
+                related: list[tuple[int, NewsArticle]] = []
+                for item in items:
+                    haystack = ' '.join(filter(None, [item.title, item.subtitle, item.lead, item.content_html]))
+                    tokens = self._tokenize_news_text(haystack)
+                    score = len(name_tokens & tokens)
+                    if player.full_name.lower() in haystack.lower():
+                        score += 3
+                    if score > 0:
+                        related.append((score, item))
+                related.sort(key=lambda pair: (pair[0], pair[1].published_at or datetime.min, pair[1].id), reverse=True)
+                return SuccessResponse(data=[PlayerNewsItem(id=item.id, slug=item.slug, title=item.title, published_at=item.published_at.isoformat() if item.published_at else None, relevance_score=score, category_name=categories.get(item.category_id).name if categories.get(item.category_id) else None) for score, item in related[:12]])
 
         return await self._cached(f'players:news:{player_id}', SuccessResponse[list[PlayerNewsItem]], loader)
 
@@ -429,12 +451,28 @@ class PortalQueryService:
                 participants = [self._player_summary(item, []).model_dump() for item in players.values()]
                 current_matches = [self._match_summary(match, tournament, players).model_dump() for match in matches]
                 champions = []
-                final_match = next((item for item in matches if item.round_code == 'F' and item.winner_id and players.get(item.winner_id)), None)
+                final_match = next((item for item in reversed(matches) if item.round_code == 'F' and item.winner_id and players.get(item.winner_id)), None)
                 if final_match:
                     winner = players.get(final_match.winner_id)
                     if winner is not None:
-                        champions.append(ChampionItem(player_id=winner.id, player_name=winner.full_name, season_year=tournament.season_year))
-                data = TournamentDetail(**self._tournament_summary(tournament).model_dump(), short_name=tournament.short_name, indoor=tournament.indoor, country_code=tournament.country_code, prize_money=tournament.prize_money, points_winner=tournament.points_winner, logo_url=tournament.logo_url, description=tournament.description, current_matches=current_matches, draw=[DrawMatchItem(round_code=match.round_code, player1_name=players.get(match.player1_id).full_name if players.get(match.player1_id) else '', player2_name=players.get(match.player2_id).full_name if players.get(match.player2_id) else '', score_summary=match.score_summary) for match in matches], participants=participants, champions=champions)
+                        champions.append(ChampionItem(player_id=winner.id, player_name=winner.full_name, season_year=tournament.season_year, tournament_id=tournament.id, tournament_name=tournament.name, surface=tournament.surface, category=tournament.category))
+                draw = [
+                    DrawMatchItem(
+                        match_id=match.id,
+                        slug=match.slug,
+                        round_code=match.round_code or '',
+                        player1_name=players.get(match.player1_id).full_name if players.get(match.player1_id) else '',
+                        player2_name=players.get(match.player2_id).full_name if players.get(match.player2_id) else '',
+                        status=match.status,
+                        scheduled_at=match.scheduled_at.isoformat() if match.scheduled_at else None,
+                        court_name=match.court_name,
+                        winner_id=match.winner_id,
+                        score_summary=match.score_summary,
+                    )
+                    for match in matches
+                ]
+                summary = self._tournament_summary(tournament).model_copy(update={'live_matches_count': sum(1 for item in matches if item.status == 'live'), 'participants_count': len(players)})
+                data = TournamentDetail(**summary.model_dump(), short_name=tournament.short_name, indoor=tournament.indoor, country_code=tournament.country_code, prize_money=tournament.prize_money, points_winner=tournament.points_winner, logo_url=tournament.logo_url, description=tournament.description, current_matches=current_matches, draw=draw, participants=participants, champions=champions)
                 return SuccessResponse(data=data)
 
         return await self._cached(f'tournaments:detail:{tournament_id}', SuccessResponse[TournamentDetail], loader)
@@ -443,7 +481,8 @@ class PortalQueryService:
         return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.current_matches)
 
     async def get_tournament_draw(self, tournament_id: int):
-        return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.draw)
+        detail = (await self.get_tournament(tournament_id)).data
+        return SuccessResponse(data=detail.draw, meta={'total_matches': len(detail.draw), 'completed_matches': sum(1 for item in detail.draw if item.winner_id is not None)})
 
     async def get_tournament_players(self, tournament_id: int):
         async def loader() -> SuccessResponse[list[PlayerSummary]]:
@@ -474,7 +513,8 @@ class PortalQueryService:
         return await self._cached(f'tournaments:players:{tournament_id}', SuccessResponse[list[PlayerSummary]], loader)
 
     async def get_tournament_champions(self, tournament_id: int):
-        return SuccessResponse(data=(await self.get_tournament(tournament_id)).data.champions)
+        detail = (await self.get_tournament(tournament_id)).data
+        return SuccessResponse(data=detail.champions, meta={'total_champions': len(detail.champions), 'season_year': detail.season_year})
 
     async def get_tournament_news(self, tournament_id: int):
         async def loader() -> SuccessResponse[list[NewsArticleSummary]]:
@@ -482,10 +522,19 @@ class PortalQueryService:
                 tournament = await self.tournaments.get(session, tournament_id)
                 if tournament is None:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
-                items, _ = await self.news.list(session, page=1, per_page=100)
+                items, _ = await self.news.list(session, page=1, per_page=100, status='published')
                 categories = {item.id: item for item in await self.news.list_categories(session)}
-                related = [item for item in items if tournament.name.lower() in ' '.join(filter(None, [item.title, item.subtitle, item.lead, item.content_html])).lower()]
-                return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for item in related])
+                query_tokens = self._tokenize_news_text(tournament.name, tournament.short_name, tournament.city, tournament.category)
+                related: list[tuple[int, NewsArticle]] = []
+                for item in items:
+                    haystack = ' '.join(filter(None, [item.title, item.subtitle, item.lead, item.content_html]))
+                    score = len(query_tokens & self._tokenize_news_text(haystack))
+                    if tournament.name.lower() in haystack.lower():
+                        score += 4
+                    if score > 0:
+                        related.append((score, item))
+                related.sort(key=lambda pair: (pair[0], pair[1].published_at or datetime.min, pair[1].id), reverse=True)
+                return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for _, item in related[:12]])
 
         return await self._cached(f'tournaments:news:{tournament_id}', SuccessResponse[list[NewsArticleSummary]], loader)
 
@@ -493,6 +542,7 @@ class PortalQueryService:
         async def loader() -> SuccessResponse[list[TournamentSummary]]:
             async with db_session_manager.session() as session:
                 items, _ = await self.tournaments.list(session, page=1, per_page=200)
+                tournament_matches = {item.id: await self.tournaments.get_matches(session, item.id) for item in items}
                 ordered = sorted(
                     items,
                     key=lambda item: (
@@ -501,7 +551,12 @@ class PortalQueryService:
                         item.name.lower(),
                     ),
                 )
-                return SuccessResponse(data=[self._tournament_summary(item) for item in ordered])
+                payload = []
+                for item in ordered:
+                    matches = tournament_matches.get(item.id, [])
+                    participants = {value for match in matches for value in (match.player1_id, match.player2_id)}
+                    payload.append(self._tournament_summary(item).model_copy(update={'live_matches_count': sum(1 for match in matches if match.status == 'live'), 'participants_count': len(participants)}))
+                return SuccessResponse(data=payload)
 
         return await self._cached('tournaments:calendar', SuccessResponse[list[TournamentSummary]], loader)
 
@@ -533,19 +588,22 @@ class PortalQueryService:
                 h2h = await self.matches.get_h2h(session, match.player1_id, match.player2_id)
                 related_news = await self.get_tournament_news(match.tournament_id)
                 serving_player_id = self._serving_player_id(events, match.player1_id)
-                data = MatchDetail(**self._match_summary(match, tournament, players).model_dump(), best_of_sets=match.best_of_sets, winner_id=match.winner_id, score=self._match_score(sets, match.score_summary, serving_player_id), sets=[self._set_item(item) for item in sets], stats=self._stats_item(stats), timeline=[self._event_item(item) for item in events], h2h=self._h2h_item(h2h), related_news=related_news.data[:2])
+                data = MatchDetail(**self._match_summary(match, tournament, players).model_dump(), best_of_sets=match.best_of_sets, winner_id=match.winner_id, score=self._match_score(match, sets, match.score_summary, serving_player_id), sets=[self._set_item(item) for item in sets], stats=self._stats_item(stats), timeline=[self._event_item(item) for item in events], h2h=self._h2h_item(h2h), related_news=related_news.data[:2])
                 return SuccessResponse(data=data)
 
         return await self._cached(f'matches:detail:{match_id}', SuccessResponse[MatchDetail], loader)
 
     async def get_match_score(self, match_id: int):
-        return SuccessResponse(data=(await self.get_match(match_id)).data.score)
+        detail = (await self.get_match(match_id)).data
+        return SuccessResponse(data=detail.score, meta={'status': detail.status, 'best_of_sets': detail.best_of_sets})
 
     async def get_match_stats(self, match_id: int):
-        return SuccessResponse(data=(await self.get_match(match_id)).data.stats or MatchStatsSchema())
+        detail = (await self.get_match(match_id)).data
+        return SuccessResponse(data=detail.stats or MatchStatsSchema(), meta={'has_stats': detail.stats is not None, 'status': detail.status})
 
     async def get_match_timeline(self, match_id: int):
-        return SuccessResponse(data=(await self.get_match(match_id)).data.timeline)
+        detail = (await self.get_match(match_id)).data
+        return SuccessResponse(data=detail.timeline, meta={'total_events': len(detail.timeline), 'latest_event_type': detail.timeline[-1].event_type if detail.timeline else None})
 
     async def get_match_h2h(self, match_id: int):
         async with db_session_manager.session() as session:
@@ -608,7 +666,7 @@ class PortalQueryService:
                     for item in events
                     if item.event_type in self._point_event_types()
                 ]
-                return SuccessResponse(data=filtered)
+                return SuccessResponse(data=filtered, meta={'total_points': len(filtered), 'available_event_types': sorted(self._point_event_types())})
 
         return await self._cached(f'matches:point-by-point:{match_id}', SuccessResponse[list[MatchEventItem]], loader, ttl_seconds=settings.cache.live_ttl_seconds)
 
@@ -618,7 +676,8 @@ class PortalQueryService:
                 items = await self.matches.get_upcoming(session)
                 tournaments = {match.tournament_id: await self.tournaments.get(session, match.tournament_id) for match in items}
                 players = await self._players_map(session, {value for match in items for value in (match.player1_id, match.player2_id)})
-                return SuccessResponse(data=[self._match_summary(match, tournaments[match.tournament_id], players) for match in items if tournaments.get(match.tournament_id)])
+                data = [self._match_summary(match, tournaments[match.tournament_id], players) for match in items if tournaments.get(match.tournament_id)]
+                return SuccessResponse(data=data, meta={'total': len(data), 'statuses': sorted({item.status for item in data})})
 
         return await self._cached('matches:upcoming', SuccessResponse[list[MatchSummary]], loader, ttl_seconds=settings.cache.live_ttl_seconds)
 
@@ -628,7 +687,8 @@ class PortalQueryService:
                 items = await self.matches.get_results(session)
                 tournaments = {match.tournament_id: await self.tournaments.get(session, match.tournament_id) for match in items}
                 players = await self._players_map(session, {value for match in items for value in (match.player1_id, match.player2_id)})
-                return SuccessResponse(data=[self._match_summary(match, tournaments[match.tournament_id], players) for match in items if tournaments.get(match.tournament_id)])
+                data = [self._match_summary(match, tournaments[match.tournament_id], players) for match in items if tournaments.get(match.tournament_id)]
+                return SuccessResponse(data=data, meta={'total': len(data), 'statuses': sorted({item.status for item in data})})
 
         return await self._cached('matches:results', SuccessResponse[list[MatchSummary]], loader)
 

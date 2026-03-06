@@ -75,6 +75,10 @@ async def test_admin_jobs_page_renders_html(async_client) -> None:
     assert response.status_code == status.HTTP_200_OK
     assert 'Очередь задач' in response.text
     assert 'id="admin-jobs-process"' in response.text
+    assert 'id="admin-jobs-filters"' in response.text
+    assert 'id="admin-jobs-status"' in response.text
+    assert 'id="admin-jobs-type"' in response.text
+    assert 'id="admin-jobs-summary"' in response.text
     assert 'aria-label="Таблица очереди задач"' in response.text
 
 
@@ -201,6 +205,8 @@ async def test_admin_integrations_page_has_controls(async_client) -> None:
     assert 'id="admin-integrations-provider"' in response.text
     assert 'id="admin-integrations-status"' in response.text
     assert 'id="admin-integrations-update-form"' in response.text
+    assert 'id="admin-integrations-summary"' in response.text
+    assert 'id="admin-integrations-detail"' in response.text
     assert 'id="admin-integrations-logs"' in response.text
 
 
@@ -228,6 +234,10 @@ async def test_admin_media_and_settings_pages_have_operational_states(async_clie
     settings = await async_client.get('/admin/settings')
 
     assert media.status_code == status.HTTP_200_OK
+    assert 'id="admin-media-summary"' in media.text
+    assert 'id="admin-media-filters"' in media.text
+    assert 'id="admin-media-content-type"' in media.text
+    assert 'id="admin-media-exists"' in media.text
     assert 'id="admin-media-error"' in media.text
     assert 'id="admin-media-empty"' in media.text
 

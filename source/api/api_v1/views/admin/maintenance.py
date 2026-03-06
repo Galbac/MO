@@ -15,12 +15,8 @@ workflow_service = WorkflowService()
 
 @router.get("", response_model=SuccessResponse[list[AdminMaintenanceArtifact]])
 async def list_maintenance_artifacts() -> SuccessResponse[list[AdminMaintenanceArtifact]]:
-    return SuccessResponse(
-        data=[
-            AdminMaintenanceArtifact.model_validate(item)
-            for item in workflow_service.maintenance_artifacts()
-        ]
-    )
+    items = [AdminMaintenanceArtifact.model_validate(item) for item in workflow_service.maintenance_artifacts()]
+    return SuccessResponse(data=items, meta={'total': len(items), 'existing': sum(1 for item in items if item.exists)})
 
 
 
@@ -29,7 +25,7 @@ async def list_maintenance_artifacts() -> SuccessResponse[list[AdminMaintenanceA
 async def list_runtime_backups() -> SuccessResponse[list[AdminRuntimeBackupItem]]:
     backups_dir = Path(settings.maintenance.backups_dir)
     if not backups_dir.exists():
-        return SuccessResponse(data=[])
+        return SuccessResponse(data=[], meta={'total': 0, 'storage_path': str(backups_dir)})
     items = []
     for item in sorted(backups_dir.glob('runtime-backup-*.tar.gz'), key=lambda path: path.stat().st_mtime, reverse=True):
         stat = item.stat()
@@ -41,7 +37,7 @@ async def list_runtime_backups() -> SuccessResponse[list[AdminRuntimeBackupItem]
                 created_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
             )
         )
-    return SuccessResponse(data=items)
+    return SuccessResponse(data=items, meta={'total': len(items), 'storage_path': str(backups_dir)})
 
 
 @router.post("/run", response_model=SuccessResponse[AdminMaintenanceRunResult])
@@ -77,5 +73,6 @@ async def run_maintenance_job(payload: dict | None = None) -> SuccessResponse[Ad
             status=str(current.get('status') or 'pending'),
             result=current.get('result'),
             error=current.get('error'),
-        )
+        ),
+        meta={'executed_immediately': True},
     )

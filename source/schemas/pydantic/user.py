@@ -40,6 +40,10 @@ class UserTokenBundle(BaseModel):
     access_token: str
     refresh_token: str
     user: UserProfile
+    token_type: str = "Bearer"
+    access_expires_at: datetime | None = None
+    refresh_expires_at: datetime | None = None
+    refresh_token_id: str | None = None
 
 
 class FavoriteItem(BaseModel):

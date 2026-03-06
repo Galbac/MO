@@ -55,13 +55,17 @@ class PublicDataService:
     async def get_rankings(self, page: int = 1, per_page: int = 100, ranking_type: str | None = None, ranking_date: str | None = None) -> PaginatedResponse[RankingEntry]:
         async def loader() -> PaginatedResponse[RankingEntry]:
             async with db_session_manager.session() as session:
-                snapshots = await self.repo.list_rankings(session, ranking_type=ranking_type, ranking_date=ranking_date)
+                resolved_ranking_date = ranking_date
+                if resolved_ranking_date is None:
+                    available_dates = await self.repo.list_ranking_dates(session, ranking_type=ranking_type)
+                    resolved_ranking_date = available_dates[0] if available_dates else None
+                snapshots = await self.repo.list_rankings(session, ranking_type=ranking_type, ranking_date=resolved_ranking_date)
                 page_items = snapshots[(page - 1) * per_page:(page - 1) * per_page + per_page]
                 players = {item.id: item for item in await self.repo.list_players_by_ids(session, [item.player_id for item in page_items])}
                 data = [self._ranking_entry(item, players) for item in page_items]
                 return PaginatedResponse(data=data, meta=self._meta(page, per_page, len(snapshots)))
 
-        key = f'rankings:list:{ranking_type or ""}:{ranking_date or ""}:{page}:{per_page}'
+        key = f'rankings:list:{ranking_type or ""}:{ranking_date or "latest"}:{page}:{per_page}'
         return await self._cached(key, PaginatedResponse[RankingEntry], loader, ttl_seconds=settings.cache.rankings_ttl_seconds)
 
     async def get_current_rankings(self, ranking_type: str = 'atp') -> SuccessResponse[list[RankingEntry]]:
@@ -91,7 +95,8 @@ class PublicDataService:
                 history = []
                 for ranking_date in dates:
                     snapshots = grouped.get(ranking_date, [])
-                    history.append(RankingSnapshotItem(ranking_type=ranking_type, ranking_date=ranking_date, entries=[self._ranking_entry(item, players) for item in snapshots]))
+                    entries = [self._ranking_entry(item, players) for item in snapshots]
+                    history.append(RankingSnapshotItem(ranking_type=ranking_type, ranking_date=ranking_date, entries=entries, total_entries=len(entries)))
                 return SuccessResponse(data=history)
 
         return await self._cached(f'rankings:history:{ranking_type}', SuccessResponse[list[RankingSnapshotItem]], loader, ttl_seconds=settings.cache.rankings_ttl_seconds)
@@ -409,7 +414,7 @@ class PublicDataService:
             detail = (await self.query.get_match(match_id)).data
             if detail.status not in {'live', 'about_to_start'}:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Live match not found')
-            return SuccessResponse(data=detail)
+            return SuccessResponse(data=detail, meta={'live_status': detail.status, 'timeline_events': len(detail.timeline)})
 
         return await self._cached(f'live:match:{match_id}', SuccessResponse[MatchDetail], loader, ttl_seconds=settings.cache.live_ttl_seconds)
 
@@ -424,6 +429,6 @@ class PublicDataService:
                     for item in events
                     if item.match_id in live_match_ids
                 ]
-                return SuccessResponse(data=filtered)
+                return SuccessResponse(data=filtered, meta={'live_matches': len(live_match_ids), 'events_returned': len(filtered)})
 
         return await self._cached('live:feed', SuccessResponse[list[MatchEventItem]], loader, ttl_seconds=settings.cache.live_ttl_seconds)

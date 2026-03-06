@@ -27,6 +27,9 @@ class MatchScore(BaseModel):
     sets: list[str] = Field(default_factory=list)
     current_game: str | None = None
     serving_player_id: int | None = None
+    winner_id: int | None = None
+    status: str | None = None
+    completed_sets: int = 0
 
 
 class MatchSetItem(BaseModel):
@@ -48,6 +51,8 @@ class MatchStats(BaseModel):
     player1_break_points_saved: int = 0
     player2_break_points_saved: int = 0
     duration_minutes: int = 0
+    player1_break_points_faced: int = 0
+    player2_break_points_faced: int = 0
 
 
 class MatchEventItem(BaseModel):
@@ -58,6 +63,7 @@ class MatchEventItem(BaseModel):
     player_id: int | None = None
     payload_json: dict = Field(default_factory=dict)
     created_at: datetime
+    importance: str | None = None
 
 
 class MatchPreview(BaseModel):
