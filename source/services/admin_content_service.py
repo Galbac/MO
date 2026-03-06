@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -111,6 +113,13 @@ class AdminContentService:
             'walkover_reason': payload.get('walkover_reason', current.get('walkover_reason')),
         }
 
+    @staticmethod
+    def _sanitize_html(value: str) -> str:
+        sanitized = re.sub(r'<\s*script[^>]*>.*?<\s*/\s*script\s*>', '', value, flags=re.IGNORECASE | re.DOTALL)
+        sanitized = re.sub(r"on[a-zA-Z]+\s*=\s*(\".*?\"|'[^']*'|[^\s>]+)", '', sanitized, flags=re.IGNORECASE | re.DOTALL)
+        sanitized = re.sub(r'javascript:', '', sanitized, flags=re.IGNORECASE)
+        return sanitized.strip()
+
     @classmethod
     def _news_payload(cls, payload: NewsArticleCreateRequest, current: dict[str, Any] | None = None) -> dict[str, Any]:
         current = current or {}
@@ -120,7 +129,7 @@ class AdminContentService:
             'title': cls._require(raw, 'title', current.get('title')),
             'subtitle': raw.get('subtitle', current.get('subtitle')),
             'lead': raw.get('lead', current.get('lead')),
-            'content_html': cls._require(raw, 'content_html', current.get('content_html')),
+            'content_html': cls._sanitize_html(cls._require(raw, 'content_html', current.get('content_html'))),
             'cover_image_url': raw.get('cover_image_url', current.get('cover_image_url')),
             'author_id': current.get('author_id'),
             'category_id': raw.get('category_id', current.get('category_id')),

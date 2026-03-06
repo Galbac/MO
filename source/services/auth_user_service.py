@@ -3,11 +3,15 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
 import os
+import time
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException, Request, status
 
+from source.config.settings import settings
 from source.db.session import db_session_manager
 from source.repositories import AuditRepository, UserRepository
 from source.schemas.pydantic.admin import AdminUserItem
@@ -43,6 +47,9 @@ class AuthUserService:
     def __init__(self) -> None:
         self.users = UserRepository()
         self.audit = AuditRepository()
+        self.storage_dir = Path('var')
+        self.security_state_file = self.storage_dir / 'auth_security.json'
+        self.refresh_store_file = self.storage_dir / 'refresh_tokens.json'
 
     @staticmethod
     def _profile(user) -> UserProfile:
@@ -52,12 +59,102 @@ class AuthUserService:
     def _entity_dict(entity) -> dict[str, Any]:
         return {column.name: getattr(entity, column.name) for column in entity.__table__.columns}
 
+    @staticmethod
+    def _json_ready(value: Any) -> Any:
+        if hasattr(value, 'isoformat'):
+            return value.isoformat()
+        if isinstance(value, dict):
+            return {key: AuthUserService._json_ready(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [AuthUserService._json_ready(item) for item in value]
+        return value
+
+    def _ensure_storage(self) -> None:
+        self.storage_dir.mkdir(parents=True, exist_ok=True)
+
+    def _read_json(self, path: Path, default: Any) -> Any:
+        if not path.exists():
+            return default
+        return json.loads(path.read_text())
+
+    def _write_json(self, path: Path, payload: Any) -> None:
+        self._ensure_storage()
+        path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+
     def _bundle(self, user) -> UserTokenBundle:
-        return UserTokenBundle(access_token=token_codec.issue_access_token(user.id), refresh_token=token_codec.issue_refresh_token(user.id), user=self._profile(user))
+        access_token = token_codec.issue_access_token(user.id)
+        refresh_token, refresh_payload = token_codec.issue_refresh_token(user.id)
+        refresh_store = self._read_json(self.refresh_store_file, {})
+        refresh_store[refresh_payload['jti']] = {'user_id': user.id, 'expires_at': refresh_payload['exp'], 'revoked': False}
+        self._write_json(self.refresh_store_file, refresh_store)
+        return UserTokenBundle(access_token=access_token, refresh_token=refresh_token, user=self._profile(user))
 
     async def _log_audit(self, *, action: str, entity_type: str, entity_id: int | None, before_json: dict | None, after_json: dict | None, user_id: int | None) -> None:
         async with db_session_manager.session() as session:
             await self.audit.create(session, {'user_id': user_id, 'action': action, 'entity_type': entity_type, 'entity_id': entity_id, 'before_json': before_json, 'after_json': after_json})
+
+    def _client_ip(self, request: Request | None) -> str:
+        if request is None or request.client is None or not request.client.host:
+            return 'unknown'
+        return request.client.host
+
+    def _login_key(self, request: Request | None, login_value: str) -> str:
+        return f"{self._client_ip(request)}::{login_value.strip().lower()}"
+
+    def _rate_limit_guard(self, request: Request | None, login_value: str) -> None:
+        state = self._read_json(self.security_state_file, {'login_attempts': {}})
+        key = self._login_key(request, login_value)
+        now = int(time.time())
+        window = settings.auth.login_rate_limit_window_seconds
+        lockout = settings.auth.brute_force_lockout_seconds
+        record = state['login_attempts'].get(key, {'failures': [], 'locked_until': 0})
+        failures = [item for item in record.get('failures', []) if now - int(item) <= window]
+        locked_until = int(record.get('locked_until', 0))
+        if locked_until > now:
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail='Too many login attempts')
+        if len(failures) >= settings.auth.login_rate_limit_max_attempts:
+            record = {'failures': failures, 'locked_until': now + lockout}
+            state['login_attempts'][key] = record
+            self._write_json(self.security_state_file, state)
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail='Too many login attempts')
+
+    def _register_login_failure(self, request: Request | None, login_value: str) -> None:
+        state = self._read_json(self.security_state_file, {'login_attempts': {}})
+        key = self._login_key(request, login_value)
+        now = int(time.time())
+        window = settings.auth.login_rate_limit_window_seconds
+        record = state['login_attempts'].get(key, {'failures': [], 'locked_until': 0})
+        failures = [item for item in record.get('failures', []) if now - int(item) <= window]
+        failures.append(now)
+        locked_until = record.get('locked_until', 0)
+        if len(failures) >= settings.auth.login_rate_limit_max_attempts:
+            locked_until = now + settings.auth.brute_force_lockout_seconds
+        state['login_attempts'][key] = {'failures': failures, 'locked_until': locked_until}
+        self._write_json(self.security_state_file, state)
+
+    def _clear_login_failures(self, request: Request | None, login_value: str) -> None:
+        state = self._read_json(self.security_state_file, {'login_attempts': {}})
+        key = self._login_key(request, login_value)
+        state['login_attempts'].pop(key, None)
+        self._write_json(self.security_state_file, state)
+
+    def _consume_refresh_token(self, refresh_token: str, *, revoke_only: bool) -> dict[str, Any]:
+        payload = token_codec.decode(refresh_token)
+        if payload.get('typ') != 'refresh':
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid refresh token')
+        jti = payload.get('jti')
+        if not jti:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid refresh token')
+        refresh_store = self._read_json(self.refresh_store_file, {})
+        record = refresh_store.get(jti)
+        now = int(time.time())
+        if record is None or bool(record.get('revoked')) or int(record.get('expires_at', 0)) < now:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Refresh token revoked')
+        if settings.auth.refresh_token_rotation_enabled or revoke_only:
+            record['revoked'] = True
+            refresh_store[jti] = record
+            self._write_json(self.refresh_store_file, refresh_store)
+        return payload
 
     async def _resolve_current_user(self, request: Request):
         auth_header = request.headers.get('authorization', '')
@@ -72,7 +169,7 @@ class AuthUserService:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='User is not active')
             return user
 
-    async def register(self, payload: RegisterRequest) -> AuthResponse:
+    async def register(self, request: Request | None, payload: RegisterRequest) -> AuthResponse:
         _check_password_strength(payload.password)
         async with db_session_manager.session() as session:
             if await self.users.get_by_email(session, payload.email):
@@ -92,30 +189,34 @@ class AuthUserService:
         await self._log_audit(action='auth.register', entity_type='user', entity_id=user.id, before_json=None, after_json=self._entity_dict(user), user_id=user.id)
         return AuthResponse(data=self._bundle(user))
 
-    async def login(self, payload: LoginRequest) -> AuthResponse:
+    async def login(self, request: Request | None, payload: LoginRequest) -> AuthResponse:
+        self._rate_limit_guard(request, payload.email_or_username)
         async with db_session_manager.session() as session:
             user = await self.users.get_by_login(session, payload.email_or_username)
             if user is None or not _verify_password(payload.password, user.password_hash):
+                self._register_login_failure(request, payload.email_or_username)
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid credentials')
             if user.status != 'active':
+                self._register_login_failure(request, payload.email_or_username)
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='User is not active')
-            return AuthResponse(data=self._bundle(user))
+        self._clear_login_failures(request, payload.email_or_username)
+        return AuthResponse(data=self._bundle(user))
 
-    async def refresh(self, payload: RefreshTokenRequest) -> AuthResponse:
-        token_payload = token_codec.decode(payload.refresh_token)
-        if token_payload.get('typ') != 'refresh':
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid refresh token')
+    async def refresh(self, request: Request | None, payload: RefreshTokenRequest) -> AuthResponse:
+        token_payload = self._consume_refresh_token(payload.refresh_token, revoke_only=False)
         async with db_session_manager.session() as session:
             user = await self.users.get(session, int(token_payload['sub']))
             if user is None:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='User not found')
+            if user.status != 'active':
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='User is not active')
             return AuthResponse(data=self._bundle(user))
 
-    async def logout(self, payload: LogoutRequest) -> MessageResponse:
-        token_codec.decode(payload.refresh_token)
+    async def logout(self, request: Request | None, payload: LogoutRequest) -> MessageResponse:
+        self._consume_refresh_token(payload.refresh_token, revoke_only=True)
         return MessageResponse(data=SimpleMessage(message='Logged out'))
 
-    async def forgot_password(self, payload: ForgotPasswordRequest) -> MessageResponse:
+    async def forgot_password(self, request: Request | None, payload: ForgotPasswordRequest) -> MessageResponse:
         async with db_session_manager.session() as session:
             _ = await self.users.get_by_email(session, payload.email)
         return MessageResponse(data=SimpleMessage(message='If the account exists, reset instructions were created'))

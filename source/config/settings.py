@@ -41,6 +41,18 @@ class AuthSettings(BaseModel):
     brute_force_lockout_seconds: int = 300
 
 
+
+
+class MediaSettings(BaseModel):
+    allowed_content_types: list[str] = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "text/plain",
+    ]
+    max_upload_size_bytes: int = 1024 * 1024 * 5
+
 class DocsSettings(BaseModel):
     username: str = os.getenv("FASTAPI_CFG__DOCS__USERNAME", "admin")
     password: str = os.getenv("FASTAPI_CFG__DOCS__PASSWORD", "admin")
@@ -68,6 +80,7 @@ class Settings(BaseSettings):
     api: ApiPrefix = ApiPrefix()
     middleware: MiddlewareSettings = MiddlewareSettings()
     auth: AuthSettings = AuthSettings()
+    media: MediaSettings = MediaSettings()
     docs: DocsSettings = DocsSettings()
     db: DbSettings = DbSettings()
 

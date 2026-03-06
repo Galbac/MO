@@ -20,28 +20,28 @@ service = AuthUserService()
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: RegisterRequest) -> AuthResponse:
-    return await service.register(payload)
+async def register(request: Request, payload: RegisterRequest) -> AuthResponse:
+    return await service.register(request, payload)
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(payload: LoginRequest) -> AuthResponse:
-    return await service.login(payload)
+async def login(request: Request, payload: LoginRequest) -> AuthResponse:
+    return await service.login(request, payload)
 
 
 @router.post("/refresh", response_model=AuthResponse)
-async def refresh(payload: RefreshTokenRequest) -> AuthResponse:
-    return await service.refresh(payload)
+async def refresh(request: Request, payload: RefreshTokenRequest) -> AuthResponse:
+    return await service.refresh(request, payload)
 
 
 @router.post("/logout", response_model=MessageResponse)
-async def logout(payload: LogoutRequest) -> MessageResponse:
-    return await service.logout(payload)
+async def logout(request: Request, payload: LogoutRequest) -> MessageResponse:
+    return await service.logout(request, payload)
 
 
 @router.post("/forgot-password", response_model=MessageResponse)
-async def forgot_password(payload: ForgotPasswordRequest) -> MessageResponse:
-    return await service.forgot_password(payload)
+async def forgot_password(request: Request, payload: ForgotPasswordRequest) -> MessageResponse:
+    return await service.forgot_password(request, payload)
 
 
 @router.post("/reset-password", response_model=MessageResponse)
