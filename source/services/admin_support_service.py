@@ -16,6 +16,7 @@ from source.schemas.pydantic.admin import (
     AdminNotificationBroadcast,
     AdminNotificationDeliveryLogItem,
     AdminNotificationTemplate,
+    AdminSettingsPayload,
 )
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.news import NewsCategoryItem, TagItem
@@ -92,14 +93,32 @@ class AdminSupportService:
 
     async def get_settings(self) -> SuccessResponse[dict]:
         payload = self._read_json(self.settings_file)
-        return SuccessResponse(data=payload or {})
+        updated_at = None
+        if self.settings_file.exists():
+            updated_at = datetime.fromtimestamp(self.settings_file.stat().st_mtime, tz=UTC)
+        return SuccessResponse(
+            data=AdminSettingsPayload(
+                values=payload or {},
+                storage_backend='local_file',
+                storage_path=str(self.settings_file),
+                updated_at=updated_at,
+            ).model_dump()
+        )
 
     async def update_settings(self, payload: dict[str, Any]) -> SuccessResponse[dict]:
         current = self._read_json(self.settings_file) or {}
         merged = current | {key: value for key, value in payload.items() if value not in (None, '')}
         self._write_json(self.settings_file, merged)
         self._invalidate_cache('news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:')
-        return SuccessResponse(data=merged)
+        updated_at = datetime.fromtimestamp(self.settings_file.stat().st_mtime, tz=UTC) if self.settings_file.exists() else None
+        return SuccessResponse(
+            data=AdminSettingsPayload(
+                values=merged,
+                storage_backend='local_file',
+                storage_path=str(self.settings_file),
+                updated_at=updated_at,
+            ).model_dump()
+        )
 
     async def list_notification_templates(self) -> SuccessResponse[list[AdminNotificationTemplate]]:
         async with db_session_manager.session() as session:

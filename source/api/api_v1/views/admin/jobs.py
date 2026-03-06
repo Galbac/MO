@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException, status
+from datetime import datetime
 
-from source.schemas.pydantic.admin import AdminJobItem, AdminJobProcessResult, AdminJobPruneResult
+from fastapi import APIRouter, HTTPException, Query, status
+
+from source.schemas.pydantic.admin import AdminJobItem, AdminJobProcessResult, AdminJobPruneResult, AdminJobSummary
 from source.schemas.pydantic.common import SuccessResponse
 from source.services import JobService
 
@@ -9,8 +11,21 @@ service = JobService()
 
 
 @router.get("", response_model=SuccessResponse[list[AdminJobItem]])
-async def list_admin_jobs() -> SuccessResponse[list[AdminJobItem]]:
-    return SuccessResponse(data=[AdminJobItem.model_validate(item) for item in service.list_jobs()])
+async def list_admin_jobs(
+    status: str | None = Query(default=None),
+    job_type: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> SuccessResponse[list[AdminJobItem]]:
+    return SuccessResponse(data=[AdminJobItem.model_validate(item) for item in service.filtered_jobs(status=status, job_type=job_type, limit=limit)])
+
+
+@router.get("/summary", response_model=SuccessResponse[AdminJobSummary])
+async def get_admin_jobs_summary() -> SuccessResponse[AdminJobSummary]:
+    payload = service.summary()
+    latest_updated_at = payload.get('latest_updated_at')
+    if isinstance(latest_updated_at, str):
+        payload['latest_updated_at'] = datetime.fromisoformat(latest_updated_at)
+    return SuccessResponse(data=AdminJobSummary.model_validate(payload))
 
 
 @router.get("/{job_id}", response_model=SuccessResponse[AdminJobItem])

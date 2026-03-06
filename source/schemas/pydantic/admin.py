@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class AdminUserItem(BaseModel):
@@ -33,6 +33,13 @@ class AdminSystemLogItem(BaseModel):
     context: dict
 
 
+class AdminSystemLogSummary(BaseModel):
+    total: int
+    categories: list[str]
+    by_level: dict[str, int] = Field(default_factory=dict)
+    latest_at: datetime | None = None
+
+
 class AdminIntegrationUpdateResult(BaseModel):
     provider: str
     status: str
@@ -51,6 +58,14 @@ class AdminIntegrationSyncResult(BaseModel):
     logs_count: int = 0
 
 
+class AdminIntegrationSummary(BaseModel):
+    total: int
+    by_status: dict[str, int] = Field(default_factory=dict)
+    with_errors: int = 0
+    latest_sync_at: datetime | None = None
+    providers: list[str] = Field(default_factory=list)
+
+
 class AdminActionResult(BaseModel):
     entity_type: str
     action: str
@@ -59,7 +74,7 @@ class AdminActionResult(BaseModel):
     message: str | None = None
     job_id: int | None = None
     scheduled_at: datetime | None = None
-    details: dict = {}
+    details: dict = Field(default_factory=dict)
 
 
 class AdminBulkImportResult(BaseModel):
@@ -68,7 +83,7 @@ class AdminBulkImportResult(BaseModel):
     status: str
     imported_count: int
     entity_ids: list[int]
-    details: dict = {}
+    details: dict = Field(default_factory=dict)
 
 
 class AdminJobItem(BaseModel):
@@ -82,6 +97,16 @@ class AdminJobItem(BaseModel):
     updated_at: datetime
     attempts: int
     error: str | None = None
+
+
+class AdminJobSummary(BaseModel):
+    total: int
+    pending: int
+    failed: int
+    by_status: dict[str, int] = Field(default_factory=dict)
+    by_type: dict[str, int] = Field(default_factory=dict)
+    latest_updated_at: datetime | None = None
+    backend: str
 
 
 class AdminJobPruneResult(BaseModel):
@@ -120,6 +145,13 @@ class AdminRuntimeBackupItem(BaseModel):
     created_at: datetime
 
 
+class AdminSettingsPayload(BaseModel):
+    values: dict = Field(default_factory=dict)
+    storage_backend: str
+    storage_path: str
+    updated_at: datetime | None = None
+
+
 class AuditLogItem(BaseModel):
     id: int
     user_id: int | None = None
@@ -128,7 +160,7 @@ class AuditLogItem(BaseModel):
     entity_id: int | None = None
     before_json: dict | None = None
     after_json: dict | None = None
-    changed_keys: list[str] = []
+    changed_keys: list[str] = Field(default_factory=list)
     changed_fields_count: int = 0
     created_at: datetime
 

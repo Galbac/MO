@@ -489,6 +489,15 @@ async def test_admin_logs_runtime(async_client, admin_auth_headers) -> None:
     )
     assert app_logs.status_code == status.HTTP_200_OK
 
+    summary = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/logs/summary",
+        params={"category": "access", "limit": 20},
+        headers=admin_auth_headers,
+    )
+    assert summary.status_code == status.HTTP_200_OK
+    assert "total" in summary.json()["data"]
+    assert "categories" in summary.json()["data"]
+
 
 async def test_admin_maintenance_backups_runtime(async_client, admin_auth_headers) -> None:
     create_response = await async_client.post(
@@ -505,6 +514,16 @@ async def test_admin_maintenance_backups_runtime(async_client, admin_auth_header
     )
     assert list_response.status_code == status.HTTP_200_OK
     assert list_response.json()["data"]
+
+    archive_path = list_response.json()["data"][0]["path"]
+    restore_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/maintenance/run",
+        json={"job_type": "restore_runtime", "archive_path": archive_path},
+        headers=admin_auth_headers,
+    )
+    assert restore_response.status_code == status.HTTP_200_OK
+    assert restore_response.json()["data"]["job_type"] == "restore_runtime"
+    assert restore_response.json()["data"]["status"] == "finished"
 
 
 async def test_admin_jobs_detail_and_cancel_runtime(async_client, admin_auth_headers) -> None:

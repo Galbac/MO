@@ -244,6 +244,7 @@ async def test_admin_logs_page_has_controls(async_client) -> None:
     assert 'id="admin-logs-filters"' in response.text
     assert 'id="admin-logs-category"' in response.text
     assert 'id="admin-logs-level"' in response.text
+    assert 'id="admin-logs-summary"' in response.text
     assert 'id="admin-logs-list"' in response.text
 
 
@@ -253,6 +254,7 @@ async def test_admin_maintenance_page_has_backups_section(async_client) -> None:
     assert response.status_code == status.HTTP_200_OK
     assert 'admin-backups-list' in response.text
     assert 'data-maintenance-run="backup_runtime"' in response.text
+    assert 'восстановить приложение из уже сохраненного backup' in response.text
 
 
 async def test_admin_jobs_page_has_detail_panel(async_client) -> None:

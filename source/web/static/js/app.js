@@ -700,9 +700,23 @@ async function initAdminMaintenancePage() {
             "admin-maintenance-body",
             items.map((item) => `<tr><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.exists ? "yes" : "no")}</td><td>${escapeHtml(item.updated_at || "-")}</td><td>${escapeHtml(item.path)}</td></tr>`).join(""),
         );
-        setHtml("admin-backups-list", backups.map((item) => `<div class="entity-card"><strong>${escapeHtml(item.filename)}</strong><div class="text-muted">${escapeHtml(item.created_at)}</div><div class="text-muted">${escapeHtml(item.size_bytes)} bytes</div><div class="text-muted">${escapeHtml(item.path)}</div></div>`).join(""));
+        setHtml(
+            "admin-backups-list",
+            backups.map((item) => `<div class="entity-card"><div class="d-flex flex-wrap justify-content-between align-items-start gap-3"><div><strong>${escapeHtml(item.filename)}</strong><div class="text-muted">${escapeHtml(item.created_at)}</div><div class="text-muted">${escapeHtml(item.size_bytes)} bytes</div><div class="text-muted">${escapeHtml(item.path)}</div></div><div><button class="btn btn-sm btn-outline-secondary" type="button" data-backup-restore="${escapeHtml(item.path)}">Restore</button></div></div></div>`).join(""),
+        );
         showNode("admin-backups-empty", backups.length === 0, 'Архивы backup пока не созданы.');
         showNode("admin-maintenance-empty", items.every((item) => !item.exists), 'Maintenance-артефакты пока не созданы.');
+        document.querySelectorAll("[data-backup-restore]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                try {
+                    const payload = await apiRequest("/admin/maintenance/run", { method: "POST", body: JSON.stringify({ job_type: "restore_runtime", archive_path: button.dataset.backupRestore }) });
+                    showState(true, `Восстановление запущено: job #${payload?.data?.job_id}.`);
+                    await render();
+                } catch (error) {
+                    showState(false, error.message);
+                }
+            });
+        });
     };
     document.querySelectorAll("[data-maintenance-run]").forEach((button) => {
         button.addEventListener("click", async () => {

@@ -20,6 +20,7 @@ from source.schemas.pydantic.admin import (
     AdminActionResult,
     AdminIntegrationItem,
     AdminIntegrationLogItem,
+    AdminIntegrationSummary,
     AdminIntegrationSyncResult,
     AdminIntegrationUpdateResult,
     AuditLogItem,
@@ -401,6 +402,32 @@ class OperationsService:
                 continue
             data.append(AdminIntegrationItem(provider=provider_name, status=integration_status, last_sync_at=datetime.fromisoformat(item['last_sync_at']) if item.get('last_sync_at') else None, last_error=item.get('last_error')))
         return SuccessResponse(data=data)
+
+    async def summarize_integrations(self) -> SuccessResponse[AdminIntegrationSummary]:
+        records = self._integration_records()
+        by_status: dict[str, int] = {}
+        latest_sync_at = None
+        with_errors = 0
+        providers = sorted(records.keys())
+        for item in records.values():
+            status_value = str(item.get('status') or 'configured')
+            by_status[status_value] = by_status.get(status_value, 0) + 1
+            if item.get('last_error'):
+                with_errors += 1
+            raw_last_sync_at = item.get('last_sync_at')
+            if raw_last_sync_at:
+                parsed = datetime.fromisoformat(str(raw_last_sync_at))
+                if latest_sync_at is None or parsed > latest_sync_at:
+                    latest_sync_at = parsed
+        return SuccessResponse(
+            data=AdminIntegrationSummary(
+                total=len(records),
+                by_status=by_status,
+                with_errors=with_errors,
+                latest_sync_at=latest_sync_at,
+                providers=providers,
+            )
+        )
 
     async def update_integration(self, provider: str, payload: dict[str, Any]) -> SuccessResponse[AdminIntegrationUpdateResult]:
         records = self._integration_records()

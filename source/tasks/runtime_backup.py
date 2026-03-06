@@ -26,13 +26,19 @@ def restore_runtime_backup(archive_path: str, target_dir: str | None = None) -> 
         raise FileNotFoundError(f'Archive not found: {archive}')
     destination = Path(target_dir or '.')
     runtime_root = destination / 'var'
-    if runtime_root.exists():
-        shutil.rmtree(runtime_root)
-    with tarfile.open(archive, 'r:gz') as bundle:
-        try:
-            bundle.extractall(destination, filter='data')
-        except TypeError:
-            bundle.extractall(destination)
+    archive_bytes = archive.read_bytes()
+    temp_archive = destination / '.runtime-restore.tmp.tar.gz'
+    temp_archive.write_bytes(archive_bytes)
+    try:
+        if runtime_root.exists():
+            shutil.rmtree(runtime_root)
+        with tarfile.open(temp_archive, 'r:gz') as bundle:
+            try:
+                bundle.extractall(destination, filter='data')
+            except TypeError:
+                bundle.extractall(destination)
+    finally:
+        temp_archive.unlink(missing_ok=True)
     return runtime_root
 
 

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Query
 from source.schemas.pydantic.admin import (
     AdminIntegrationItem,
     AdminIntegrationLogItem,
+    AdminIntegrationSummary,
     AdminIntegrationSyncResult,
     AdminIntegrationUpdateResult,
 )
@@ -19,6 +20,11 @@ async def get_admin_integrations(
     status: str | None = Query(default=None),
 ) -> SuccessResponse[list[AdminIntegrationItem]]:
     return await service.list_integrations(provider=provider, status=status)
+
+
+@router.get("/summary", response_model=SuccessResponse[AdminIntegrationSummary])
+async def get_admin_integrations_summary() -> SuccessResponse[AdminIntegrationSummary]:
+    return await service.summarize_integrations()
 
 
 @router.patch("/{provider}", response_model=SuccessResponse[AdminIntegrationUpdateResult])

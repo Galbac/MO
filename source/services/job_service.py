@@ -33,8 +33,48 @@ class JobService:
     def list_jobs(self) -> list[dict[str, Any]]:
         return self._read_jobs()
 
+    def filtered_jobs(
+        self,
+        *,
+        status: str | None = None,
+        job_type: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        items = self._read_jobs()
+        if status:
+            items = [item for item in items if str(item.get('status')) == status]
+        if job_type:
+            items = [item for item in items if str(item.get('job_type')) == job_type]
+        items.sort(key=lambda item: (str(item.get('updated_at') or ''), int(item.get('id', 0))), reverse=True)
+        if limit is not None:
+            items = items[: max(1, min(limit, 500))]
+        return items
+
     def get_job(self, job_id: int) -> dict[str, Any] | None:
         return next((item for item in self._read_jobs() if int(item.get('id', 0)) == job_id), None)
+
+    def summary(self) -> dict[str, Any]:
+        items = self._read_jobs()
+        by_status: dict[str, int] = {}
+        by_type: dict[str, int] = {}
+        latest_updated_at = None
+        for item in items:
+            status_value = str(item.get('status') or 'unknown')
+            job_type_value = str(item.get('job_type') or 'unknown')
+            by_status[status_value] = by_status.get(status_value, 0) + 1
+            by_type[job_type_value] = by_type.get(job_type_value, 0) + 1
+            updated_at = item.get('updated_at')
+            if isinstance(updated_at, str) and (latest_updated_at is None or updated_at > latest_updated_at):
+                latest_updated_at = updated_at
+        return {
+            'total': len(items),
+            'pending': by_status.get('pending', 0),
+            'failed': by_status.get('failed', 0),
+            'by_status': by_status,
+            'by_type': by_type,
+            'latest_updated_at': latest_updated_at,
+            'backend': self.backend_name(),
+        }
 
     def prune_jobs(self, *, statuses: list[str] | None = None) -> dict[str, Any]:
         statuses = statuses or ['finished', 'failed']
@@ -165,11 +205,11 @@ class JobService:
             return await self.workflows.generate_tournament_draw_snapshot(int(payload['tournament_id']))
         if job_type == 'import_rankings':
             response = await self.admin_support.import_rankings(payload)
-            return {'message': response.data.message}
+            return response.data.model_dump()
         if job_type == 'sync_live':
             provider = str(payload.get('provider') or 'live-provider')
             response = await self.operations.sync_integration(provider, payload)
-            return {'provider': provider, 'message': response.data.message}
+            return response.data.model_dump()
         if job_type == 'backup_runtime':
             archive = create_runtime_backup(destination_path=payload.get('destination_path'), source_dir=payload.get('source_dir'))
             return {'archive_path': str(archive)}

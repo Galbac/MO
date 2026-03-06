@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 
+from source.config.settings import settings
 from source.schemas.pydantic.admin import AdminMaintenanceArtifact, AdminMaintenanceRunResult, AdminRuntimeBackupItem
 from source.schemas.pydantic.common import SuccessResponse
 from source.services import JobService, WorkflowService
@@ -26,7 +27,7 @@ async def list_maintenance_artifacts() -> SuccessResponse[list[AdminMaintenanceA
 
 @router.get("/backups", response_model=SuccessResponse[list[AdminRuntimeBackupItem]])
 async def list_runtime_backups() -> SuccessResponse[list[AdminRuntimeBackupItem]]:
-    backups_dir = Path(workflow_service.maintenance_artifacts()[0]['path']).parent.parent / 'backups'
+    backups_dir = Path(settings.maintenance.backups_dir)
     if not backups_dir.exists():
         return SuccessResponse(data=[])
     items = []
