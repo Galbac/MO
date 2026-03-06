@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, time as clock_time
+from datetime import UTC, date, datetime, time as clock_time
 import json
 from pathlib import Path
 from typing import Any
@@ -16,6 +16,10 @@ from source.services.cache_service import CacheService
 
 
 class WorkflowService:
+    @staticmethod
+    def _surface_record(wins: int, losses: int) -> str:
+        return f'{wins}-{losses}'
+
     @staticmethod
     def _in_quiet_hours(user, now_utc: datetime) -> bool:
         start = getattr(user, 'quiet_hours_start', None)
@@ -50,6 +54,23 @@ class WorkflowService:
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
         return self.artifacts_dir / filename
 
+    def _player_aggregates_path(self) -> Path:
+        return self._artifact_path('player_aggregates.json')
+
+    def _read_player_aggregates(self) -> dict[str, Any]:
+        path = self._player_aggregates_path()
+        if not path.exists():
+            return {'generated_at': None, 'players': {}}
+        payload = json.loads(path.read_text())
+        if not isinstance(payload, dict):
+            return {'generated_at': None, 'players': {}}
+        payload.setdefault('players', {})
+        return payload
+
+    def _write_player_aggregates(self, payload: dict[str, Any]) -> None:
+        path = self._player_aggregates_path()
+        path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+
     def _read_delivery_log(self) -> list[dict[str, Any]]:
         if not self.delivery_log_path.exists():
             return []
@@ -73,6 +94,67 @@ class WorkflowService:
             'created_at': datetime.now(tz=UTC).isoformat(),
         })
         self._write_delivery_log(items)
+
+    async def _rebuild_player_aggregates(self, session, player_ids: set[int]) -> None:
+        if not player_ids:
+            return
+        aggregates = self._read_player_aggregates()
+        generated_at = datetime.now(tz=UTC).isoformat()
+        for player_id in sorted(player_ids):
+            player = await self.players.get(session, player_id)
+            if player is None:
+                continue
+            matches = await self.players.get_matches(session, player_id)
+            tournament_ids = {item.tournament_id for item in matches}
+            tournaments = {
+                tournament_id: await self.tournaments.get(session, tournament_id)
+                for tournament_id in sorted(tournament_ids)
+            }
+            completed = [item for item in matches if item.winner_id is not None]
+            ordered_completed = sorted(completed, key=lambda item: item.scheduled_at or datetime.min, reverse=True)
+            wins = sum(1 for item in completed if item.winner_id == player_id)
+            losses = sum(1 for item in completed if item.winner_id != player_id)
+            surface_wins = {'hard': 0, 'clay': 0, 'grass': 0}
+            surface_losses = {'hard': 0, 'clay': 0, 'grass': 0}
+            titles: list[dict[str, Any]] = []
+
+            for match in completed:
+                tournament = tournaments.get(match.tournament_id)
+                if tournament is None:
+                    continue
+                surface = (tournament.surface or '').lower()
+                if surface in surface_wins:
+                    if match.winner_id == player_id:
+                        surface_wins[surface] += 1
+                    else:
+                        surface_losses[surface] += 1
+                if match.winner_id == player_id and match.round_code == 'F':
+                    titles.append({
+                        'tournament_name': tournament.name,
+                        'season_year': tournament.season_year,
+                        'surface': tournament.surface,
+                        'category': tournament.category,
+                    })
+
+            season = max((item.scheduled_at.year for item in matches if item.scheduled_at), default=date.today().year)
+            aggregates['players'][str(player_id)] = {
+                'player_id': player_id,
+                'generated_at': generated_at,
+                'form': ['W' if item.winner_id == player_id else 'L' for item in ordered_completed[:5]],
+                'stats': {
+                    'season': season,
+                    'matches_played': len(completed),
+                    'wins': wins,
+                    'losses': losses,
+                    'win_rate': round((wins / len(completed)) * 100, 1) if completed else 0.0,
+                    'hard_record': self._surface_record(surface_wins['hard'], surface_losses['hard']),
+                    'clay_record': self._surface_record(surface_wins['clay'], surface_losses['clay']),
+                    'grass_record': self._surface_record(surface_wins['grass'], surface_losses['grass']),
+                },
+                'titles': titles,
+            }
+        aggregates['generated_at'] = generated_at
+        self._write_player_aggregates(aggregates)
 
     async def _deliver_notification(self, session, *, user, subscription, notification_type: str, title: str, body: str, payload_json: dict[str, Any], entity_type: str, entity_id: int) -> int:
         channels = list(subscription.channels or [])
@@ -134,8 +216,53 @@ class WorkflowService:
                 surface=tournament.surface,
                 match_id=match.id,
             )
+            await self._rebuild_player_aggregates(session, {match.player1_id, match.player2_id})
             await self._send_match_notifications(session, match=match, tournament=tournament)
         self.cache.invalidate_prefixes('matches:', 'players:', 'tournaments:', 'live:', 'search:', 'news:')
+
+    async def process_match_event(self, match_id: int, *, event_type: str, set_number: int | None = None, payload_json: dict[str, Any] | None = None) -> int:
+        if event_type != 'set_finished':
+            return 0
+        payload_json = payload_json or {}
+        async with db_session_manager.session() as session:
+            match = await self.matches.get(session, match_id)
+            if match is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
+            tournament = await self.tournaments.get(session, match.tournament_id)
+            if tournament is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+            player1 = await self.players.get(session, match.player1_id)
+            player2 = await self.players.get(session, match.player2_id)
+            player1_name = player1.full_name if player1 else 'Player 1'
+            player2_name = player2.full_name if player2 else 'Player 2'
+            entities = [('match', match.id), ('player', match.player1_id), ('player', match.player2_id), ('tournament', tournament.id)]
+            subscriptions = await self.engagement.list_matching_subscriptions(session, entities=entities, notification_type='set_finished')
+            score = str(payload_json.get('score') or match.score_summary or '')
+            title = f'Set {set_number or "?"} finished: {player1_name} vs {player2_name}'
+            body = f'Set {set_number or "?"} finished.' + (f' Score: {score}' if score else '')
+            created = 0
+            for subscription in subscriptions:
+                subscription_user = await self.users.get(session, subscription.user_id)
+                if subscription_user is None:
+                    continue
+                created += await self._deliver_notification(
+                    session,
+                    user=subscription_user,
+                    subscription=subscription,
+                    notification_type='set_finished',
+                    title=title,
+                    body=body,
+                    payload_json={
+                        'entity_type': 'match',
+                        'entity_id': match.id,
+                        'set_number': set_number,
+                        'score': score,
+                        'tournament_id': tournament.id,
+                    },
+                    entity_type='match',
+                    entity_id=match.id,
+                )
+        return created
 
     async def process_match_status_change(self, match_id: int, status_value: str) -> int:
         notification_type = {

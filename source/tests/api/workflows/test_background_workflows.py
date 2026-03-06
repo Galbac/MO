@@ -50,6 +50,17 @@ async def test_finalize_match_updates_h2h_and_creates_notification(async_client,
     jobs = _jobs_payload()
     assert any(job['job_type'] == 'finalize_match_postprocess' and job['status'] == 'finished' for job in jobs)
 
+    aggregates_path = Path(settings.maintenance.artifacts_dir) / 'player_aggregates.json'
+    assert aggregates_path.exists()
+    aggregates_payload = json.loads(aggregates_path.read_text())
+    medvedev = aggregates_payload['players']['3']
+    rublev = aggregates_payload['players']['4']
+    assert medvedev['stats']['wins'] == 1
+    assert medvedev['stats']['hard_record'] == '1-0'
+    assert medvedev['form'][:1] == ['W']
+    assert rublev['stats']['losses'] == 1
+    assert rublev['stats']['hard_record'] == '0-1'
+
 
 async def test_scheduled_news_job_publishes_due_article(async_client, admin_auth_headers) -> None:
     create_response = await async_client.post(
@@ -258,3 +269,42 @@ async def test_match_start_email_channel_writes_delivery_log(async_client, user_
     )
     assert notifications_response.status_code == 200
     assert not any(item['type'] == 'match_start' and item['payload_json']['entity_id'] == 2 for item in notifications_response.json()['data'])
+
+
+async def test_set_finished_event_creates_notification(async_client, user_auth_headers, admin_auth_headers) -> None:
+    subscribe_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions",
+        headers=user_auth_headers,
+        json={
+            'entity_type': 'match',
+            'entity_id': 2,
+            'notification_types': ['set_finished'],
+            'channels': ['web'],
+        },
+    )
+    assert subscribe_response.status_code == 200
+
+    event_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/2/events",
+        headers=admin_auth_headers,
+        json={
+            'event_type': 'set_finished',
+            'set_number': 3,
+            'game_number': 9,
+            'player_id': 3,
+            'payload_json': {'score': '6-4 4-6 6-3'},
+        },
+    )
+    assert event_response.status_code == 200
+
+    notifications_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/notifications",
+        headers=user_auth_headers,
+    )
+    assert notifications_response.status_code == 200
+    assert any(
+        item['type'] == 'set_finished'
+        and item['payload_json']['entity_id'] == 2
+        and item['payload_json']['set_number'] == 3
+        for item in notifications_response.json()['data']
+    )

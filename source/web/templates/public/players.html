@@ -17,24 +17,25 @@
 {% if schema_json %}<script type="application/ld+json">{{ schema_json | safe }}</script>{% endif %}
 </head>
 <body data-page="{{ page_name }}">
+<a class="visually-hidden-focusable skip-link" href="#main-content">Перейти к основному контенту</a>
 <div class="site-shell">
-    <header class="topbar">
+    <header class="topbar" role="banner">
         <div class="container py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
             <a href="/" class="brand-mark"><span class="brand-ball">MO</span><span>Makhachkala Open</span></a>
-            <nav class="nav-pills-custom"><a href="/">Главная</a><a class="active" href="/players">Игроки</a><a href="/tournaments">Турниры</a><a href="/matches">Матчи</a><a href="/news">Новости</a></nav>
+            <nav class="nav-pills-custom" aria-label="Основная навигация"><a href="/">Главная</a><a class="active" href="/players">Игроки</a><a href="/tournaments">Турниры</a><a href="/matches">Матчи</a><a href="/news">Новости</a></nav>
         </div>
     </header>
-    <main class="container py-4">
+    <main id="main-content" class="container py-4" role="main" tabindex="-1">
         <section class="hero-panel mb-4">
             <div class="eyebrow">Каталог игроков</div>
             <h1 class="display-title">Поиск по игрокам с фильтрами, сортировкой и пагинацией.</h1>
         </section>
         <section class="filter-bar mb-4 position-relative">
             <div class="row g-3">
-                <div class="col-md-4"><input class="form-control" placeholder="Поиск игроков" id="players-search" data-search-demo></div>
-                <div class="col-md-2"><select class="form-select" id="players-country"><option value="">Страна</option><option value="SRB">SRB</option><option value="ITA">ITA</option></select></div>
-                <div class="col-md-2"><select class="form-select" id="players-hand"><option value="">Рука</option><option value="right">Правая</option><option value="left">Левая</option></select></div>
-                <div class="col-md-2"><select class="form-select" id="players-sort"><option value="rank_asc">Сортировка: рейтинг</option><option value="name_asc">Сортировка: имя</option></select></div>
+                <div class="col-md-4"><input class="form-control" placeholder="Поиск игроков" id="players-search" data-search-demo aria-label="Поиск игроков"></div>
+                <div class="col-md-2"><select class="form-select" id="players-country" aria-label="Фильтр по стране"><option value="">Страна</option><option value="SRB">SRB</option><option value="ITA">ITA</option></select></div>
+                <div class="col-md-2"><select class="form-select" id="players-hand" aria-label="Фильтр по игровой руке"><option value="">Рука</option><option value="right">Правая</option><option value="left">Левая</option></select></div>
+                <div class="col-md-2"><select class="form-select" id="players-sort" aria-label="Сортировка игроков"><option value="rank_asc">Сортировка: рейтинг</option><option value="name_asc">Сортировка: имя</option></select></div>
                 <div class="col-md-2"><button class="btn btn-outline-dark w-100 rounded-pill" id="players-reset">Сбросить</button></div>
             </div>
             <div class="list-group position-absolute start-0 end-0 mt-2 d-none" data-search-suggestions></div>

@@ -73,7 +73,7 @@ async def test_integrations_runtime(async_client, admin_auth_headers) -> None:
 
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
     assert logs_response.status_code == status.HTTP_200_OK
-    assert "Validated 1 live events from provider payload" in logs_response.json()["data"]["message"]
+    assert "Validated 1 live events from provider payload, applied 0" in logs_response.json()["data"]["message"]
 
 
 async def test_integrations_runtime_endpoint_fetch_failure(async_client, admin_auth_headers, monkeypatch) -> None:
@@ -139,7 +139,7 @@ async def test_integrations_runtime_endpoint_fetch_success(async_client, admin_a
     assert response.status_code == status.HTTP_200_OK
 
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
-    assert 'Fetched 1 live events from provider endpoint' in logs_response.json()['data']['message']
+    assert 'Fetched 1 live events from provider endpoint, applied 0' in logs_response.json()['data']['message']
 
 async def test_integration_update_rejects_localhost_endpoint(async_client, admin_auth_headers) -> None:
     response = await async_client.patch(
@@ -173,3 +173,80 @@ async def test_integration_sync_rejects_payload_endpoint_override_to_private_hos
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+
+
+async def test_live_integration_sync_updates_existing_match(async_client, admin_auth_headers) -> None:
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+        headers=admin_auth_headers,
+        json={
+            'provider_payload': {
+                'events': [
+                    {
+                        'type': 'set_finished',
+                        'timestamp': '2026-03-06T21:15:00Z',
+                        'set_number': 3,
+                        'game_number': 9,
+                        'match': {
+                            'slug': 'medvedev-vs-rublev-indian-wells-2026-sf',
+                            'status': 'finished',
+                            'tournament_name': 'Indian Wells 2026',
+                            'score_summary': '6-4 4-6 6-3',
+                        },
+                        'players': [{'name': 'Daniil Medvedev'}, {'name': 'Andrey Rublev'}],
+                    }
+                ]
+            }
+        },
+    )
+    assert response.status_code == status.HTTP_200_OK
+
+    match_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/matches/2")
+    assert match_response.status_code == status.HTTP_200_OK
+    match_payload = match_response.json()['data']
+    assert match_payload['status'] == 'finished'
+    assert match_payload['score_summary'] == '6-4 4-6 6-3'
+    assert any(item['event_type'] == 'set_finished' for item in match_payload['timeline'])
+
+    logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
+    assert 'Validated 1 live events from provider payload, applied 1' in logs_response.json()['data']['message']
+
+
+async def test_live_integration_sync_is_idempotent_for_same_provider_event(async_client, admin_auth_headers) -> None:
+    payload = {
+        'provider_payload': {
+            'events': [
+                {
+                    'type': 'set_finished',
+                    'timestamp': '2026-03-06T21:30:00Z',
+                    'set_number': 3,
+                    'game_number': 9,
+                    'match': {
+                        'slug': 'medvedev-vs-rublev-indian-wells-2026-sf',
+                        'status': 'finished',
+                        'tournament_name': 'Indian Wells 2026',
+                        'score_summary': '6-4 4-6 6-3',
+                    },
+                    'players': [{'name': 'Daniil Medvedev'}, {'name': 'Andrey Rublev'}],
+                }
+            ]
+        }
+    }
+
+    first = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+        headers=admin_auth_headers,
+        json=payload,
+    )
+    second = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+        headers=admin_auth_headers,
+        json=payload,
+    )
+    assert first.status_code == status.HTTP_200_OK
+    assert second.status_code == status.HTTP_200_OK
+
+    timeline_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/matches/2/timeline")
+    assert timeline_response.status_code == status.HTTP_200_OK
+    matching = [item for item in timeline_response.json()['data'] if item['event_type'] == 'set_finished' and item['payload_json'].get('provider_event_key', '').endswith('2026-03-06T21:30:00+00:00')]
+    assert len(matching) == 1

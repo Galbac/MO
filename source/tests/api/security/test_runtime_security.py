@@ -52,3 +52,15 @@ async def test_private_integration_endpoint_is_rejected(async_client, admin_auth
     )
     assert response.status_code == 422
 
+
+
+
+def test_rate_limit_skips_health_endpoint(monkeypatch, prepared_test_db: str) -> None:
+    monkeypatch.setattr(settings.security, 'api_rate_limit_requests', 1)
+    monkeypatch.setattr(settings.security, 'api_rate_limit_window_seconds', 60)
+    app = create_app()
+    with TestClient(app) as client:
+        first = client.get('/api/v1/health')
+        second = client.get('/api/v1/health')
+        assert first.status_code == 200
+        assert second.status_code == 200

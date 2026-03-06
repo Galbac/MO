@@ -98,3 +98,34 @@ async def test_layouts_include_skip_links_and_landmarks(async_client) -> None:
     assert 'href="#admin-main-content"' in admin_response.text
     assert 'aria-label="Навигация админки"' in admin_response.text
     assert 'id="admin-main-content"' in admin_response.text
+
+
+async def test_list_pages_include_accessible_navigation_and_tables(async_client) -> None:
+    players = await async_client.get('/players')
+    matches = await async_client.get('/matches')
+    admin_users = await async_client.get('/admin/users')
+    admin_news = await async_client.get('/admin/news')
+
+    assert 'aria-label="Фильтр по стране"' in players.text
+    assert 'aria-label="Поиск игроков"' in players.text
+    assert 'href="#main-content"' in matches.text
+    assert 'aria-label="Фильтр по статусу матча"' in matches.text
+    assert 'aria-label="Таблица пользователей"' in admin_users.text
+    assert 'href="#admin-main-content"' in admin_news.text
+    assert 'aria-label="Таблица новостей"' in admin_news.text
+
+
+async def test_detail_pages_include_accessible_landmarks(async_client) -> None:
+    player = await async_client.get('/players/novak-djokovic')
+    match = await async_client.get('/matches/djokovic-vs-sinner-ao-2026-final')
+    news = await async_client.get('/news/djokovic-wins-ao-2026')
+
+    assert 'href="#main-content"' in player.text
+    assert 'role="main"' in player.text
+    assert 'aria-label="История рейтинга игрока"' in player.text
+
+    assert 'href="#main-content"' in match.text
+    assert 'aria-label="Статистика матча"' in match.text
+
+    assert 'href="#main-content"' in news.text
+    assert 'aria-label="Основная навигация"' in news.text

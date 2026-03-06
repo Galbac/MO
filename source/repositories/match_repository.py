@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from source.db.models import HeadToHead, Match, MatchEvent, MatchSet, MatchStats, NewsArticle
@@ -38,6 +38,18 @@ class MatchRepository:
 
     async def get(self, session: AsyncSession, match_id: int) -> Match | None:
         return await session.get(Match, match_id)
+
+    async def get_by_slug(self, session: AsyncSession, slug: str) -> Match | None:
+        stmt = select(Match).where(Match.slug == slug)
+        return await session.scalar(stmt)
+
+    async def find_event_by_provider_key(self, session: AsyncSession, *, match_id: int, provider_event_key: str) -> MatchEvent | None:
+        events = await self.get_events(session, match_id)
+        for item in events:
+            payload = item.payload_json or {}
+            if payload.get('provider_event_key') == provider_event_key:
+                return item
+        return None
 
     async def get_sets(self, session: AsyncSession, match_id: int) -> list[MatchSet]:
         stmt = select(MatchSet).where(MatchSet.match_id == match_id).order_by(MatchSet.set_number.asc())

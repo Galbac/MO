@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+import json
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from fastapi import HTTPException, status
@@ -33,12 +35,32 @@ class PortalQueryService:
         total_pages = max((total + per_page - 1) // per_page, 1) if per_page else 1
         return PaginationMeta(page=page, per_page=per_page, total=total, total_pages=total_pages)
 
+    def _player_aggregates_path(self) -> Path:
+        return Path(settings.maintenance.artifacts_dir) / 'player_aggregates.json'
+
+    def _load_player_aggregate(self, player_id: int) -> dict[str, Any] | None:
+        path = self._player_aggregates_path()
+        if not path.exists():
+            return None
+        try:
+            payload = json.loads(path.read_text())
+        except json.JSONDecodeError:
+            return None
+        players = payload.get('players') if isinstance(payload, dict) else None
+        if not isinstance(players, dict):
+            return None
+        aggregate = players.get(str(player_id))
+        return aggregate if isinstance(aggregate, dict) else None
+
     @staticmethod
     def _player_form(matches: list[Match], player_id: int) -> list[str]:
         ordered = sorted(matches, key=lambda item: item.scheduled_at or datetime.min, reverse=True)[:5]
         return ['W' if item.winner_id == player_id else 'L' for item in ordered if item.winner_id is not None]
 
-    def _player_summary(self, player: Player, matches: list[Match] | None = None) -> PlayerSummary:
+    def _player_summary(self, player: Player, matches: list[Match] | None = None, aggregate: dict[str, Any] | None = None) -> PlayerSummary:
+        form = aggregate.get('form') if isinstance(aggregate, dict) else None
+        if not isinstance(form, list):
+            form = self._player_form(matches or [], player.id)
         return PlayerSummary(
             id=player.id,
             slug=player.slug,
@@ -47,11 +69,23 @@ class PortalQueryService:
             current_rank=player.current_rank,
             current_points=player.current_points,
             photo_url=player.photo_url,
-            form=self._player_form(matches or [], player.id),
+            form=[str(item) for item in form],
         )
 
     @staticmethod
-    def _player_stats(matches: list[Match], player_id: int) -> PlayerStats:
+    def _player_stats(matches: list[Match], player_id: int, aggregate: dict[str, Any] | None = None) -> PlayerStats:
+        aggregate_stats = aggregate.get('stats') if isinstance(aggregate, dict) else None
+        if isinstance(aggregate_stats, dict):
+            return PlayerStats(
+                season=int(aggregate_stats.get('season') or date.today().year),
+                matches_played=int(aggregate_stats.get('matches_played') or 0),
+                wins=int(aggregate_stats.get('wins') or 0),
+                losses=int(aggregate_stats.get('losses') or 0),
+                win_rate=float(aggregate_stats.get('win_rate') or 0.0),
+                hard_record=str(aggregate_stats.get('hard_record') or '0-0'),
+                clay_record=str(aggregate_stats.get('clay_record') or '0-0'),
+                grass_record=str(aggregate_stats.get('grass_record') or '0-0'),
+            )
         completed = [item for item in matches if item.winner_id is not None]
         wins = sum(1 for item in completed if item.winner_id == player_id)
         losses = sum(1 for item in completed if item.winner_id and item.winner_id != player_id)
@@ -150,7 +184,8 @@ class PortalQueryService:
             async with db_session_manager.session() as session:
                 items, total = await self.players.list(session, search=search, country_code=country_code, hand=hand, status=status, rank_from=rank_from, rank_to=rank_to, page=page, per_page=per_page)
                 player_matches = {item.id: await self.players.get_matches(session, item.id) for item in items}
-                return PaginatedResponse(data=[self._player_summary(item, player_matches.get(item.id, [])) for item in items], meta=self._paginate_meta(page, per_page, total))
+                aggregates = {item.id: self._load_player_aggregate(item.id) for item in items}
+                return PaginatedResponse(data=[self._player_summary(item, player_matches.get(item.id, []), aggregates.get(item.id)) for item in items], meta=self._paginate_meta(page, per_page, total))
 
         key = f'players:list:{search or ""}:{country_code or ""}:{hand or ""}:{status or ""}:{rank_from or ""}:{rank_to or ""}:{page}:{per_page}'
         return await self._cached(key, PaginatedResponse[PlayerSummary], loader)
@@ -163,6 +198,7 @@ class PortalQueryService:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Player not found')
                 matches = await self.players.get_matches(session, player_id)
                 rankings = await self.players.get_ranking_history(session, player_id)
+                aggregate = self._load_player_aggregate(player_id)
                 player_ids = {value for match in matches for value in (match.player1_id, match.player2_id)}
                 players = await self._players_map(session, player_ids)
                 tournaments = {match.tournament_id: await self.tournaments.get(session, match.tournament_id) for match in matches}
@@ -172,12 +208,16 @@ class PortalQueryService:
                 if upcoming and tournaments.get(upcoming.tournament_id):
                     opponent = self._resolve_opponent(upcoming, player_id, players)
                     upcoming_match = UpcomingMatchItem(match_id=upcoming.id, slug=upcoming.slug, tournament_name=tournaments[upcoming.tournament_id].name, opponent_name=opponent.full_name if opponent else '', scheduled_at=upcoming.scheduled_at.isoformat(), status=upcoming.status)
-                titles = []
-                for match in matches:
-                    if match.winner_id == player_id and match.round_code == 'F' and tournaments.get(match.tournament_id):
-                        tournament = tournaments[match.tournament_id]
-                        titles.append(TitleItem(tournament_name=tournament.name, season_year=tournament.season_year, surface=tournament.surface, category=tournament.category))
-                detail = PlayerDetail(**self._player_summary(player, matches).model_dump(), first_name=player.first_name, last_name=player.last_name, country_name=player.country_name, birth_date=player.birth_date, height_cm=player.height_cm, weight_kg=player.weight_kg, hand=player.hand, backhand=player.backhand, biography=player.biography, status=player.status, stats=self._player_stats(matches, player_id), recent_matches=recent_matches, upcoming_match=upcoming_match, ranking_history=self._ranking_points(rankings), titles=titles, seo=SeoMeta(title=player.full_name, description=player.biography or player.full_name, canonical_url=f'/players/{player.slug}'))
+                aggregate_titles = aggregate.get('titles') if isinstance(aggregate, dict) else None
+                if isinstance(aggregate_titles, list):
+                    titles = [TitleItem(**item) for item in aggregate_titles if isinstance(item, dict)]
+                else:
+                    titles = []
+                    for match in matches:
+                        if match.winner_id == player_id and match.round_code == 'F' and tournaments.get(match.tournament_id):
+                            tournament = tournaments[match.tournament_id]
+                            titles.append(TitleItem(tournament_name=tournament.name, season_year=tournament.season_year, surface=tournament.surface, category=tournament.category))
+                detail = PlayerDetail(**self._player_summary(player, matches, aggregate).model_dump(), first_name=player.first_name, last_name=player.last_name, country_name=player.country_name, birth_date=player.birth_date, height_cm=player.height_cm, weight_kg=player.weight_kg, hand=player.hand, backhand=player.backhand, biography=player.biography, status=player.status, stats=self._player_stats(matches, player_id, aggregate), recent_matches=recent_matches, upcoming_match=upcoming_match, ranking_history=self._ranking_points(rankings), titles=titles, seo=SeoMeta(title=player.full_name, description=player.biography or player.full_name, canonical_url=f'/players/{player.slug}'))
                 return SuccessResponse(data=detail)
 
         return await self._cached(f'players:detail:{player_id}', SuccessResponse[PlayerDetail], loader)

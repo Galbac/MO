@@ -122,9 +122,14 @@ class AdminContentService:
 
     @staticmethod
     def _sanitize_html(value: str) -> str:
-        sanitized = re.sub(r'<\s*script[^>]*>.*?<\s*/\s*script\s*>', '', value, flags=re.IGNORECASE | re.DOTALL)
+        sanitized = value
+        for tag in ('script', 'iframe', 'object', 'embed', 'style', 'link', 'meta', 'base', 'form', 'input', 'button', 'textarea', 'select'):
+            sanitized = re.sub(rf'<\s*{tag}[^>]*>.*?<\s*/\s*{tag}\s*>', '', sanitized, flags=re.IGNORECASE | re.DOTALL)
+            sanitized = re.sub(rf'<\s*{tag}[^>]*/?\s*>', '', sanitized, flags=re.IGNORECASE | re.DOTALL)
         sanitized = re.sub(r"on[a-zA-Z]+\s*=\s*(\".*?\"|'[^']*'|[^\s>]+)", '', sanitized, flags=re.IGNORECASE | re.DOTALL)
-        sanitized = re.sub(r'javascript:', '', sanitized, flags=re.IGNORECASE)
+        sanitized = re.sub(r"style\s*=\s*(\".*?\"|'[^']*'|[^\s>]+)", '', sanitized, flags=re.IGNORECASE | re.DOTALL)
+        sanitized = re.sub(r"srcdoc\s*=\s*(\".*?\"|'[^']*'|[^\s>]+)", '', sanitized, flags=re.IGNORECASE | re.DOTALL)
+        sanitized = re.sub(r'(javascript:|data:text/html)', '', sanitized, flags=re.IGNORECASE)
         return sanitized.strip()
 
     @classmethod
@@ -351,6 +356,7 @@ class AdminContentService:
             event = await self.matches.create_event(session, {'match_id': match_id, 'event_type': payload.event_type, 'set_number': payload.set_number, 'game_number': payload.game_number, 'player_id': payload.player_id, 'payload_json': payload.payload_json, 'created_at': datetime.now(tz=UTC)})
         await self._log_audit(action='match.create_event', entity_type='match', entity_id=match_id, before_json=None, after_json={'event_id': event.id, **payload.model_dump()}, user_id=actor_id)
         self._invalidate_cache('matches:', 'live:')
+        await self.workflows.process_match_event(match_id, event_type=payload.event_type, set_number=payload.set_number, payload_json=payload.payload_json or {})
         broadcast_event = payload.event_type if payload.event_type in {'break_point', 'set_finished', 'match_finished'} else 'point_updated'
         await self._broadcast_match_update(match_id, broadcast_event, {'event_id': event.id, **payload.model_dump()})
         return SuccessResponse(data=MatchEventItem(id=event.id, event_type=event.event_type, set_number=event.set_number, game_number=event.game_number, player_id=event.player_id, payload_json=event.payload_json or {}, created_at=event.created_at))

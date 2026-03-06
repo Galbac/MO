@@ -17,16 +17,17 @@
 {% if schema_json %}<script type="application/ld+json">{{ schema_json | safe }}</script>{% endif %}
 </head>
 <body data-page="{{ page_name }}" data-entity-slug="{{ entity_slug | default("") }}">
+<a class="visually-hidden-focusable skip-link" href="#main-content">Перейти к основному контенту</a>
 <div class="site-shell">
-    <header class="topbar"><div class="container py-3 d-flex justify-content-between align-items-center gap-3"><a href="/" class="brand-mark"><span class="brand-ball">MO</span><span>Makhachkala Open</span></a><nav class="nav-pills-custom"><a href="/matches" class="active">Матчи</a><a href="/live">Лайв</a><a href="/h2h">Личные встречи</a></nav></div></header>
-    <main class="container py-4">
+    <header class="topbar" role="banner"><div class="container py-3 d-flex justify-content-between align-items-center gap-3"><a href="/" class="brand-mark"><span class="brand-ball">MO</span><span>Makhachkala Open</span></a><nav class="nav-pills-custom" aria-label="Основная навигация"><a href="/matches" class="active">Матчи</a><a href="/live">Лайв</a><a href="/h2h">Личные встречи</a></nav></div></header>
+    <main class="container py-4" id="main-content" role="main" tabindex="-1">
         <section class="scoreboard mb-4">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><div class="eyebrow">Центр матча</div><h1 class="section-title mb-0" id="match-title">Загрузка матча...</h1><div class="text-muted" id="match-subtitle"></div></div><span class="status-pill" id="match-status">Загрузка</span></div>
             <div id="match-scoreboard"></div>
         </section>
         <div class="row g-4">
             <div class="col-lg-8">
-                <section class="content-card mb-4"><h2 class="section-title">Статистика</h2><table class="table table-clean"><tbody id="match-stats-table"></tbody></table></section>
+                <section class="content-card mb-4"><h2 class="section-title">Статистика</h2><table class="table table-clean" aria-label="Статистика матча"><tbody id="match-stats-table"></tbody></table></section>
                 <section class="content-card"><h2 class="section-title">Таймлайн</h2><div id="match-timeline"></div></section>
             </div>
             <div class="col-lg-4">

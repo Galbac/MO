@@ -153,3 +153,33 @@ async def test_admin_rankings_recalculate_movements_and_player_notifications(asy
     history_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/notifications", headers=admin_auth_headers)
     assert history_response.status_code == status.HTTP_200_OK
     assert any(item['title'] == 'Ranking update: Novak Djokovic' for item in history_response.json()['data'])
+
+
+async def test_admin_rankings_import_clears_players_missing_from_latest_snapshot(async_client, admin_auth_headers) -> None:
+    import_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/rankings/import",
+        json={
+            'provider': 'rankings-provider',
+            'provider_payload': {
+                'ranking_type': 'atp',
+                'ranking_date': '2026-03-12',
+                'entries': [
+                    {'position': 1, 'player_name': 'Jannik Sinner', 'country_code': 'IT', 'points': 9300},
+                ],
+            },
+        },
+        headers=admin_auth_headers,
+    )
+    assert import_response.status_code == status.HTTP_200_OK
+
+    missing_player_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/players/1")
+    assert missing_player_response.status_code == status.HTTP_200_OK
+    missing_player = missing_player_response.json()['data']
+    assert missing_player['current_rank'] is None
+    assert missing_player['current_points'] is None
+
+    still_ranked_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/players/2")
+    assert still_ranked_response.status_code == status.HTTP_200_OK
+    still_ranked = still_ranked_response.json()['data']
+    assert still_ranked['current_rank'] == 1
+    assert still_ranked['current_points'] == 9300

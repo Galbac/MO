@@ -15,7 +15,7 @@ from fastapi import HTTPException, UploadFile, status
 from source.config.settings import settings
 from source.db.session import db_session_manager
 from source.integrations import IntegrationSyncError, LiveScoreProviderClient, ProviderPayloadMapper, RankingsProviderClient
-from source.repositories import AuditRepository
+from source.repositories import AuditRepository, MatchRepository
 from source.schemas.pydantic.admin import AdminIntegrationItem, AuditLogItem
 from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
 from source.schemas.pydantic.common import SuccessResponse
@@ -29,6 +29,7 @@ class OperationsService:
         self.media_index_file = self.storage_dir / 'media_index.json'
         self.integrations_file = self.storage_dir / 'integrations.json'
         self.audit_repo = AuditRepository()
+        self.matches = MatchRepository()
         self.mapper = ProviderPayloadMapper()
 
     def _ensure_storage(self) -> None:
@@ -60,7 +61,7 @@ class OperationsService:
 
     @staticmethod
     def _sanitize_filename(filename: str) -> str:
-        candidate = Path(filename).name.strip()
+        candidate = Path(filename).name.strip().replace('\x00', '')
         candidate = re.sub(r'[^A-Za-z0-9._-]+', '_', candidate)
         candidate = candidate.lstrip('._')
         return candidate
@@ -68,7 +69,9 @@ class OperationsService:
     def _validate_upload(self, filename: str, content_type: str, size: int) -> None:
         if not filename:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='filename is required')
-        if filename != Path(filename).name or '..' in filename:
+        if any(ord(char) < 32 for char in filename) or '\x00' in filename:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsafe filename')
+        if filename != Path(filename).name or '..' in filename or '/' in filename or '\\' in filename:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsafe filename')
         extension = Path(filename).suffix.lower()
         if extension in set(settings.media.forbidden_extensions):
@@ -249,6 +252,52 @@ class OperationsService:
             return RankingsProviderClient(provider, timeout_seconds=timeout_seconds, max_attempts=max_attempts)
         return None
 
+    async def _apply_live_provider_events(self, provider: str, events) -> int:
+        from source.services.live_hub import live_hub
+        from source.services.workflow_service import WorkflowService
+
+        workflows = WorkflowService()
+        applied = 0
+        async with db_session_manager.session() as session:
+            for event in events:
+                match = await self.matches.get_by_slug(session, event.match_slug)
+                if match is None:
+                    continue
+                provider_event_key = f'{provider}:{event.match_slug}:{event.event_type}:{event.occurred_at.isoformat()}'
+                duplicate = await self.matches.find_event_by_provider_key(session, match_id=match.id, provider_event_key=provider_event_key)
+                if duplicate is not None:
+                    continue
+                status_changed = match.status != event.status
+                score_changed = bool(event.score_summary and event.score_summary != match.score_summary)
+                if status_changed or score_changed:
+                    update_payload = {}
+                    if status_changed:
+                        update_payload['status'] = event.status
+                    if score_changed:
+                        update_payload['score_summary'] = event.score_summary
+                    await self.matches.update(session, match, update_payload)
+                payload_json = dict(event.payload)
+                payload_json['provider'] = provider
+                payload_json['provider_event_key'] = provider_event_key
+                created = await self.matches.create_event(session, {
+                    'match_id': match.id,
+                    'event_type': event.event_type,
+                    'set_number': payload_json.get('set_number'),
+                    'game_number': payload_json.get('game_number'),
+                    'player_id': payload_json.get('player_id'),
+                    'payload_json': payload_json,
+                    'created_at': event.occurred_at,
+                })
+                applied += 1
+                if status_changed:
+                    await workflows.process_match_status_change(match.id, event.status)
+                await workflows.process_match_event(match.id, event_type=event.event_type, set_number=payload_json.get('set_number'), payload_json=payload_json)
+                await live_hub.broadcast(
+                    channels=[f'live:all', f'live:match:{match.id}', f'live:tournament:{match.tournament_id}', f'live:player:{match.player1_id}', f'live:player:{match.player2_id}'],
+                    payload={'type': event.event_type if event.event_type in {'score_updated', 'point_updated', 'break_point', 'set_finished', 'match_finished'} else 'match_status_changed', 'match_id': match.id, 'payload': {'event_id': created.id, 'status': event.status, 'score_summary': event.score_summary, **payload_json}},
+                )
+        return applied
+
     async def list_integrations(self) -> SuccessResponse[list[AdminIntegrationItem]]:
         records = self._integration_records()
         data = [AdminIntegrationItem(provider=provider, status=item.get('status', 'configured'), last_sync_at=datetime.fromisoformat(item['last_sync_at']) if item.get('last_sync_at') else None, last_error=item.get('last_error')) for provider, item in sorted(records.items())]
@@ -274,7 +323,8 @@ class OperationsService:
             if isinstance(provider_payload, dict):
                 if 'live' in provider:
                     events = self.mapper.parse_live_events(provider, provider_payload)
-                    log_message = f'Validated {len(events)} live events from provider payload'
+                    applied = await self._apply_live_provider_events(provider, events)
+                    log_message = f'Validated {len(events)} live events from provider payload, applied {applied}'
                 elif 'rank' in provider:
                     rows = self.mapper.parse_rankings(provider, provider_payload)
                     log_message = f'Validated {len(rows)} ranking rows from provider payload'
@@ -285,7 +335,8 @@ class OperationsService:
                 if endpoint and client is not None:
                     if 'live' in provider:
                         events = await client.fetch_events(endpoint, headers=headers)
-                        log_message = f'Fetched {len(events)} live events from provider endpoint'
+                        applied = await self._apply_live_provider_events(provider, events)
+                        log_message = f'Fetched {len(events)} live events from provider endpoint, applied {applied}'
                     elif 'rank' in provider:
                         rows = await client.fetch_rankings(endpoint, headers=headers)
                         log_message = f'Fetched {len(rows)} ranking rows from provider endpoint'
