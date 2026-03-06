@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import HTTPException, status
 
 from source.db.session import db_session_manager
+from source.integrations import ProviderPayloadMapper
 from source.repositories import AdminSupportRepository
 from source.schemas.pydantic.admin import AdminNotificationBroadcast, AdminNotificationTemplate
 from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
@@ -22,6 +23,7 @@ class AdminSupportService:
         self.repo = AdminSupportRepository()
         self.storage_dir = Path('var')
         self.cache = CacheService()
+        self.mapper = ProviderPayloadMapper()
         self.settings_file = self.storage_dir / 'admin_settings.json'
         self.jobs_file = self.storage_dir / 'ranking_import_jobs.json'
 
@@ -172,6 +174,46 @@ class AdminSupportService:
         return SuccessResponse(data=data)
 
     async def import_rankings(self, payload: dict[str, Any]) -> MessageResponse:
+        provider = str(payload.get('provider') or '').strip()
+        provider_payload = payload.get('provider_payload')
+        if provider and isinstance(provider_payload, dict):
+            rows = self.mapper.parse_rankings(provider, provider_payload)
+            names = [row.player_name for row in rows]
+            async with db_session_manager.session() as session:
+                players = {item.full_name: item for item in await self.repo.find_players_by_names(session, names)}
+                if len(players) != len(set(names)):
+                    missing = sorted(set(names) - set(players))
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'Players not found for rankings import: {", ".join(missing)}')
+                existing_snapshots = [item for item in await self.repo.list_ranking_snapshots(session) if item.ranking_type == rows[0].ranking_type]
+                latest_existing_date = max((item.ranking_date for item in existing_snapshots), default=None)
+                previous = {item.player_id: item for item in await self.repo.get_previous_rankings(session, rows[0].ranking_type, rows[0].ranking_date)}
+                ranking_rows: list[dict[str, Any]] = []
+                for row in rows:
+                    player = players[row.player_name]
+                    movement = row.movement
+                    if movement is None:
+                        previous_entry = previous.get(player.id)
+                        movement = 0 if previous_entry is None else int(previous_entry.rank_position) - int(row.position)
+                    ranking_rows.append({
+                        'ranking_type': row.ranking_type,
+                        'ranking_date': row.ranking_date,
+                        'player_id': player.id,
+                        'rank_position': row.position,
+                        'points': row.points,
+                        'movement': movement,
+                    })
+                await self.repo.replace_rankings(session, ranking_type=rows[0].ranking_type, ranking_date=rows[0].ranking_date, rows=ranking_rows)
+                if latest_existing_date is None or rows[0].ranking_date >= latest_existing_date:
+                    affected_player_ids = [item.player_id for item in existing_snapshots]
+                    await self.repo.clear_player_current_rankings(session, sorted(set(affected_player_ids) - {row['player_id'] for row in ranking_rows}))
+                    await self.repo.apply_player_current_rankings(session, ranking_rows)
+                await self.repo.commit(session)
+            jobs = self._read_json(self.jobs_file) or []
+            jobs.append({'ranking_type': rows[0].ranking_type, 'status': 'finished', 'imported_at': datetime.now(tz=UTC).isoformat(), 'processed_rows': len(ranking_rows), 'source_file': str(payload.get('source_file') or provider)})
+            self._write_json(self.jobs_file, jobs)
+            self._invalidate_cache('rankings:', 'players:', 'search:')
+            return MessageResponse(data=SimpleMessage(message=f'Imported {len(ranking_rows)} ranking rows from {provider}'))
+
         async with db_session_manager.session() as session:
             ranking_type = await self.repo.get_latest_ranking_type(session) or 'unknown'
         jobs = self._read_json(self.jobs_file) or []

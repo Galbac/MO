@@ -71,3 +71,27 @@ async def test_admin_notifications_and_rankings(async_client, admin_auth_headers
     jobs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/rankings/import-jobs", headers=admin_auth_headers)
     assert jobs_response.status_code == status.HTTP_200_OK
     assert jobs_response.json()["data"]
+
+
+async def test_admin_rankings_provider_import_updates_current_snapshot(async_client, admin_auth_headers) -> None:
+    import_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/rankings/import",
+        json={
+            'provider': 'rankings-provider',
+            'provider_payload': {
+                'ranking_type': 'atp',
+                'ranking_date': '2026-03-10',
+                'entries': [
+                    {'position': 1, 'player_name': 'Jannik Sinner', 'country_code': 'IT', 'points': 9100},
+                    {'position': 2, 'player_name': 'Novak Djokovic', 'country_code': 'RS', 'points': 8700},
+                ],
+            },
+        },
+        headers=admin_auth_headers,
+    )
+    assert import_response.status_code == status.HTTP_200_OK
+
+    rankings_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/rankings/current?ranking_type=atp")
+    assert rankings_response.status_code == status.HTTP_200_OK
+    assert rankings_response.json()['data'][0]['player_name'] == 'Jannik Sinner'
+    assert rankings_response.json()['data'][0]['ranking_date'] == '2026-03-10'

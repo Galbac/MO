@@ -10,6 +10,7 @@ from fastapi import HTTPException, UploadFile, status
 
 from source.config.settings import settings
 from source.db.session import db_session_manager
+from source.integrations import ProviderPayloadMapper
 from source.repositories import AuditRepository
 from source.schemas.pydantic.admin import AdminIntegrationItem, AuditLogItem
 from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
@@ -24,6 +25,7 @@ class OperationsService:
         self.media_index_file = self.storage_dir / 'media_index.json'
         self.integrations_file = self.storage_dir / 'integrations.json'
         self.audit_repo = AuditRepository()
+        self.mapper = ProviderPayloadMapper()
 
     def _ensure_storage(self) -> None:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
@@ -147,10 +149,20 @@ class OperationsService:
         await self._log_audit(action='integration.update', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
         return MessageResponse(data=SimpleMessage(message=f'Integration {provider} updated'))
 
-    async def sync_integration(self, provider: str) -> MessageResponse:
+    async def sync_integration(self, provider: str, payload: dict[str, Any] | None = None) -> MessageResponse:
         records = self._integration_records()
         current = records.get(provider, {'status': 'configured', 'last_sync_at': None, 'last_error': None, 'settings': {}, 'logs': []})
-        log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'message': 'Manual sync executed'}
+        payload = payload or {}
+        provider_payload = payload.get('provider_payload')
+        log_message = 'Manual sync executed'
+        if isinstance(provider_payload, dict):
+            if 'live' in provider:
+                events = self.mapper.parse_live_events(provider, provider_payload)
+                log_message = f'Validated {len(events)} live events from provider payload'
+            elif 'rank' in provider:
+                rows = self.mapper.parse_rankings(provider, provider_payload)
+                log_message = f'Validated {len(rows)} ranking rows from provider payload'
+        log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'message': log_message}
         updated = current | {'status': 'ok', 'last_sync_at': log_entry['timestamp'], 'last_error': None, 'logs': [*current.get('logs', []), log_entry][-20:]}
         records[provider] = updated
         self._save_integration_records(records)

@@ -31,3 +31,10 @@ compose-up:
 
 compose-down:
 	docker compose down
+
+
+test-contract:
+	./.venv/bin/pytest -q source/tests/contract
+
+test-load:
+	./.venv/bin/pytest -q source/tests/load

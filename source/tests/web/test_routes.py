@@ -6,7 +6,8 @@ async def test_home_page_renders_html(async_client) -> None:
 
     assert response.status_code == status.HTTP_200_OK
     assert "text/html" in response.headers["content-type"]
-    assert "Tennis Portal" in response.text
+    assert "Makhachkala Open" in response.text
+    assert "Счета, новости и рейтинги" in response.text
 
 
 async def test_admin_dashboard_renders_html(async_client) -> None:
@@ -14,7 +15,8 @@ async def test_admin_dashboard_renders_html(async_client) -> None:
 
     assert response.status_code == status.HTTP_200_OK
     assert "text/html" in response.headers["content-type"]
-    assert "Admin" in response.text
+    assert "Админка" in response.text
+    assert "Панель" in response.text
 
 
 async def test_h2h_page_renders_html(async_client) -> None:
@@ -22,7 +24,7 @@ async def test_h2h_page_renders_html(async_client) -> None:
 
     assert response.status_code == status.HTTP_200_OK
     assert "text/html" in response.headers["content-type"]
-    assert "Head to head" in response.text
+    assert "Личные встречи" in response.text
 
 
 async def test_error_pages_render_html(async_client) -> None:
@@ -31,8 +33,8 @@ async def test_error_pages_render_html(async_client) -> None:
 
     assert response_404.status_code == status.HTTP_200_OK
     assert response_500.status_code == status.HTTP_200_OK
-    assert "Page not found" in response_404.text
-    assert "Something went wrong" in response_500.text
+    assert "Страница не найдена" in response_404.text
+    assert "Что-то пошло не так" in response_500.text
 
 
 async def test_robots_and_sitemap_are_exposed(async_client) -> None:

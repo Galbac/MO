@@ -49,7 +49,22 @@ async def test_integrations_runtime(async_client, admin_auth_headers) -> None:
     )
     assert patch_response.status_code == status.HTTP_200_OK
 
-    sync_response = await async_client.post(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync", headers=admin_auth_headers)
+    sync_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+        headers=admin_auth_headers,
+        json={
+            'provider_payload': {
+                'events': [
+                    {
+                        'type': 'score_updated',
+                        'timestamp': '2026-03-06T10:00:00Z',
+                        'match': {'slug': 'novak-djokovic-vs-jannik-sinner', 'status': 'live', 'tournament_name': 'Australian Open'},
+                        'players': [{'name': 'Novak Djokovic'}, {'name': 'Jannik Sinner'}],
+                    }
+                ]
+            }
+        },
+    )
     assert sync_response.status_code == status.HTTP_200_OK
 
     list_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations", headers=admin_auth_headers)
@@ -58,4 +73,4 @@ async def test_integrations_runtime(async_client, admin_auth_headers) -> None:
 
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
     assert logs_response.status_code == status.HTTP_200_OK
-    assert "Manual sync executed" in logs_response.json()["data"]["message"]
+    assert "Validated 1 live events from provider payload" in logs_response.json()["data"]["message"]

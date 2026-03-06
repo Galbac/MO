@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from source.db.models import NewsCategory, Notification, RankingSnapshot, Tag, User
+from source.db.models import NewsCategory, Notification, Player, RankingSnapshot, Tag, User
 
 
 class AdminSupportRepository:
@@ -83,3 +83,54 @@ class AdminSupportRepository:
     async def count_rankings_for_date(self, session: AsyncSession, ranking_type: str, ranking_date: str) -> int:
         stmt = select(func.count()).select_from(RankingSnapshot).where(RankingSnapshot.ranking_type == ranking_type, RankingSnapshot.ranking_date == ranking_date)
         return int((await session.scalar(stmt)) or 0)
+
+    async def find_players_by_names(self, session: AsyncSession, names: list[str]) -> list[Player]:
+        if not names:
+            return []
+        stmt = select(Player).where(Player.full_name.in_(names))
+        return list((await session.scalars(stmt)).all())
+
+    async def get_previous_rankings(self, session: AsyncSession, ranking_type: str, ranking_date: str) -> list[RankingSnapshot]:
+        previous_date_stmt = (
+            select(RankingSnapshot.ranking_date)
+            .where(RankingSnapshot.ranking_type == ranking_type, RankingSnapshot.ranking_date < ranking_date)
+            .order_by(RankingSnapshot.ranking_date.desc())
+            .limit(1)
+        )
+        previous_date = await session.scalar(previous_date_stmt)
+        if previous_date is None:
+            return []
+        stmt = select(RankingSnapshot).where(RankingSnapshot.ranking_type == ranking_type, RankingSnapshot.ranking_date == previous_date)
+        return list((await session.scalars(stmt)).all())
+
+    async def replace_rankings(self, session: AsyncSession, *, ranking_type: str, ranking_date: str, rows: list[dict]) -> list[RankingSnapshot]:
+        await session.execute(delete(RankingSnapshot).where(RankingSnapshot.ranking_type == ranking_type, RankingSnapshot.ranking_date == ranking_date))
+        items = [RankingSnapshot(**row) for row in rows]
+        session.add_all(items)
+        await session.flush()
+        return items
+
+    async def clear_player_current_rankings(self, session: AsyncSession, player_ids: list[int]) -> None:
+        if not player_ids:
+            return
+        stmt = select(Player).where(Player.id.in_(player_ids))
+        players = list((await session.scalars(stmt)).all())
+        for player in players:
+            player.current_rank = None
+            player.current_points = None
+
+    async def apply_player_current_rankings(self, session: AsyncSession, ranking_rows: list[dict]) -> None:
+        if not ranking_rows:
+            return
+        player_ids = [int(row['player_id']) for row in ranking_rows]
+        stmt = select(Player).where(Player.id.in_(player_ids))
+        players = {item.id: item for item in list((await session.scalars(stmt)).all())}
+        for row in ranking_rows:
+            player = players.get(int(row['player_id']))
+            if player is None:
+                continue
+            player.current_rank = int(row['rank_position'])
+            player.current_points = int(row['points'])
+
+    async def commit(self, session: AsyncSession) -> None:
+        await session.commit()

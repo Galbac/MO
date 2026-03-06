@@ -20,8 +20,8 @@ async def patch_admin_integration(provider: str, payload: dict | None = None) ->
 
 
 @router.post("/{provider}/sync", response_model=MessageResponse)
-async def sync_admin_integration(provider: str) -> MessageResponse:
-    return await service.sync_integration(provider)
+async def sync_admin_integration(provider: str, payload: dict | None = None) -> MessageResponse:
+    return await service.sync_integration(provider, payload or {})
 
 
 @router.get("/{provider}/logs", response_model=MessageResponse)
