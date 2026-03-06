@@ -61,3 +61,24 @@ async def test_media_rejects_forbidden_extension(async_client, admin_auth_header
         headers=admin_auth_headers,
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+async def test_media_rejects_invalid_jpeg_signature(async_client) -> None:
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
+        files={"file": ("cover.jpg", b"not-a-jpeg", "image/jpeg")},
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+async def test_admin_media_accepts_base64_png(async_client, admin_auth_headers) -> None:
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/media/upload",
+        json={
+            "filename": "cover.png",
+            "content_type": "image/png",
+            "content_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jk6sAAAAASUVORK5CYII=",
+        },
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.json()["data"]["filename"] == "cover.png"

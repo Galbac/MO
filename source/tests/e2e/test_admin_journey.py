@@ -49,3 +49,21 @@ async def test_admin_end_to_end_journey(async_client, admin_auth_headers) -> Non
     match_detail = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/matches/2")
     assert match_detail.status_code == status.HTTP_200_OK
     assert match_detail.json()['data']['status'] == 'finished'
+
+
+async def test_editor_and_operator_journeys(async_client, editor_auth_headers, operator_auth_headers) -> None:
+    editor_news = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news", headers=editor_auth_headers)
+    assert editor_news.status_code == status.HTTP_200_OK
+
+    editor_users = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/users", headers=editor_auth_headers)
+    assert editor_users.status_code == status.HTTP_403_FORBIDDEN
+
+    operator_matches = await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/2/score",
+        headers=operator_auth_headers,
+        json={"score_summary": "6-4 4-6 5-4", "sets": []},
+    )
+    assert operator_matches.status_code == status.HTTP_200_OK
+
+    operator_news = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news", headers=operator_auth_headers)
+    assert operator_news.status_code == status.HTTP_403_FORBIDDEN

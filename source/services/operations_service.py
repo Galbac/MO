@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import re
 from datetime import UTC, datetime
@@ -77,6 +79,47 @@ class OperationsService:
         if size > settings.media.max_upload_size_bytes:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='File too large')
 
+    @staticmethod
+    def _decode_media_content(payload: dict[str, Any]) -> bytes:
+        content_base64 = payload.get('content_base64')
+        if content_base64 not in (None, ''):
+            try:
+                return base64.b64decode(str(content_base64), validate=True)
+            except (ValueError, binascii.Error) as exc:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid base64 payload') from exc
+        raw_content = payload.get('content', '')
+        if isinstance(raw_content, bytes):
+            return raw_content
+        return str(raw_content).encode('utf-8')
+
+    @staticmethod
+    def _validate_content_signature(content_type: str, content: bytes) -> None:
+        if not content:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Empty file content')
+        if content_type == 'image/jpeg':
+            if not (content.startswith(b'\xff\xd8\xff') and content.endswith(b'\xff\xd9')):
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid JPEG file signature')
+            return
+        if content_type == 'image/png':
+            if not content.startswith(b'\x89PNG\r\n\x1a\n'):
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid PNG file signature')
+            return
+        if content_type == 'image/gif':
+            if not (content.startswith(b'GIF87a') or content.startswith(b'GIF89a')):
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid GIF file signature')
+            return
+        if content_type == 'image/webp':
+            if not (len(content) >= 12 and content.startswith(b'RIFF') and content[8:12] == b'WEBP'):
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid WEBP file signature')
+            return
+        if content_type == 'text/plain':
+            try:
+                decoded = content.decode('utf-8')
+            except UnicodeDecodeError as exc:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid UTF-8 text payload') from exc
+            if '\x00' in decoded:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Binary content is not allowed for text/plain')
+
     async def list_media(self) -> SuccessResponse[list[MediaFile]]:
         return SuccessResponse(data=[self._media_item(item) for item in self._media_records()])
 
@@ -97,6 +140,7 @@ class OperationsService:
         file_path = self.media_dir / f'{media_id}_{filename}'
         content = await file.read()
         self._validate_upload(raw_filename, content_type, len(content))
+        self._validate_content_signature(content_type, content)
         file_path.write_bytes(content)
         record = {'id': media_id, 'filename': filename, 'content_type': content_type, 'url': f'/static-runtime/media/{file_path.name}', 'size': len(content), 'stored_path': str(file_path), 'created_at': datetime.now(tz=UTC).isoformat()}
         records.append(record)
@@ -108,9 +152,9 @@ class OperationsService:
         raw_filename = str(payload.get('filename', '')).strip()
         filename = self._sanitize_filename(raw_filename)
         content_type = str(payload.get('content_type') or 'application/octet-stream')
-        raw_content = payload.get('content', '')
-        content = raw_content.encode() if isinstance(raw_content, str) else b''
+        content = self._decode_media_content(payload)
         self._validate_upload(raw_filename, content_type, int(payload.get('size') or len(content)))
+        self._validate_content_signature(content_type, content)
         records = self._media_records()
         media_id = max((item['id'] for item in records), default=0) + 1
         self._ensure_storage()

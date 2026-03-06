@@ -6,7 +6,7 @@ from source.config.settings import settings
 async def test_media_and_audit_runtime(async_client, admin_auth_headers) -> None:
     admin_upload = await async_client.post(
         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/media/upload",
-        json={"filename": "cover.jpg", "content_type": "image/jpeg", "content": "binary-image"},
+        json={"filename": "note.txt", "content_type": "text/plain", "content": "binary-image"},
         headers=admin_auth_headers,
     )
     assert admin_upload.status_code == status.HTTP_201_CREATED
@@ -100,3 +100,43 @@ async def test_integrations_runtime_endpoint_fetch_failure(async_client, admin_a
 
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
     assert 'upstream unavailable' in logs_response.json()['data']['message']
+
+
+async def test_integrations_runtime_endpoint_fetch_success(async_client, admin_auth_headers, monkeypatch) -> None:
+    from source.integrations.provider_contracts import ProviderLiveEvent
+    from source.services.operations_service import OperationsService
+    from datetime import datetime, UTC
+
+    class SuccessfulClient:
+        async def fetch_events(self, endpoint: str, headers: dict | None = None):
+            return [
+                ProviderLiveEvent(
+                    provider='live-provider',
+                    event_type='score_updated',
+                    match_slug='novak-djokovic-vs-jannik-sinner',
+                    tournament_name='Australian Open',
+                    player1_name='Novak Djokovic',
+                    player2_name='Jannik Sinner',
+                    status='live',
+                    score_summary='6-4 4-3',
+                    occurred_at=datetime.now(tz=UTC),
+                    payload={'source': 'endpoint'},
+                )
+            ]
+
+    monkeypatch.setattr(OperationsService, '_integration_client', lambda self, provider, settings_payload=None: SuccessfulClient())
+
+    await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+        json={"endpoint": "https://provider.test/live"},
+        headers=admin_auth_headers,
+    )
+
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_200_OK
+
+    logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
+    assert 'Fetched 1 live events from provider endpoint' in logs_response.json()['data']['message']
