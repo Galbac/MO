@@ -140,3 +140,36 @@ async def test_integrations_runtime_endpoint_fetch_success(async_client, admin_a
 
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
     assert 'Fetched 1 live events from provider endpoint' in logs_response.json()['data']['message']
+
+async def test_integration_update_rejects_localhost_endpoint(async_client, admin_auth_headers) -> None:
+    response = await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+        json={"endpoint": "http://127.0.0.1:8000/internal"},
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+async def test_integration_update_rejects_embedded_credentials(async_client, admin_auth_headers) -> None:
+    response = await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+        json={"endpoint": "https://user:pass@provider.test/live"},
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+async def test_integration_sync_rejects_payload_endpoint_override_to_private_host(async_client, admin_auth_headers) -> None:
+    await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+        json={"endpoint": "https://provider.test/live"},
+        headers=admin_auth_headers,
+    )
+
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+        headers=admin_auth_headers,
+        json={"endpoint": "http://10.0.0.1/live"},
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+

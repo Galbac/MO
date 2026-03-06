@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import base64
 import binascii
+import ipaddress
 import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import HTTPException, UploadFile, status
 
@@ -185,6 +187,58 @@ class OperationsService:
     def _save_integration_records(self, payload: dict[str, dict]) -> None:
         self._write_json(self.integrations_file, payload)
 
+    @staticmethod
+    def _validate_integration_endpoint(endpoint: str) -> str:
+        candidate = endpoint.strip()
+        if not candidate:
+            return ''
+        parsed = urlparse(candidate)
+        if parsed.scheme not in {'http', 'https'}:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Integration endpoint must use http or https')
+        if not parsed.netloc or not parsed.hostname:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Integration endpoint hostname is required')
+        if parsed.username or parsed.password:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Credentials in integration endpoint are not allowed')
+        hostname = parsed.hostname.lower()
+        if hostname in {'localhost', 'localhost.localdomain'}:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Local integration endpoints are not allowed')
+        try:
+            ip = ipaddress.ip_address(hostname)
+        except ValueError:
+            ip = None
+        if ip is not None and (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Private integration endpoints are not allowed')
+        return candidate
+
+    @staticmethod
+    def _normalize_integration_settings(payload: dict[str, Any]) -> dict[str, Any]:
+        normalized: dict[str, Any] = {}
+        for key, value in payload.items():
+            if value in (None, ''):
+                continue
+            if key == 'endpoint':
+                normalized[key] = OperationsService._validate_integration_endpoint(str(value))
+                continue
+            if key == 'headers':
+                if not isinstance(value, dict):
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Integration headers must be an object')
+                normalized[key] = {str(header_key): str(header_value) for header_key, header_value in value.items()}
+                continue
+            if key == 'timeout_seconds':
+                timeout = float(value)
+                if timeout <= 0 or timeout > 30:
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Integration timeout_seconds is out of range')
+                normalized[key] = timeout
+                continue
+            if key == 'max_attempts':
+                attempts = int(value)
+                if attempts < 1 or attempts > 5:
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Integration max_attempts is out of range')
+                normalized[key] = attempts
+                continue
+            normalized[key] = value
+        return normalized
+
     def _integration_client(self, provider: str, settings_payload: dict[str, Any] | None = None):
         settings_payload = settings_payload or {}
         timeout_seconds = float(settings_payload.get('timeout_seconds') or 5.0)
@@ -203,7 +257,8 @@ class OperationsService:
     async def update_integration(self, provider: str, payload: dict[str, Any]) -> MessageResponse:
         records = self._integration_records()
         current = records.get(provider, {'status': 'configured', 'last_sync_at': None, 'last_error': None, 'settings': {}, 'logs': []})
-        updated = current | {'settings': current.get('settings', {}) | {key: value for key, value in payload.items() if value not in (None, '')}}
+        normalized_payload = self._normalize_integration_settings(payload)
+        updated = current | {'settings': current.get('settings', {}) | normalized_payload}
         records[provider] = updated
         self._save_integration_records(records)
         await self._log_audit(action='integration.update', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
@@ -224,7 +279,7 @@ class OperationsService:
                     rows = self.mapper.parse_rankings(provider, provider_payload)
                     log_message = f'Validated {len(rows)} ranking rows from provider payload'
             else:
-                endpoint = str((payload.get('endpoint') or current.get('settings', {}).get('endpoint') or '')).strip()
+                endpoint = self._validate_integration_endpoint(str(payload.get('endpoint') or current.get('settings', {}).get('endpoint') or ''))
                 headers = current.get('settings', {}).get('headers') or {}
                 client = self._integration_client(provider, current.get('settings', {}))
                 if endpoint and client is not None:

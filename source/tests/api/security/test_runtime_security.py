@@ -43,3 +43,12 @@ async def test_sql_injection_like_queries_do_not_break_search(async_client) -> N
 
     players_response = await async_client.get('/api/v1/players')
     assert players_response.status_code == 200
+
+async def test_private_integration_endpoint_is_rejected(async_client, admin_auth_headers) -> None:
+    response = await async_client.patch(
+        '/api/v1/admin/integrations/live-provider',
+        headers=admin_auth_headers,
+        json={'endpoint': 'http://192.168.1.15/feed'},
+    )
+    assert response.status_code == 422
+
