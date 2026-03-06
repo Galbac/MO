@@ -9,10 +9,11 @@
     <link rel="canonical" href="{{ canonical_url | default('') }}">
 </head>
 <body data-page="{{ page_name | default('admin-base') }}">
+    <a class="visually-hidden-focusable skip-link" href="#admin-main-content">Перейти к содержимому админки</a>
     <div class="admin-shell">
-        <aside class="admin-sidebar">
+        <aside class="admin-sidebar" aria-label="Боковая панель админки">
             <a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a>
-            <nav class="admin-nav">
+            <nav class="admin-nav" aria-label="Навигация админки">
                 <a href="/admin">Панель</a>
                 <a href="/admin/users">Пользователи</a>
                 <a href="/admin/players">Игроки</a>
@@ -21,8 +22,8 @@
                 <a href="/admin/news">Новости</a>
             </nav>
         </aside>
-        <main class="admin-main">
-            <header class="admin-header">
+        <main id="admin-main-content" class="admin-main" role="main" tabindex="-1">
+            <header class="admin-header" role="banner">
                 <div class="eyebrow">Админка</div>
                 <h1 class="section-title mb-0">Базовый шаблон админки</h1>
             </header>

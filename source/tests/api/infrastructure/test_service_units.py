@@ -643,7 +643,7 @@ async def test_admin_support_service_branch_helpers(prepared_test_db: str, monke
     assert service.jobs_file.exists()
 
     recalculated = await service.recalculate_ranking_movements()
-    assert recalculated.data.message == 'Ranking movement recalculation queued'
+    assert recalculated.data.message == 'Ranking movements recalculated'
 
 
 @pytest.mark.asyncio

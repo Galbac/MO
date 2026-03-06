@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
+from source.config.settings import settings
 from source.db.session import db_session_manager
 from source.integrations import ProviderPayloadMapper
 from source.repositories import AdminSupportRepository
@@ -16,6 +17,7 @@ from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.news import NewsCategoryItem, TagItem
 from source.schemas.pydantic.ranking import RankingImportJob
 from source.services.cache_service import CacheService
+from source.services.workflow_service import WorkflowService
 
 
 class AdminSupportService:
@@ -24,6 +26,7 @@ class AdminSupportService:
         self.storage_dir = Path('var')
         self.cache = CacheService()
         self.mapper = ProviderPayloadMapper()
+        self.workflows = WorkflowService()
         self.settings_file = self.storage_dir / 'admin_settings.json'
         self.jobs_file = self.storage_dir / 'ranking_import_jobs.json'
 
@@ -45,6 +48,12 @@ class AdminSupportService:
 
     def _invalidate_cache(self, *prefixes: str) -> None:
         self.cache.invalidate_prefixes(*prefixes)
+
+    def _delivery_logs(self) -> list[dict[str, Any]]:
+        path = Path(settings.notifications.delivery_log_path)
+        if not path.exists():
+            return []
+        return json.loads(path.read_text())
 
     async def get_settings(self) -> SuccessResponse[dict]:
         payload = self._read_json(self.settings_file)
@@ -75,11 +84,14 @@ class AdminSupportService:
             grouped: dict[tuple[str, str], list[Any]] = {}
             for item in notifications:
                 grouped.setdefault((item.type, item.title), []).append(item)
+            delivery_logs = self._delivery_logs()
             data = []
-            for index, ((_, title), items) in enumerate(sorted(grouped.items(), key=lambda value: max(item.created_at for item in value[1]), reverse=True), start=1):
+            for index, ((code, title), items) in enumerate(sorted(grouped.items(), key=lambda value: max(item.created_at for item in value[1]), reverse=True), start=1):
                 latest = max(items, key=lambda item: item.created_at)
-                status_value = 'sent' if all(item.status == 'read' for item in items) else 'queued'
-                data.append(AdminNotificationBroadcast(id=index, title=title, status=status_value, sent_count=len(items), created_at=latest.created_at))
+                matching_logs = [entry for entry in delivery_logs if entry.get('notification_type') == code and entry.get('title') == title]
+                sent_count = len([entry for entry in matching_logs if entry.get('status') in {'sent', 'queued'}]) or len(items)
+                status_value = matching_logs[-1]['status'] if matching_logs else ('sent' if all(item.status == 'read' for item in items) else 'queued')
+                data.append(AdminNotificationBroadcast(id=index, title=title, status=status_value, sent_count=sent_count, created_at=latest.created_at))
             return SuccessResponse(data=data)
 
     async def send_test_notification(self) -> MessageResponse:
@@ -208,6 +220,7 @@ class AdminSupportService:
                     await self.repo.clear_player_current_rankings(session, sorted(set(affected_player_ids) - {row['player_id'] for row in ranking_rows}))
                     await self.repo.apply_player_current_rankings(session, ranking_rows)
                 await self.repo.commit(session)
+            await self.workflows.process_ranking_updates(ranking_rows, ranking_type=rows[0].ranking_type, ranking_date=rows[0].ranking_date)
             jobs = self._read_json(self.jobs_file) or []
             jobs.append({'ranking_type': rows[0].ranking_type, 'status': 'finished', 'imported_at': datetime.now(tz=UTC).isoformat(), 'processed_rows': len(ranking_rows), 'source_file': str(payload.get('source_file') or provider)})
             self._write_json(self.jobs_file, jobs)
@@ -223,5 +236,17 @@ class AdminSupportService:
         return MessageResponse(data=SimpleMessage(message='Ranking import queued'))
 
     async def recalculate_ranking_movements(self) -> MessageResponse:
+        async with db_session_manager.session() as session:
+            ranking_types = await self.repo.list_ranking_types(session)
+            for ranking_type in ranking_types:
+                previous_positions: dict[int, int] = {}
+                for ranking_date in await self.repo.list_ranking_dates(session, ranking_type):
+                    snapshots = await self.repo.list_rankings_for_date(session, ranking_type, ranking_date)
+                    current_positions: dict[int, int] = {}
+                    for snapshot in snapshots:
+                        current_positions[snapshot.player_id] = int(snapshot.rank_position)
+                        snapshot.movement = 0 if snapshot.player_id not in previous_positions else previous_positions[snapshot.player_id] - int(snapshot.rank_position)
+                    previous_positions = current_positions
+            await self.repo.commit(session)
         self._invalidate_cache('rankings:', 'players:')
-        return MessageResponse(data=SimpleMessage(message='Ranking movement recalculation queued'))
+        return MessageResponse(data=SimpleMessage(message='Ranking movements recalculated'))

@@ -9,10 +9,11 @@
     <link rel="canonical" href="{{ canonical_url }}">
 </head>
 <body data-page="{{ page_name }}">
+<a class="visually-hidden-focusable skip-link" href="#admin-main-content">Перейти к содержимому админки</a>
 <div class="admin-shell">
-    <aside class="admin-sidebar"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav"><a class="active" href="/admin">Панель</a><a href="/admin/users">Пользователи</a><a href="/admin/players">Игроки</a><a href="/admin/tournaments">Турниры</a><a href="/admin/matches">Матчи</a><a href="/admin/live-operations">Лайв-операции</a><a href="/admin/rankings">Рейтинги</a><a href="/admin/news">Новости</a><a href="/admin/integrations">Интеграции</a><a href="/admin/audit">Аудит</a><a href="/admin/settings">Настройки</a></nav></aside>
-    <main class="admin-main">
-        <header class="admin-header"><div class="eyebrow">Панель</div><h1 class="section-title">Обзор работы</h1><div class="section-subtitle">Количество лайв-матчей, черновики, сбои интеграций и последние записи аудита загружаются из API.</div></header>
+    <aside class="admin-sidebar" aria-label="Боковая панель админки"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav" aria-label="Навигация админки"><a class="active" href="/admin">Панель</a><a href="/admin/users">Пользователи</a><a href="/admin/players">Игроки</a><a href="/admin/tournaments">Турниры</a><a href="/admin/matches">Матчи</a><a href="/admin/live-operations">Лайв-операции</a><a href="/admin/rankings">Рейтинги</a><a href="/admin/news">Новости</a><a href="/admin/integrations">Интеграции</a><a href="/admin/audit">Аудит</a><a href="/admin/settings">Настройки</a></nav></aside>
+    <main id="admin-main-content" class="admin-main" role="main" tabindex="-1">
+        <header class="admin-header" role="banner"><div class="eyebrow">Панель</div><h1 class="section-title">Обзор работы</h1><div class="section-subtitle">Количество лайв-матчей, черновики, сбои интеграций и последние записи аудита загружаются из API.</div></header>
         <div class="card-grid cols-3 mb-4"><div class="metric-card"><div class="eyebrow">Матчи в лайве</div><div class="metric-value" id="admin-live-count">-</div></div><div class="metric-card"><div class="eyebrow">Черновики новостей</div><div class="metric-value" id="admin-news-count">-</div></div><div class="metric-card"><div class="eyebrow">Интеграции</div><div class="metric-value" id="admin-integrations-count">-</div></div></div>
         <div class="admin-layout-grid two"><section class="content-card"><h2 class="section-title">Последние записи аудита</h2><div id="admin-audit-list"></div></section><section class="content-card"><h2 class="section-title">Статус интеграций</h2><div id="admin-integrations-list"></div></section></div>
     </main>

@@ -95,3 +95,61 @@ async def test_admin_rankings_provider_import_updates_current_snapshot(async_cli
     assert rankings_response.status_code == status.HTTP_200_OK
     assert rankings_response.json()['data'][0]['player_name'] == 'Jannik Sinner'
     assert rankings_response.json()['data'][0]['ranking_date'] == '2026-03-10'
+
+import json
+from pathlib import Path
+
+
+async def test_admin_rankings_recalculate_movements_and_player_notifications(async_client, user_auth_headers, admin_auth_headers) -> None:
+    subscribe_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions",
+        headers=user_auth_headers,
+        json={
+            'entity_type': 'player',
+            'entity_id': 1,
+            'notification_types': ['ranking_change'],
+            'channels': ['web'],
+        },
+    )
+    assert subscribe_response.status_code in {status.HTTP_200_OK, status.HTTP_409_CONFLICT}
+
+    import_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/rankings/import",
+        json={
+            'provider': 'rankings-provider',
+            'provider_payload': {
+                'ranking_type': 'atp',
+                'ranking_date': '2026-03-11',
+                'entries': [
+                    {'position': 1, 'player_name': 'Jannik Sinner', 'country_code': 'IT', 'points': 9200, 'movement': 1},
+                    {'position': 2, 'player_name': 'Novak Djokovic', 'country_code': 'RS', 'points': 9100, 'movement': -1},
+                ],
+            },
+        },
+        headers=admin_auth_headers,
+    )
+    assert import_response.status_code == status.HTTP_200_OK
+
+    recalc_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/rankings/recalculate-movements",
+        headers=admin_auth_headers,
+    )
+    assert recalc_response.status_code == status.HTTP_200_OK
+    assert recalc_response.json()['data']['message'] == 'Ranking movements recalculated'
+
+    current_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/rankings/current?ranking_type=atp")
+    assert current_response.status_code == status.HTTP_200_OK
+    current_rows = current_response.json()['data']
+    assert current_rows[0]['player_name'] == 'Jannik Sinner'
+    assert abs(current_rows[0]['movement']) >= 1
+
+    notifications_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/notifications",
+        headers=user_auth_headers,
+    )
+    assert notifications_response.status_code == status.HTTP_200_OK
+    assert any(item['type'] == 'ranking_change' and item['payload_json']['entity_id'] == 1 for item in notifications_response.json()['data'])
+
+    history_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/notifications", headers=admin_auth_headers)
+    assert history_response.status_code == status.HTTP_200_OK
+    assert any(item['title'] == 'Ranking update: Novak Djokovic' for item in history_response.json()['data'])

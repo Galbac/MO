@@ -17,16 +17,17 @@
 {% if schema_json %}<script type="application/ld+json">{{ schema_json | safe }}</script>{% endif %}
 </head>
 <body data-page="{{ page_name }}">
+<a class="visually-hidden-focusable skip-link" href="#main-content">Перейти к основному контенту</a>
 <div class="site-shell">
-    <header class="topbar">
+    <header class="topbar" role="banner">
         <div class="container py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
             <a href="/" class="brand-mark"><span class="brand-ball">MO</span><span>Makhachkala Open</span></a>
-            <nav class="nav-pills-custom">
+            <nav class="nav-pills-custom" aria-label="Основная навигация">
                 <a class="active" href="/">Главная</a><a href="/players">Игроки</a><a href="/tournaments">Турниры</a><a href="/matches">Матчи</a><a href="/live">Лайв</a><a href="/rankings">Рейтинги</a><a href="/news">Новости</a><a href="/account">Профиль</a>
             </nav>
         </div>
     </header>
-    <main class="container py-4">
+    <main id="main-content" class="container py-4" role="main" tabindex="-1">
         <section class="hero-panel mb-4">
             <div class="eyebrow">Теннисная платформа в реальном времени</div>
             <h1 class="display-title">Счета, новости и рейтинги в одном удобном интерфейсе.</h1>

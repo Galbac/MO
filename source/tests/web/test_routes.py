@@ -82,3 +82,19 @@ async def test_detail_pages_include_structured_data(async_client) -> None:
     assert article.status_code == status.HTTP_200_OK
     assert 'NewsArticle' in article.text
     assert 'property="og:type" content="article"' in article.text
+
+
+async def test_layouts_include_skip_links_and_landmarks(async_client) -> None:
+    public_response = await async_client.get('/')
+    admin_response = await async_client.get('/admin')
+
+    assert public_response.status_code == status.HTTP_200_OK
+    assert 'skip-link' in public_response.text
+    assert 'href="#main-content"' in public_response.text
+    assert 'aria-label="Основная навигация"' in public_response.text
+    assert 'role="main"' in public_response.text
+
+    assert admin_response.status_code == status.HTTP_200_OK
+    assert 'href="#admin-main-content"' in admin_response.text
+    assert 'aria-label="Навигация админки"' in admin_response.text
+    assert 'id="admin-main-content"' in admin_response.text

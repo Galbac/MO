@@ -17,14 +17,15 @@
 {% if schema_json %}<script type="application/ld+json">{{ schema_json | safe }}</script>{% endif %}
 </head>
 <body>
+    <a class="visually-hidden-focusable skip-link" href="#main-content">Перейти к основному контенту</a>
     <div class="site-shell">
-        <header class="topbar">
+        <header class="topbar" role="banner">
             <div class="container py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <a href="/" class="brand-mark">
                     <span class="brand-ball">MO</span>
                     <span>Makhachkala Open</span>
                 </a>
-                <nav class="nav-pills-custom">
+                <nav class="nav-pills-custom" aria-label="Основная навигация">
                     <a href="/">Главная</a>
                     <a href="/players">Игроки</a>
                     <a href="/tournaments">Турниры</a>
@@ -37,14 +38,14 @@
                 </nav>
             </div>
         </header>
-        <main class="container py-4">
+        <main id="main-content" class="container py-4" role="main" tabindex="-1">
             <div class="hero-panel">
                 <div class="eyebrow">Public Layout</div>
                 <h1 class="display-title">Базовый публичный шаблон Makhachkala Open.</h1>
                 <p class="lead-copy mb-0">Этот файл задает общую визуальную систему публичного интерфейса.</p>
             </div>
         </main>
-        <footer class="footer-shell mt-5">
+        <footer class="footer-shell mt-5" role="contentinfo">
             <div class="container py-4 d-flex flex-wrap justify-content-between gap-3">
                 <div>
                     <strong>Makhachkala Open</strong>

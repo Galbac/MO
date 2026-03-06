@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 from fastapi import status
 
 from source.config.settings import settings
@@ -44,3 +47,38 @@ async def test_search_rejects_invalid_type(async_client) -> None:
 async def test_search_rejects_blank_query(async_client) -> None:
     response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/search", params={"q": "   "})
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+async def test_search_uses_artifact_index_for_typo_tolerance(async_client) -> None:
+    artifacts_dir = Path(settings.maintenance.artifacts_dir)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / 'search_index.json').write_text(json.dumps({
+        'players': [{'id': 1, 'slug': 'novak-djokovic', 'title': 'Novak Djokovic', 'keywords': ['Djokovic', 'Serbia']}],
+        'tournaments': [],
+        'matches': [],
+        'news': [],
+        'generated_at': '2026-03-06T12:00:00+00:00',
+        'total_documents': 1,
+    }))
+
+    response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/search", params={"q": "Djokovik"})
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()['data']
+    assert any(item['slug'] == 'novak-djokovic' for item in payload['players'])
+
+
+async def test_search_suggestions_use_artifact_index_for_typo_query(async_client) -> None:
+    artifacts_dir = Path(settings.maintenance.artifacts_dir)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / 'search_index.json').write_text(json.dumps({
+        'players': [{'id': 1, 'slug': 'novak-djokovic', 'title': 'Novak Djokovic', 'keywords': ['Djokovic']}],
+        'tournaments': [],
+        'matches': [],
+        'news': [],
+        'generated_at': '2026-03-06T12:00:00+00:00',
+        'total_documents': 1,
+    }))
+
+    response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/search/suggestions", params={"q": "Djokovik"})
+    assert response.status_code == status.HTTP_200_OK
+    assert any(item['text'] == 'Novak Djokovic' for item in response.json()['data'])

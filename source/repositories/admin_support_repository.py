@@ -76,6 +76,19 @@ class AdminSupportRepository:
         stmt = select(RankingSnapshot).order_by(RankingSnapshot.ranking_date.desc(), RankingSnapshot.rank_position.asc())
         return list((await session.scalars(stmt)).all())
 
+
+    async def list_ranking_types(self, session: AsyncSession) -> list[str]:
+        stmt = select(RankingSnapshot.ranking_type).distinct().order_by(RankingSnapshot.ranking_type.asc())
+        return [item for item in (await session.scalars(stmt)).all()]
+
+    async def list_ranking_dates(self, session: AsyncSession, ranking_type: str) -> list[str]:
+        stmt = select(RankingSnapshot.ranking_date).where(RankingSnapshot.ranking_type == ranking_type).distinct().order_by(RankingSnapshot.ranking_date.asc())
+        return [item for item in (await session.scalars(stmt)).all()]
+
+    async def list_rankings_for_date(self, session: AsyncSession, ranking_type: str, ranking_date: str) -> list[RankingSnapshot]:
+        stmt = select(RankingSnapshot).where(RankingSnapshot.ranking_type == ranking_type, RankingSnapshot.ranking_date == ranking_date).order_by(RankingSnapshot.rank_position.asc(), RankingSnapshot.player_id.asc())
+        return list((await session.scalars(stmt)).all())
+
     async def get_latest_ranking_type(self, session: AsyncSession) -> str | None:
         stmt = select(RankingSnapshot.ranking_type).order_by(RankingSnapshot.ranking_date.desc()).limit(1)
         return await session.scalar(stmt)

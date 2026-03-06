@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from datetime import date
+import difflib
+import json
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from fastapi import HTTPException, status
@@ -84,6 +87,60 @@ class PublicDataService:
     async def get_race_rankings(self) -> SuccessResponse[list[RankingEntry]]:
         return await self._cached('rankings:race', SuccessResponse[list[RankingEntry]], lambda: self.get_current_rankings('atp'), ttl_seconds=settings.cache.rankings_ttl_seconds)
 
+    def _search_index_path(self) -> Path:
+        return Path(settings.maintenance.artifacts_dir) / 'search_index.json'
+
+    def _load_search_index(self) -> dict[str, Any]:
+        path = self._search_index_path()
+        if not path.exists():
+            return {}
+        try:
+            return json.loads(path.read_text())
+        except json.JSONDecodeError:
+            return {}
+
+    @staticmethod
+    def _normalize_search_text(value: str) -> str:
+        return ''.join(str(value or '').lower().split())
+
+    def _fuzzy_index_matches(self, query: str, allowed_types: set[str]) -> dict[str, list[str]]:
+        index_payload = self._load_search_index()
+        normalized_query = self._normalize_search_text(query)
+        results: dict[str, list[str]] = {key: [] for key in self.ALLOWED_SEARCH_TYPES}
+        if not normalized_query:
+            return results
+        for entity_type in allowed_types:
+            documents = index_payload.get(entity_type, [])
+            ranked: list[tuple[float, str]] = []
+            for document in documents:
+                title = str(document.get('title') or '').strip()
+                keywords = [str(item).strip() for item in list(document.get('keywords') or []) if str(item).strip()]
+                variants = [title, *keywords]
+                best = 0.0
+                for variant in variants:
+                    normalized_variant = self._normalize_search_text(variant)
+                    if not normalized_variant:
+                        continue
+                    if normalized_query in normalized_variant or normalized_variant in normalized_query:
+                        best = max(best, 1.0)
+                    else:
+                        best = max(best, difflib.SequenceMatcher(a=normalized_query, b=normalized_variant).ratio())
+                if best >= 0.74 and title:
+                    ranked.append((best, title))
+            ranked.sort(key=lambda item: (-item[0], item[1]))
+            deduped: list[str] = []
+            seen: set[str] = set()
+            for _, title in ranked:
+                key = title.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(title)
+                if len(deduped) >= 3:
+                    break
+            results[entity_type] = deduped
+        return results
+
     @staticmethod
     def _match_score_value(match: Match, players: dict[int, Player]) -> str:
         return ' '.join(filter(None, [players.get(match.player1_id).full_name if players.get(match.player1_id) else None, 'vs', players.get(match.player2_id).full_name if players.get(match.player2_id) else None]))
@@ -116,6 +173,21 @@ class PublicDataService:
                 tournaments = await self.repo.search_tournaments(session, normalized_query) if 'tournaments' in allowed_types else []
                 news = await self.repo.search_news(session, normalized_query) if 'news' in allowed_types else []
                 matches = await self.repo.search_matches(session, normalized_query) if 'matches' in allowed_types else []
+
+                if not any([players, tournaments, news, matches]):
+                    fuzzy_matches = self._fuzzy_index_matches(normalized_query, allowed_types)
+                    if 'players' in allowed_types and not players:
+                        for title in fuzzy_matches['players']:
+                            players.extend(await self.repo.search_players(session, title, limit=3))
+                    if 'tournaments' in allowed_types and not tournaments:
+                        for title in fuzzy_matches['tournaments']:
+                            tournaments.extend(await self.repo.search_tournaments(session, title, limit=3))
+                    if 'news' in allowed_types and not news:
+                        for title in fuzzy_matches['news']:
+                            news.extend(await self.repo.search_news(session, title, limit=3))
+                    if 'matches' in allowed_types and not matches:
+                        for title in fuzzy_matches['matches']:
+                            matches.extend(await self.repo.search_matches(session, title, limit=3))
 
                 query_terms = [item for item in normalized_query.lower().replace('-', ' ').split() if item]
                 direct_match_payload = []
@@ -172,7 +244,19 @@ class PublicDataService:
                 if key not in seen:
                     seen.add(key)
                     deduped.append(item)
-            return SuccessResponse(data=deduped[:8])
+            if deduped:
+                return SuccessResponse(data=deduped[:8])
+            fuzzy_matches = self._fuzzy_index_matches(self._normalize_search_query(q), self._normalize_search_types(types))
+            fallback: list[SearchSuggestion] = []
+            for title in fuzzy_matches['players']:
+                fallback.append(SearchSuggestion(text=title, entity_type='player'))
+            for title in fuzzy_matches['tournaments']:
+                fallback.append(SearchSuggestion(text=title, entity_type='tournament'))
+            for title in fuzzy_matches['news']:
+                fallback.append(SearchSuggestion(text=title, entity_type='news'))
+            for title in fuzzy_matches['matches']:
+                fallback.append(SearchSuggestion(text=title, entity_type='match'))
+            return SuccessResponse(data=fallback[:8])
 
         normalized_query = self._normalize_search_query(q)
         normalized_types = sorted(self._normalize_search_types(types))

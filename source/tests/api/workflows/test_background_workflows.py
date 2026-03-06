@@ -217,3 +217,44 @@ async def test_maintenance_jobs_generate_artifacts(prepared_test_db: str) -> Non
     assert any(url.endswith('/players/novak-djokovic') for url in sitemap_payload['urls'])
     assert search_index_payload['total_documents'] >= 4
     assert any(item['slug'] == 'novak-djokovic' for item in search_index_payload['players'])
+
+
+async def test_match_start_email_channel_writes_delivery_log(async_client, user_auth_headers, admin_auth_headers, monkeypatch) -> None:
+    monkeypatch.setattr(settings.notifications, 'active_channels', ['web', 'email'])
+    subscribe_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions",
+        headers=user_auth_headers,
+        json={
+            'entity_type': 'match',
+            'entity_id': 2,
+            'notification_types': ['match_start'],
+            'channels': ['email'],
+        },
+    )
+    assert subscribe_response.status_code == 200
+
+    reset_response = await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/2/status",
+        headers=admin_auth_headers,
+        json={'status': 'about_to_start'},
+    )
+    assert reset_response.status_code == 200
+
+    update_response = await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/2/status",
+        headers=admin_auth_headers,
+        json={'status': 'live'},
+    )
+    assert update_response.status_code == 200
+
+    delivery_log = Path(settings.notifications.delivery_log_path)
+    assert delivery_log.exists()
+    payload = json.loads(delivery_log.read_text())
+    assert any(item['channel'] == 'email' and item['notification_type'] == 'match_start' and item['status'] == 'queued' for item in payload)
+
+    notifications_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/notifications",
+        headers=user_auth_headers,
+    )
+    assert notifications_response.status_code == 200
+    assert not any(item['type'] == 'match_start' and item['payload_json']['entity_id'] == 2 for item in notifications_response.json()['data'])

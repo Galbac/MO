@@ -128,6 +128,7 @@ class NotificationSettings(BaseModel):
     ]
     allowed_channels: list[str] = ["web", "email", "push"]
     active_channels: list[str] = ["web"]
+    delivery_log_path: str = "var/notifications/delivery_log.json"
 
 
 class MaintenanceSettings(BaseModel):

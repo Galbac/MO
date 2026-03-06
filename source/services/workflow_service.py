@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, time as clock_time
 import json
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
@@ -43,10 +44,77 @@ class WorkflowService:
         self.users = UserRepository()
         self.cache = CacheService()
         self.artifacts_dir = Path(settings.maintenance.artifacts_dir)
+        self.delivery_log_path = Path(settings.notifications.delivery_log_path)
 
     def _artifact_path(self, filename: str) -> Path:
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
         return self.artifacts_dir / filename
+
+    def _read_delivery_log(self) -> list[dict[str, Any]]:
+        if not self.delivery_log_path.exists():
+            return []
+        return json.loads(self.delivery_log_path.read_text())
+
+    def _write_delivery_log(self, items: list[dict[str, Any]]) -> None:
+        self.delivery_log_path.parent.mkdir(parents=True, exist_ok=True)
+        self.delivery_log_path.write_text(json.dumps(items, ensure_ascii=True, indent=2, sort_keys=True))
+
+    def _record_delivery(self, *, user_id: int, channel: str, notification_type: str, title: str, entity_type: str, entity_id: int, status: str, reason: str | None = None) -> None:
+        items = self._read_delivery_log()
+        items.append({
+            'user_id': user_id,
+            'channel': channel,
+            'notification_type': notification_type,
+            'title': title,
+            'entity_type': entity_type,
+            'entity_id': entity_id,
+            'status': status,
+            'reason': reason,
+            'created_at': datetime.now(tz=UTC).isoformat(),
+        })
+        self._write_delivery_log(items)
+
+    async def _deliver_notification(self, session, *, user, subscription, notification_type: str, title: str, body: str, payload_json: dict[str, Any], entity_type: str, entity_id: int) -> int:
+        channels = list(subscription.channels or [])
+        if not channels:
+            return 0
+        now = datetime.now(tz=UTC)
+        if self._in_quiet_hours(user, now):
+            for channel in channels:
+                self._record_delivery(user_id=user.id, channel=channel, notification_type=notification_type, title=title, entity_type=entity_type, entity_id=entity_id, status='suppressed', reason='quiet_hours')
+            return 0
+        duplicate = await self.engagement.find_duplicate_notification(
+            session,
+            user_id=subscription.user_id,
+            type_=notification_type,
+            title=title,
+            entity_type=entity_type,
+            entity_id=entity_id,
+        )
+        if duplicate is not None:
+            for channel in channels:
+                self._record_delivery(user_id=user.id, channel=channel, notification_type=notification_type, title=title, entity_type=entity_type, entity_id=entity_id, status='skipped', reason='duplicate')
+            return 0
+        created = 0
+        for channel in channels:
+            if channel not in settings.notifications.active_channels:
+                self._record_delivery(user_id=user.id, channel=channel, notification_type=notification_type, title=title, entity_type=entity_type, entity_id=entity_id, status='skipped', reason='inactive_channel')
+                continue
+            if channel == 'web':
+                await self.engagement.create_notification(session, {
+                    'user_id': subscription.user_id,
+                    'type': notification_type,
+                    'title': title,
+                    'body': body,
+                    'payload_json': payload_json,
+                    'status': 'unread',
+                    'read_at': None,
+                })
+                created += 1
+                self._record_delivery(user_id=user.id, channel=channel, notification_type=notification_type, title=title, entity_type=entity_type, entity_id=entity_id, status='sent')
+                continue
+            self._record_delivery(user_id=user.id, channel=channel, notification_type=notification_type, title=title, entity_type=entity_type, entity_id=entity_id, status='queued', reason='transport_not_configured')
+        return created
 
     async def process_finalized_match(self, match_id: int) -> None:
         async with db_session_manager.session() as session:
@@ -93,39 +161,26 @@ class WorkflowService:
             title = f'{player1_name} vs {player2_name}'
             body = 'Match is starting soon.' if notification_type == 'match_soon' else 'Match is now live.'
             created = 0
-            now = datetime.now(tz=UTC)
             for subscription in subscriptions:
                 subscription_user = await self.users.get(session, subscription.user_id)
-                if subscription_user is None or self._in_quiet_hours(subscription_user, now):
+                if subscription_user is None:
                     continue
-                if not any(channel in settings.notifications.active_channels for channel in list(subscription.channels or [])):
-                    continue
-                duplicate = await self.engagement.find_duplicate_notification(
+                created += await self._deliver_notification(
                     session,
-                    user_id=subscription.user_id,
-                    type_=notification_type,
+                    user=subscription_user,
+                    subscription=subscription,
+                    notification_type=notification_type,
                     title=title,
+                    body=body,
+                    payload_json={'entity_type': 'match', 'entity_id': match.id, 'status': status_value, 'tournament_id': tournament.id},
                     entity_type='match',
                     entity_id=match.id,
                 )
-                if duplicate is not None:
-                    continue
-                await self.engagement.create_notification(session, {
-                    'user_id': subscription.user_id,
-                    'type': notification_type,
-                    'title': title,
-                    'body': body,
-                    'payload_json': {'entity_type': 'match', 'entity_id': match.id, 'status': status_value, 'tournament_id': tournament.id},
-                    'status': 'unread',
-                    'read_at': None,
-                })
-                created += 1
         return created
 
     async def _send_match_notifications(self, session, *, match: Match, tournament: Tournament) -> None:
         entities = [('match', match.id), ('player', match.player1_id), ('player', match.player2_id), ('tournament', tournament.id)]
         subscriptions = await self.engagement.list_matching_subscriptions(session, entities=entities, notification_type='match_finished')
-        now = datetime.now(tz=UTC)
         winner_name = 'Player'
         if match.winner_id == match.player1_id:
             winner_name = 'player1'
@@ -135,29 +190,54 @@ class WorkflowService:
         body = f'{title}. Winner recorded as {winner_name}.'
         for subscription in subscriptions:
             subscription_user = await self.users.get(session, subscription.user_id)
-            if subscription_user is None or self._in_quiet_hours(subscription_user, now):
+            if subscription_user is None:
                 continue
-            if not any(channel in settings.notifications.active_channels for channel in list(subscription.channels or [])):
-                continue
-            duplicate = await self.engagement.find_duplicate_notification(
+            await self._deliver_notification(
                 session,
-                user_id=subscription.user_id,
-                type_='match_finished',
+                user=subscription_user,
+                subscription=subscription,
+                notification_type='match_finished',
                 title=title,
+                body=body,
+                payload_json={'entity_type': 'match', 'entity_id': match.id, 'winner_id': match.winner_id, 'tournament_id': tournament.id},
                 entity_type='match',
                 entity_id=match.id,
             )
-            if duplicate is not None:
-                continue
-            await self.engagement.create_notification(session, {
-                'user_id': subscription.user_id,
-                'type': 'match_finished',
-                'title': title,
-                'body': body,
-                'payload_json': {'entity_type': 'match', 'entity_id': match.id, 'winner_id': match.winner_id, 'tournament_id': tournament.id},
-                'status': 'unread',
-                'read_at': None,
-            })
+
+    async def process_ranking_updates(self, ranking_rows: list[dict[str, Any]], *, ranking_type: str, ranking_date: str) -> int:
+        changed_rows = [row for row in ranking_rows if int(row.get('movement') or 0) != 0]
+        if not changed_rows:
+            return 0
+        created = 0
+        async with db_session_manager.session() as session:
+            for row in changed_rows:
+                player = await self.players.get(session, int(row['player_id']))
+                if player is None:
+                    continue
+                subscriptions = await self.engagement.list_matching_subscriptions(
+                    session,
+                    entities=[('player', int(row['player_id']))],
+                    notification_type='ranking_change',
+                )
+                direction = 'up' if int(row['movement']) > 0 else 'down'
+                title = f'Ranking update: {player.full_name}'
+                body = f'{player.full_name} moved {direction} by {abs(int(row["movement"]))} place(s) in {ranking_type.upper()} rankings.'
+                for subscription in subscriptions:
+                    subscription_user = await self.users.get(session, subscription.user_id)
+                    if subscription_user is None:
+                        continue
+                    created += await self._deliver_notification(
+                        session,
+                        user=subscription_user,
+                        subscription=subscription,
+                        notification_type='ranking_change',
+                        title=title,
+                        body=body,
+                        payload_json={'entity_type': 'player', 'entity_id': int(row['player_id']), 'ranking_type': ranking_type, 'ranking_date': ranking_date, 'movement': int(row['movement']), 'rank_position': int(row['rank_position'])},
+                        entity_type='player',
+                        entity_id=int(row['player_id']),
+                    )
+        return created
 
     async def publish_due_scheduled_news(self, news_id: int | None = None) -> int:
         async with db_session_manager.session() as session:
