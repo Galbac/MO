@@ -74,3 +74,29 @@ async def test_integrations_runtime(async_client, admin_auth_headers) -> None:
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
     assert logs_response.status_code == status.HTTP_200_OK
     assert "Validated 1 live events from provider payload" in logs_response.json()["data"]["message"]
+
+
+async def test_integrations_runtime_endpoint_fetch_failure(async_client, admin_auth_headers, monkeypatch) -> None:
+    from source.integrations import IntegrationSyncError
+    from source.services.operations_service import OperationsService
+
+    class FailingClient:
+        async def fetch_events(self, endpoint: str, headers: dict | None = None):
+            raise IntegrationSyncError('upstream unavailable')
+
+    monkeypatch.setattr(OperationsService, '_integration_client', lambda self, provider, settings_payload=None: FailingClient())
+
+    await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+        json={"endpoint": "https://provider.test/live"},
+        headers=admin_auth_headers,
+    )
+
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_502_BAD_GATEWAY
+
+    logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
+    assert 'upstream unavailable' in logs_response.json()['data']['message']

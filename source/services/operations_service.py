@@ -10,7 +10,7 @@ from fastapi import HTTPException, UploadFile, status
 
 from source.config.settings import settings
 from source.db.session import db_session_manager
-from source.integrations import ProviderPayloadMapper
+from source.integrations import IntegrationSyncError, LiveScoreProviderClient, ProviderPayloadMapper, RankingsProviderClient
 from source.repositories import AuditRepository
 from source.schemas.pydantic.admin import AdminIntegrationItem, AuditLogItem
 from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
@@ -141,6 +141,16 @@ class OperationsService:
     def _save_integration_records(self, payload: dict[str, dict]) -> None:
         self._write_json(self.integrations_file, payload)
 
+    def _integration_client(self, provider: str, settings_payload: dict[str, Any] | None = None):
+        settings_payload = settings_payload or {}
+        timeout_seconds = float(settings_payload.get('timeout_seconds') or 5.0)
+        max_attempts = int(settings_payload.get('max_attempts') or 3)
+        if 'live' in provider:
+            return LiveScoreProviderClient(provider, timeout_seconds=timeout_seconds, max_attempts=max_attempts)
+        if 'rank' in provider:
+            return RankingsProviderClient(provider, timeout_seconds=timeout_seconds, max_attempts=max_attempts)
+        return None
+
     async def list_integrations(self) -> SuccessResponse[list[AdminIntegrationItem]]:
         records = self._integration_records()
         data = [AdminIntegrationItem(provider=provider, status=item.get('status', 'configured'), last_sync_at=datetime.fromisoformat(item['last_sync_at']) if item.get('last_sync_at') else None, last_error=item.get('last_error')) for provider, item in sorted(records.items())]
@@ -161,19 +171,38 @@ class OperationsService:
         payload = payload or {}
         provider_payload = payload.get('provider_payload')
         log_message = 'Manual sync executed'
-        if isinstance(provider_payload, dict):
-            if 'live' in provider:
-                events = self.mapper.parse_live_events(provider, provider_payload)
-                log_message = f'Validated {len(events)} live events from provider payload'
-            elif 'rank' in provider:
-                rows = self.mapper.parse_rankings(provider, provider_payload)
-                log_message = f'Validated {len(rows)} ranking rows from provider payload'
-        log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'message': log_message}
-        updated = current | {'status': 'ok', 'last_sync_at': log_entry['timestamp'], 'last_error': None, 'logs': [*current.get('logs', []), log_entry][-20:]}
-        records[provider] = updated
-        self._save_integration_records(records)
-        await self._log_audit(action='integration.sync', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
-        return MessageResponse(data=SimpleMessage(message=f'Integration {provider} sync started'))
+        try:
+            if isinstance(provider_payload, dict):
+                if 'live' in provider:
+                    events = self.mapper.parse_live_events(provider, provider_payload)
+                    log_message = f'Validated {len(events)} live events from provider payload'
+                elif 'rank' in provider:
+                    rows = self.mapper.parse_rankings(provider, provider_payload)
+                    log_message = f'Validated {len(rows)} ranking rows from provider payload'
+            else:
+                endpoint = str((payload.get('endpoint') or current.get('settings', {}).get('endpoint') or '')).strip()
+                headers = current.get('settings', {}).get('headers') or {}
+                client = self._integration_client(provider, current.get('settings', {}))
+                if endpoint and client is not None:
+                    if 'live' in provider:
+                        events = await client.fetch_events(endpoint, headers=headers)
+                        log_message = f'Fetched {len(events)} live events from provider endpoint'
+                    elif 'rank' in provider:
+                        rows = await client.fetch_rankings(endpoint, headers=headers)
+                        log_message = f'Fetched {len(rows)} ranking rows from provider endpoint'
+            log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'message': log_message}
+            updated = current | {'status': 'ok', 'last_sync_at': log_entry['timestamp'], 'last_error': None, 'logs': [*current.get('logs', []), log_entry][-20:]}
+            records[provider] = updated
+            self._save_integration_records(records)
+            await self._log_audit(action='integration.sync', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
+            return MessageResponse(data=SimpleMessage(message=f'Integration {provider} sync started'))
+        except IntegrationSyncError as exc:
+            log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'message': f'Provider sync failed: {exc}'}
+            updated = current | {'status': 'error', 'last_sync_at': log_entry['timestamp'], 'last_error': str(exc), 'logs': [*current.get('logs', []), log_entry][-20:]}
+            records[provider] = updated
+            self._save_integration_records(records)
+            await self._log_audit(action='integration.sync.failed', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
     async def get_integration_logs(self, provider: str) -> MessageResponse:
         records = self._integration_records()
