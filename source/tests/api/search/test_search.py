@@ -18,3 +18,10 @@ async def test_search_suggestions_are_generated_from_results(async_client) -> No
     assert response.status_code == status.HTTP_200_OK
     payload = response.json()
     assert payload["data"]
+
+
+async def test_search_matches_normalized_slug_variants(async_client) -> None:
+    response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/search", params={'q': 'djokovic sinner'})
+    assert response.status_code == 200
+    payload = response.json()['data']
+    assert any(item['slug'] == 'djokovic-vs-sinner-ao-2026-final' for item in payload['matches'])

@@ -99,3 +99,31 @@ async def test_user_notifications_flow(async_client, user_auth_headers) -> None:
     read_all_response = await async_client.patch(f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/notifications/read-all", headers=user_auth_headers)
     assert read_all_response.status_code == status.HTTP_200_OK
     assert read_all_response.json()["data"]["message"] == "All notifications marked as read"
+
+
+async def test_subscriptions_reject_invalid_channel(async_client, user_auth_headers) -> None:
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions",
+        json={
+            "entity_type": "match",
+            "entity_id": 2,
+            "notification_types": ["match_start"],
+            "channels": ["sms"],
+        },
+        headers=user_auth_headers,
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+async def test_subscriptions_reject_invalid_notification_type(async_client, user_auth_headers) -> None:
+    response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions",
+        json={
+            "entity_type": "match",
+            "entity_id": 2,
+            "notification_types": ["unknown_type"],
+            "channels": ["web"],
+        },
+        headers=user_auth_headers,
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

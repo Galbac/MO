@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from fastapi import HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from source.config.settings import settings
 from source.db.session import db_session_manager
 from source.repositories import EngagementRepository, MatchRepository, NewsRepository, PlayerRepository, TournamentRepository
 from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
@@ -55,6 +56,31 @@ class UserEngagementService:
         return entity_name
 
     @staticmethod
+    def _normalize_unique(values: list[str]) -> list[str]:
+        seen: set[str] = set()
+        normalized: list[str] = []
+        for value in values:
+            item = str(value).strip()
+            if not item or item in seen:
+                continue
+            seen.add(item)
+            normalized.append(item)
+        return normalized
+
+    def _validate_subscription_payload(self, notification_types: list[str], channels: list[str]) -> tuple[list[str], list[str]]:
+        normalized_types = self._normalize_unique(notification_types)
+        normalized_channels = self._normalize_unique(channels)
+        if not normalized_types:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='notification_types is required')
+        if not normalized_channels:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='channels is required')
+        if any(item not in settings.notifications.allowed_types for item in normalized_types):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsupported notification type')
+        if any(item not in settings.notifications.allowed_channels for item in normalized_channels):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Unsupported notification channel')
+        return normalized_types, normalized_channels
+
+    @staticmethod
     def _notification_item(item) -> NotificationItem:
         return NotificationItem(id=item.id, type=item.type, title=item.title, body=item.body, payload_json=item.payload_json or {}, status=item.status, read_at=item.read_at, created_at=item.created_at)
 
@@ -97,10 +123,11 @@ class UserEngagementService:
         user_id = await self._current_user_id(request)
         async with db_session_manager.session() as session:
             await self._require_entity_name(session, payload.entity_type, payload.entity_id)
+            notification_types, channels = self._validate_subscription_payload(payload.notification_types, payload.channels)
             exists = await self.repo.find_subscription(session, user_id, payload.entity_type, payload.entity_id)
             if exists is not None:
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Subscription already exists')
-            item = await self.repo.create_subscription(session, {'user_id': user_id, 'entity_type': payload.entity_type, 'entity_id': payload.entity_id, 'notification_types': payload.notification_types, 'channels': payload.channels, 'is_active': True})
+            item = await self.repo.create_subscription(session, {'user_id': user_id, 'entity_type': payload.entity_type, 'entity_id': payload.entity_id, 'notification_types': notification_types, 'channels': channels, 'is_active': True})
             return SuccessResponse(data=NotificationSubscriptionItem(id=item.id, user_id=item.user_id, entity_type=item.entity_type, entity_id=item.entity_id, notification_types=list(item.notification_types or []), channels=list(item.channels or []), is_active=item.is_active))
 
     async def update_subscription(self, request: Request, subscription_id: int, payload: NotificationSubscriptionUpdateRequest) -> SuccessResponse[NotificationSubscriptionItem]:
@@ -109,7 +136,14 @@ class UserEngagementService:
             item = await self.repo.get_subscription(session, subscription_id, user_id)
             if item is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Subscription not found')
-            updated = await self.repo.update_subscription(session, item, payload.model_dump(exclude_none=True))
+            update_payload = payload.model_dump(exclude_none=True)
+            if 'notification_types' in update_payload or 'channels' in update_payload:
+                notification_types = update_payload.get('notification_types', list(item.notification_types or []))
+                channels = update_payload.get('channels', list(item.channels or []))
+                normalized_types, normalized_channels = self._validate_subscription_payload(notification_types, channels)
+                update_payload['notification_types'] = normalized_types
+                update_payload['channels'] = normalized_channels
+            updated = await self.repo.update_subscription(session, item, update_payload)
             return SuccessResponse(data=NotificationSubscriptionItem(id=updated.id, user_id=updated.user_id, entity_type=updated.entity_type, entity_id=updated.entity_id, notification_types=list(updated.notification_types or []), channels=list(updated.channels or []), is_active=updated.is_active))
 
     async def delete_subscription(self, request: Request, subscription_id: int) -> MessageResponse:

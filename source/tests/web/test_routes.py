@@ -33,3 +33,23 @@ async def test_error_pages_render_html(async_client) -> None:
     assert response_500.status_code == status.HTTP_200_OK
     assert "Page not found" in response_404.text
     assert "Something went wrong" in response_500.text
+
+
+async def test_robots_and_sitemap_are_exposed(async_client) -> None:
+    robots = await async_client.get('/robots.txt')
+    sitemap = await async_client.get('/sitemap.xml')
+
+    assert robots.status_code == status.HTTP_200_OK
+    assert 'Sitemap:' in robots.text
+    assert sitemap.status_code == status.HTTP_200_OK
+    assert '<urlset' in sitemap.text
+    assert '/players/novak-djokovic' in sitemap.text
+
+
+async def test_search_page_includes_seo_meta(async_client) -> None:
+    response = await async_client.get('/search')
+
+    assert response.status_code == status.HTTP_200_OK
+    assert 'meta name="description"' in response.text
+    assert 'property="og:title"' in response.text
+    assert 'rel="canonical"' in response.text

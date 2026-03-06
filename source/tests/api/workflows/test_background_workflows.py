@@ -159,3 +159,38 @@ async def test_match_start_notification_respects_quiet_hours(async_client, user_
     )
     assert notifications_response.status_code == 200
     assert not any(item['type'] == 'match_start' and item['payload_json']['entity_id'] == 2 for item in notifications_response.json()['data'])
+
+
+async def test_match_start_notification_skips_unsupported_active_channel(async_client, user_auth_headers, admin_auth_headers) -> None:
+    subscribe_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions",
+        headers=user_auth_headers,
+        json={
+            'entity_type': 'match',
+            'entity_id': 2,
+            'notification_types': ['match_start'],
+            'channels': ['email'],
+        },
+    )
+    assert subscribe_response.status_code == 200
+
+    reset_response = await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/2/status",
+        headers=admin_auth_headers,
+        json={'status': 'about_to_start'},
+    )
+    assert reset_response.status_code == 200
+
+    update_response = await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/2/status",
+        headers=admin_auth_headers,
+        json={'status': 'live'},
+    )
+    assert update_response.status_code == 200
+
+    notifications_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/notifications",
+        headers=user_auth_headers,
+    )
+    assert notifications_response.status_code == 200
+    assert not any(item['type'] == 'match_start' and item['payload_json']['entity_id'] == 2 for item in notifications_response.json()['data'])

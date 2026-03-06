@@ -93,10 +93,29 @@ class PublicDataService:
                 tournaments = await self.repo.search_tournaments(session, q)
                 news = await self.repo.search_news(session, q)
                 matches = await self.repo.search_matches(session, q)
-                match_payload = []
-                for match in matches:
+
+                query_terms = [item for item in q.lower().replace('-', ' ').split() if item]
+                direct_match_payload = []
+                if len(query_terms) >= 2:
+                    supplemental_player_ids = {item.id for item in players}
+                    for term in query_terms:
+                        for player in await self.repo.search_players(session, term, limit=10):
+                            supplemental_player_ids.add(player.id)
+                    if supplemental_player_ids:
+                        upcoming = await self.query.get_upcoming_matches()
+                        results = await self.query.get_match_results()
+                        combined_matches = [*upcoming.data, *results.data]
+                        for item in combined_matches:
+                            haystack = f'{item.player1_name} {item.player2_name} {item.slug}'.lower()
+                            ids = {item.player1_id, item.player2_id}
+                            if ids.issubset(supplemental_player_ids) or all(term in haystack for term in query_terms):
+                                direct_match_payload.append(item)
+
+                dedup_matches: dict[int, Match] = {item.id: item for item in matches}
+                match_payload = {item.id: item for item in direct_match_payload}
+                for match in dedup_matches.values():
                     try:
-                        match_payload.append((await self.query.get_match(match.id)).data)
+                        match_payload[match.id] = (await self.query.get_match(match.id)).data
                     except HTTPException:
                         continue
                 tournament_payload = [self.query._tournament_summary(item) for item in tournaments]
@@ -104,7 +123,7 @@ class PublicDataService:
                 player_payload = [self.query._player_summary(item, player_matches[item.id]) for item in players]
                 categories = {category.id: category for category in await self.news.list_categories(session)}
                 news_payload = [self.query._news_summary(item, categories.get(item.category_id)) for item in news]
-                return SuccessResponse(data=SearchResults(players=player_payload, tournaments=tournament_payload, matches=[MatchSummary.model_validate(item.model_dump()) for item in match_payload], news=news_payload))
+                return SuccessResponse(data=SearchResults(players=player_payload, tournaments=tournament_payload, matches=[MatchSummary.model_validate(item.model_dump()) for item in match_payload.values()], news=news_payload))
 
         return await self._cached(f'search:query:{q.strip().lower()}', SuccessResponse[SearchResults], loader)
 

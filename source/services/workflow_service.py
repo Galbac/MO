@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 
+from source.config.settings import settings
 from source.db.models import Match, NewsArticle, Tournament
 from source.db.session import db_session_manager
 from source.repositories import EngagementRepository, MatchRepository, NewsRepository, PlayerRepository, TournamentRepository, UserRepository
@@ -90,6 +91,8 @@ class WorkflowService:
                 subscription_user = await self.users.get(session, subscription.user_id)
                 if subscription_user is None or self._in_quiet_hours(subscription_user, now):
                     continue
+                if not any(channel in settings.notifications.active_channels for channel in list(subscription.channels or [])):
+                    continue
                 duplicate = await self.engagement.find_duplicate_notification(
                     session,
                     user_id=subscription.user_id,
@@ -126,6 +129,8 @@ class WorkflowService:
         for subscription in subscriptions:
             subscription_user = await self.users.get(session, subscription.user_id)
             if subscription_user is None or self._in_quiet_hours(subscription_user, now):
+                continue
+            if not any(channel in settings.notifications.active_channels for channel in list(subscription.channels or [])):
                 continue
             duplicate = await self.engagement.find_duplicate_notification(
                 session,

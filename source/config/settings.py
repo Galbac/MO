@@ -96,6 +96,21 @@ class SecuritySettings(BaseModel):
     api_rate_limit_window_seconds: int = 60
 
 
+class NotificationSettings(BaseModel):
+    allowed_types: list[str] = [
+        "match_start",
+        "match_soon",
+        "set_finished",
+        "match_finished",
+        "news",
+        "ranking_change",
+        "tournament_start",
+        "test",
+    ]
+    allowed_channels: list[str] = ["web", "email", "push"]
+    active_channels: list[str] = ["web"]
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env.template", ".env"),
@@ -116,6 +131,7 @@ class Settings(BaseSettings):
     docs: DocsSettings = DocsSettings()
     db: DbSettings = DbSettings()
     security: SecuritySettings = SecuritySettings()
+    notifications: NotificationSettings = NotificationSettings()
 
 
 settings = Settings()
