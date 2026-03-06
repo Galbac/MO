@@ -39,6 +39,23 @@ Services:
 
 Compose runs in PostgreSQL-first mode with Redis enabled.
 
+## Docker dev mode
+
+Dev mode mounts the project into containers, enables `uvicorn --reload`, and auto-refreshes the browser when Python, HTML, CSS, or JS files change.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+In this mode:
+- code changes do not require manual image rebuilds
+- backend reloads automatically
+- templates and static assets trigger automatic browser refresh
+- worker process restarts automatically when Python code changes
+- demo data seeding is enabled for convenience
+
+Use `--build` only on the first launch or after dependency changes in `pyproject.toml` or the Docker image.
+
 ## Migrations
 
 ```bash

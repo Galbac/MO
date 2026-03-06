@@ -12,6 +12,7 @@ COPY source ./source
 COPY docs ./docs
 
 RUN pip install --no-cache-dir     fastapi     uvicorn     "pydantic[email]"     pydantic-settings     orjson     httpx     pyyaml     "sqlalchemy[asyncio]"     asyncpg     aiosqlite     alembic     redis     python-multipart     jinja2
+RUN pip install --no-cache-dir watchfiles
 
 RUN useradd -r -m appuser && chown -R appuser:appuser /app
 USER appuser

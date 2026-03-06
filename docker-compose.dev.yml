@@ -1,0 +1,48 @@
+services:
+  migrate:
+    volumes:
+      - .:/app
+
+  api:
+    command:
+      - uvicorn
+      - source.main:create_app
+      - --factory
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
+      - --reload-dir
+      - /app/source
+      - --reload-dir
+      - /app/docker
+      - --reload-include
+      - "*.py"
+      - --reload-include
+      - "*.html"
+      - --reload-include
+      - "*.css"
+      - --reload-include
+      - "*.js"
+    environment:
+      FASTAPI_CFG__RUN__PRODUCTION: "false"
+      FASTAPI_CFG__RUN__DEV_RELOAD: "true"
+      FASTAPI_CFG__DB__SEED_DEMO_DATA: "true"
+    volumes:
+      - .:/app
+
+  worker:
+    command:
+      - sh
+      - -lc
+      - watchfiles --filter python 'python -m source.tasks.worker' /app/source
+    volumes:
+      - .:/app
+
+  nginx:
+    environment:
+      ENABLE_SSL: "false"
+      NGINX_SERVER_NAME: localhost 127.0.0.1
+    volumes:
+      - .:/app:ro

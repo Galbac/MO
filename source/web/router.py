@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -73,6 +74,7 @@ def render(
         "page_title": page_title,
         "page_name": page_name,
         "section": section,
+        "dev_reload": settings.run.dev_reload,
         **_seo_defaults(request, page_title, description=description, image_url=image_url, og_type=og_type),
         **extra,
     }
@@ -193,6 +195,37 @@ async def _news_context(request: Request, slug: str) -> dict[str, object]:
 async def robots_txt(request: Request) -> PlainTextResponse:
     sitemap_url = f"{_site_base_url(request)}/sitemap.xml"
     return PlainTextResponse(f"User-agent: *\nAllow: /\nSitemap: {sitemap_url}\n")
+
+
+@router.get("/__dev__/reload-token", include_in_schema=False)
+async def dev_reload_token() -> Response:
+    if not settings.run.dev_reload:
+        return Response(content=json.dumps({"enabled": False}), media_type="application/json")
+
+    watched_roots = [
+        Path("source/web/templates"),
+        Path("source/web/static"),
+        Path("source"),
+        Path("docker"),
+    ]
+    latest_mtime = 0.0
+    for root in watched_roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            try:
+                latest_mtime = max(latest_mtime, path.stat().st_mtime)
+            except OSError:
+                continue
+
+    payload = {
+        "enabled": True,
+        "token": latest_mtime,
+        "updated_at": datetime.fromtimestamp(latest_mtime, tz=UTC).isoformat() if latest_mtime else None,
+    }
+    return Response(content=json.dumps(payload), media_type="application/json")
 
 
 @router.get("/sitemap.xml", include_in_schema=False)

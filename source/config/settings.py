@@ -51,6 +51,7 @@ class RunConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
     production: bool = False
+    dev_reload: bool = False
 
 
 class ProjectName(BaseModel):
