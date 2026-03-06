@@ -10,21 +10,21 @@
 </head>
 <body data-page="{{ page_name }}" data-entity-slug="{{ entity_slug | default("") }}">
 <div class="site-shell">
-    <header class="topbar"><div class="container py-3 d-flex justify-content-between align-items-center gap-3"><a href="/" class="brand-mark"><span class="brand-ball">TP</span><span>Tennis Portal</span></a><nav class="nav-pills-custom"><a href="/matches" class="active">Matches</a><a href="/live">Live</a><a href="/h2h">H2H</a></nav></div></header>
+    <header class="topbar"><div class="container py-3 d-flex justify-content-between align-items-center gap-3"><a href="/" class="brand-mark"><span class="brand-ball">MO</span><span>Makhachkala Open</span></a><nav class="nav-pills-custom"><a href="/matches" class="active">Матчи</a><a href="/live">Лайв</a><a href="/h2h">Личные встречи</a></nav></div></header>
     <main class="container py-4">
         <section class="scoreboard mb-4">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><div class="eyebrow">Match center</div><h1 class="section-title mb-0" id="match-title">Loading match...</h1><div class="text-muted" id="match-subtitle"></div></div><span class="status-pill" id="match-status">Loading</span></div>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><div><div class="eyebrow">Центр матча</div><h1 class="section-title mb-0" id="match-title">Загрузка матча...</h1><div class="text-muted" id="match-subtitle"></div></div><span class="status-pill" id="match-status">Загрузка</span></div>
             <div id="match-scoreboard"></div>
         </section>
         <div class="row g-4">
             <div class="col-lg-8">
-                <section class="content-card mb-4"><h2 class="section-title">Stats</h2><table class="table table-clean"><tbody id="match-stats-table"></tbody></table></section>
-                <section class="content-card"><h2 class="section-title">Timeline</h2><div id="match-timeline"></div></section>
+                <section class="content-card mb-4"><h2 class="section-title">Статистика</h2><table class="table table-clean"><tbody id="match-stats-table"></tbody></table></section>
+                <section class="content-card"><h2 class="section-title">Таймлайн</h2><div id="match-timeline"></div></section>
             </div>
             <div class="col-lg-4">
-                <section class="content-card mb-4"><h2 class="section-title">Preview</h2><div id="match-preview"></div></section>
-                <section class="content-card mb-4"><h2 class="section-title">H2H</h2><div id="match-h2h"></div></section>
-                <section class="content-card"><h2 class="section-title">Related news</h2><div class="d-grid gap-3" id="match-news"></div></section>
+                <section class="content-card mb-4"><h2 class="section-title">Превью</h2><div id="match-preview"></div></section>
+                <section class="content-card mb-4"><h2 class="section-title">Личные встречи</h2><div id="match-h2h"></div></section>
+                <section class="content-card"><h2 class="section-title">Похожие новости</h2><div class="d-grid gap-3" id="match-news"></div></section>
             </div>
         </div>
     </main>

@@ -10,17 +10,17 @@
 </head>
 <body data-page="{{ page_name }}" data-entity-slug="{{ entity_slug | default("") }}">
 <div class="site-shell">
-    <header class="topbar"><div class="container py-3 d-flex justify-content-between align-items-center gap-3"><a href="/" class="brand-mark"><span class="brand-ball">TP</span><span>Tennis Portal</span></a><nav class="nav-pills-custom"><a href="/tournaments" class="active">Tournaments</a><a href="/matches">Matches</a><a href="/news">News</a></nav></div></header>
+    <header class="topbar"><div class="container py-3 d-flex justify-content-between align-items-center gap-3"><a href="/" class="brand-mark"><span class="brand-ball">MO</span><span>Makhachkala Open</span></a><nav class="nav-pills-custom"><a href="/tournaments" class="active">Турниры</a><a href="/matches">Матчи</a><a href="/news">Новости</a></nav></div></header>
     <main class="container py-4">
-        <section class="hero-panel mb-4"><div class="eyebrow">Tournament card</div><h1 class="display-title" id="tournament-name">Loading tournament...</h1><p class="lead-copy" id="tournament-summary"></p><div class="d-flex flex-wrap gap-2 mt-3" id="tournament-badges"></div></section>
+        <section class="hero-panel mb-4"><div class="eyebrow">Карточка турнира</div><h1 class="display-title" id="tournament-name">Загрузка турнира...</h1><p class="lead-copy" id="tournament-summary"></p><div class="d-flex flex-wrap gap-2 mt-3" id="tournament-badges"></div></section>
         <div class="row g-4">
             <div class="col-lg-8">
-                <section class="content-card mb-4"><h2 class="section-title">Draw</h2><div class="d-grid gap-3" id="tournament-draw"></div></section>
-                <section class="content-card"><h2 class="section-title">Matches</h2><div class="d-grid gap-3" id="tournament-matches"></div></section>
+                <section class="content-card mb-4"><h2 class="section-title">Сетка</h2><div class="d-grid gap-3" id="tournament-draw"></div></section>
+                <section class="content-card"><h2 class="section-title">Матчи</h2><div class="d-grid gap-3" id="tournament-matches"></div></section>
             </div>
             <div class="col-lg-4">
-                <section class="content-card mb-4"><h2 class="section-title">Champions</h2><div class="d-grid gap-3" id="tournament-champions"></div></section>
-                <section class="content-card"><h2 class="section-title">Tournament news</h2><div class="d-grid gap-3" id="tournament-news"></div></section>
+                <section class="content-card mb-4"><h2 class="section-title">Чемпионы</h2><div class="d-grid gap-3" id="tournament-champions"></div></section>
+                <section class="content-card"><h2 class="section-title">Новости турнира</h2><div class="d-grid gap-3" id="tournament-news"></div></section>
             </div>
         </div>
     </main>

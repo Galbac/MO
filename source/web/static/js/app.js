@@ -98,7 +98,7 @@ function showFormState(form, ok, message) {
 }
 
 function playerCard(player) {
-    return `<a class="entity-card" href="/players/${escapeHtml(player.slug)}"><div class="d-flex justify-content-between"><span class="avatar-orb">${escapeHtml(player.full_name.split(" ").map((item) => item[0]).join("").slice(0, 2))}</span><span class="badge-soft">Rank ${escapeHtml(player.current_rank ?? "-")}</span></div><h3 class="h5 mt-3">${escapeHtml(player.full_name)}</h3><div class="text-muted">${escapeHtml(player.country_code)}</div><div class="mt-2">Points: ${escapeHtml(player.current_points ?? "-")}</div><div class="text-muted">Form: ${escapeHtml((player.form || []).join(" "))}</div></a>`;
+    return `<a class="entity-card" href="/players/${escapeHtml(player.slug)}"><div class="d-flex justify-content-between"><span class="avatar-orb">${escapeHtml(player.full_name.split(" ").map((item) => item[0]).join("").slice(0, 2))}</span><span class="badge-soft">Место ${escapeHtml(player.current_rank ?? "-")}</span></div><h3 class="h5 mt-3">${escapeHtml(player.full_name)}</h3><div class="text-muted">${escapeHtml(player.country_code)}</div><div class="mt-2">Очки: ${escapeHtml(player.current_points ?? "-")}</div><div class="text-muted">Форма: ${escapeHtml((player.form || []).join(" "))}</div></a>`;
 }
 
 function tournamentCard(tournament) {
@@ -107,11 +107,11 @@ function tournamentCard(tournament) {
 
 function matchCard(match) {
     const pillClass = match.status === "live" ? "live-pill" : "status-pill";
-    return `<a class="entity-card" href="/matches/${escapeHtml(match.slug)}"><div class="d-flex justify-content-between flex-wrap gap-2"><div><strong>${escapeHtml(match.player1_name)} vs ${escapeHtml(match.player2_name)}</strong><div class="text-muted">${escapeHtml(match.tournament_name)}${match.round_code ? `, ${escapeHtml(match.round_code)}` : ""}</div></div><span class="${pillClass}">${escapeHtml(formatStatus(match.status))}</span></div><div class="mt-2">${escapeHtml(match.score_summary || "Scheduled")}</div></a>`;
+    return `<a class="entity-card" href="/matches/${escapeHtml(match.slug)}"><div class="d-flex justify-content-between flex-wrap gap-2"><div><strong>${escapeHtml(match.player1_name)} против ${escapeHtml(match.player2_name)}</strong><div class="text-muted">${escapeHtml(match.tournament_name)}${match.round_code ? `, ${escapeHtml(match.round_code)}` : ""}</div></div><span class="${pillClass}">${escapeHtml(formatStatus(match.status))}</span></div><div class="mt-2">${escapeHtml(match.score_summary || "Запланирован")}</div></a>`;
 }
 
 function newsCard(article) {
-    return `<a class="entity-card" href="/news/${escapeHtml(article.slug)}"><span class="badge-soft">${escapeHtml(article.category?.name || article.status)}</span><h3 class="h5 mt-3">${escapeHtml(article.title)}</h3><p class="text-muted mb-0">${escapeHtml(article.lead || article.subtitle || "Editorial item")}</p></a>`;
+    return `<a class="entity-card" href="/news/${escapeHtml(article.slug)}"><span class="badge-soft">${escapeHtml(article.category?.name || article.status)}</span><h3 class="h5 mt-3">${escapeHtml(article.title)}</h3><p class="text-muted mb-0">${escapeHtml(article.lead || article.subtitle || "Редакционный материал")}</p></a>`;
 }
 
 function notificationCard(item) {
@@ -135,7 +135,7 @@ async function initHomePage() {
     setHtml("home-news-count", String(news.length));
     setHtml("home-live-list", live.slice(0, 2).map(matchCard).join(""));
     setHtml("home-news-list", news.slice(0, 2).map(newsCard).join(""));
-    setHtml("home-players-list", players.slice(0, 2).map((player) => `<a class="entity-card d-flex align-items-center gap-3" href="/players/${escapeHtml(player.slug)}"><span class="avatar-orb">${escapeHtml(player.full_name.split(" ").map((item) => item[0]).join("").slice(0, 2))}</span><div><strong>${escapeHtml(player.full_name)}</strong><div class="text-muted">No. ${escapeHtml(player.current_rank)}, ${escapeHtml(player.country_code)}</div></div></a>`).join(""));
+    setHtml("home-players-list", players.slice(0, 2).map((player) => `<a class="entity-card d-flex align-items-center gap-3" href="/players/${escapeHtml(player.slug)}"><span class="avatar-orb">${escapeHtml(player.full_name.split(" ").map((item) => item[0]).join("").slice(0, 2))}</span><div><strong>${escapeHtml(player.full_name)}</strong><div class="text-muted">№ ${escapeHtml(player.current_rank)}, ${escapeHtml(player.country_code)}</div></div></a>`).join(""));
     setHtml("home-tournaments-list", tournaments.slice(0, 2).map((item) => `<a class="entity-card" href="/tournaments/${escapeHtml(item.slug)}"><strong>${escapeHtml(item.name)}</strong><div class="text-muted">${escapeHtml(item.city || "-")}, ${escapeHtml(item.surface)}</div></a>`).join(""));
 }
 
@@ -178,11 +178,11 @@ async function initPlayerDetailPage() {
     const data = detail.data;
     const stats = statsPayload.data;
     setHtml("player-name", escapeHtml(data.full_name));
-    setHtml("player-summary", escapeHtml(`${data.country_name || data.country_code}, rank ${data.current_rank}, ${data.current_points} points`));
+    setHtml("player-summary", escapeHtml(`${data.country_name || data.country_code}, место ${data.current_rank}, ${data.current_points} очков`));
     setHtml("player-bio", escapeHtml(data.biography || ""));
-    setHtml("player-badges", `<span class="badge-soft">${escapeHtml(data.country_code)}</span><span class="badge-soft">Rank ${escapeHtml(data.current_rank)}</span><span class="badge-soft">${escapeHtml(data.hand || "-handed")}</span><button class="btn btn-success rounded-pill" data-loading-button>Subscribe</button>`);
-    setHtml("player-upcoming-card", data.upcoming_match ? `<div class="text-muted">Next match</div><strong>${escapeHtml(data.upcoming_match.tournament_name)}</strong><div class="text-muted">vs ${escapeHtml(data.upcoming_match.opponent_name)}</div><div class="mt-2">${escapeHtml(data.upcoming_match.scheduled_at)}</div>` : `<div class="text-muted">No upcoming match scheduled.</div>`);
-    setHtml("player-stats-grid", `<div class="entity-card"><strong>Matches</strong><div class="metric-value">${escapeHtml(stats.matches_played)}</div></div><div class="entity-card"><strong>Win rate</strong><div class="metric-value">${escapeHtml(stats.win_rate)}%</div></div><div class="entity-card"><strong>Hard</strong><div class="metric-value">${escapeHtml(stats.hard_record)}</div></div>`);
+    setHtml("player-badges", `<span class="badge-soft">${escapeHtml(data.country_code)}</span><span class="badge-soft">Место ${escapeHtml(data.current_rank)}</span><span class="badge-soft">${escapeHtml(data.hand || "-handed")}</span><button class="btn btn-success rounded-pill" data-loading-button>Подписаться</button>`);
+    setHtml("player-upcoming-card", data.upcoming_match ? `<div class="text-muted">Следующий матч</div><strong>${escapeHtml(data.upcoming_match.tournament_name)}</strong><div class="text-muted">vs ${escapeHtml(data.upcoming_match.opponent_name)}</div><div class="mt-2">${escapeHtml(data.upcoming_match.scheduled_at)}</div>` : `<div class="text-muted">Ближайший матч пока не назначен.</div>`);
+    setHtml("player-stats-grid", `<div class="entity-card"><strong>Матчи</strong><div class="metric-value">${escapeHtml(stats.matches_played)}</div></div><div class="entity-card"><strong>Процент побед</strong><div class="metric-value">${escapeHtml(stats.win_rate)}%</div></div><div class="entity-card"><strong>Хард</strong><div class="metric-value">${escapeHtml(stats.hard_record)}</div></div>`);
     setHtml("player-recent-matches", extractList(matchesPayload).map(matchCard).join(""));
     setHtml("player-ranking-history", extractList(rankingPayload).map((item) => `<tr><td>${escapeHtml(item.ranking_date)}</td><td>${escapeHtml(item.rank_position)}</td><td>${escapeHtml(item.points)}</td><td>${escapeHtml(item.movement)}</td></tr>`).join(""));
     setHtml("player-titles", extractList(titlesPayload).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.tournament_name)}</strong><div class="text-muted">${escapeHtml(item.category)}, ${escapeHtml(item.surface)}</div></div>`).join(""));
@@ -200,13 +200,13 @@ async function initTournamentDetailPage() {
     setHtml("tournament-name", escapeHtml(data.name));
     setHtml("tournament-summary", escapeHtml(data.description || ""));
     setHtml("tournament-badges", `<span class="badge-soft">${escapeHtml(data.city || "-")}</span><span class="badge-soft">${escapeHtml(data.surface)}</span><span class="badge-soft">${escapeHtml(data.category)}</span>`);
-    setHtml("tournament-draw", extractList(draw).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.round_code)}</strong><div class="text-muted">${escapeHtml(item.player1_name)} vs ${escapeHtml(item.player2_name)}</div><div>${escapeHtml(item.score_summary || "")}</div></div>`).join(""));
+    setHtml("tournament-draw", extractList(draw).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.round_code)}</strong><div class="text-muted">${escapeHtml(item.player1_name)} против ${escapeHtml(item.player2_name)}</div><div>${escapeHtml(item.score_summary || "")}</div></div>`).join(""));
     setHtml("tournament-matches", extractList(matches).map(matchCard).join(""));
     setHtml("tournament-champions", extractList(champions).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.season_year)}</strong><div class="text-muted">${escapeHtml(item.player_name)}</div></div>`).join(""));
     setHtml("tournament-news", extractList(news).map(newsCard).join(""));
 }
 
-async function initMatchesListPage() {
+async function initМатчиListPage() {
     const render = async () => {
         const status = document.getElementById("matches-status")?.value || "";
         const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
@@ -222,14 +222,14 @@ async function initMatchDetailPage() {
     const render = async () => {
         const [detail, stats, timeline, preview, h2h] = await Promise.all([apiGet(`/matches/${match.id}`), apiGet(`/matches/${match.id}/stats`), apiGet(`/matches/${match.id}/timeline`), apiGet(`/matches/${match.id}/preview`), apiGet(`/matches/${match.id}/h2h`)]);
         const data = detail.data;
-        setHtml("match-title", escapeHtml(`${data.player1_name} vs ${data.player2_name}`));
+        setHtml("match-title", escapeHtml(`${data.player1_name} против ${data.player2_name}`));
         setHtml("match-subtitle", escapeHtml(`${data.tournament_name}${data.round_code ? `, ${data.round_code}` : ""}`));
         setHtml("match-status", escapeHtml(formatStatus(data.status)));
         setHtml("match-scoreboard", `<div class="score-line"><strong>${escapeHtml(data.player1_name)}</strong>${data.score.sets.map((set) => `<span>${escapeHtml(set.split("-")[0])}</span>`).join("")}</div><div class="score-line"><strong>${escapeHtml(data.player2_name)}</strong>${data.score.sets.map((set) => `<span>${escapeHtml(set.split("-")[1])}</span>`).join("")}</div>`);
-        setHtml("match-stats-table", `<tr><td>Aces</td><td>${escapeHtml(stats.data.player1_aces)}</td><td>${escapeHtml(stats.data.player2_aces)}</td></tr><tr><td>First serve %</td><td>${escapeHtml(stats.data.player1_first_serve_pct)}</td><td>${escapeHtml(stats.data.player2_first_serve_pct)}</td></tr><tr><td>Duration</td><td colspan="2">${escapeHtml(stats.data.duration_minutes)} min</td></tr>`);
+        setHtml("match-stats-table", `<tr><td>Эйсы</td><td>${escapeHtml(stats.data.player1_aces)}</td><td>${escapeHtml(stats.data.player2_aces)}</td></tr><tr><td>% первой подачи</td><td>${escapeHtml(stats.data.player1_first_serve_pct)}</td><td>${escapeHtml(stats.data.player2_first_serve_pct)}</td></tr><tr><td>Длительность</td><td colspan="2">${escapeHtml(stats.data.duration_minutes)} мин</td></tr>`);
         setHtml("match-timeline", extractList(timeline).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.event_type)}</div><strong>${escapeHtml(JSON.stringify(item.payload_json))}</strong></div>`).join(""));
         setHtml("match-preview", `<div class="text-muted">${escapeHtml(preview.data.notes.join(" "))}</div>`);
-        setHtml("match-h2h", `<div class="metric-value">${escapeHtml(h2h.data.player1_wins)} - ${escapeHtml(h2h.data.player2_wins)}</div><div class="text-muted">Total matches: ${escapeHtml(h2h.data.total_matches)}</div>`);
+        setHtml("match-h2h", `<div class="metric-value">${escapeHtml(h2h.data.player1_wins)} - ${escapeHtml(h2h.data.player2_wins)}</div><div class="text-muted">Всего матчей: ${escapeHtml(h2h.data.total_matches)}</div>`);
         setHtml("match-news", (data.related_news || []).map(newsCard).join(""));
     };
     await render();
@@ -263,7 +263,7 @@ async function initNewsListPage() {
 
 async function initNewsDetailPage() {
     const data = (await apiGet(`/news/${getEntitySlug()}`)).data;
-    setHtml("article-category", escapeHtml(data.category?.name || "Article"));
+    setHtml("article-category", escapeHtml(data.category?.name || "Статья"));
     setHtml("article-title", escapeHtml(data.title));
     setHtml("article-meta", escapeHtml(`${data.published_at || ""} • ${data.status}`));
     setHtml("article-lead", escapeHtml(data.lead || ""));
@@ -300,7 +300,7 @@ async function initAccountPage() {
 
 async function initNotificationsPage() {
     const [count, list] = await Promise.all([apiGet("/notifications/unread-count"), apiGet("/notifications")]);
-    setHtml("notifications-count", escapeHtml(`Unread: ${count.data.unread_count}`));
+    setHtml("notifications-count", escapeHtml(`Непрочитано: ${count.data.unread_count}`));
     setHtml("notifications-list", extractList(list).map(notificationCard).join(""));
 }
 
@@ -324,9 +324,9 @@ async function initH2HPage() {
         ]);
         const h2h = h2hPayload.data;
         const compare = comparePayload.data;
-        setHtml("h2h-summary", `<div class="metric-card"><div class="eyebrow">Total</div><div class="metric-value">${escapeHtml(h2h.total_matches)}</div></div><div class="metric-card"><div class="eyebrow">${escapeHtml(compare.player1.full_name)} wins</div><div class="metric-value">${escapeHtml(h2h.player1_wins)}</div></div><div class="metric-card"><div class="eyebrow">${escapeHtml(compare.player2.full_name)} wins</div><div class="metric-value">${escapeHtml(h2h.player2_wins)}</div></div>`);
-        setHtml("h2h-surface-split", `<tr><td>Hard</td><td>${escapeHtml(h2h.hard_player1_wins)}</td><td>${escapeHtml(h2h.hard_player2_wins)}</td></tr><tr><td>Clay</td><td>${escapeHtml(h2h.clay_player1_wins)}</td><td>${escapeHtml(h2h.clay_player2_wins)}</td></tr><tr><td>Grass</td><td>${escapeHtml(h2h.grass_player1_wins)}</td><td>${escapeHtml(h2h.grass_player2_wins)}</td></tr>`);
-        setHtml("h2h-history", `<div class="entity-card"><strong>Last match ID #${escapeHtml(h2h.last_match_id || "-")}</strong><div class="text-muted">${escapeHtml(compare.player1.full_name)} vs ${escapeHtml(compare.player2.full_name)}</div><div class="mt-2">Current H2H: ${escapeHtml(h2h.player1_wins)}-${escapeHtml(h2h.player2_wins)}</div></div>`);
+        setHtml("h2h-summary", `<div class="metric-card"><div class="eyebrow">Всего</div><div class="metric-value">${escapeHtml(h2h.total_matches)}</div></div><div class="metric-card"><div class="eyebrow">${escapeHtml(compare.player1.full_name)} побед</div><div class="metric-value">${escapeHtml(h2h.player1_wins)}</div></div><div class="metric-card"><div class="eyebrow">${escapeHtml(compare.player2.full_name)} побед</div><div class="metric-value">${escapeHtml(h2h.player2_wins)}</div></div>`);
+        setHtml("h2h-surface-split", `<tr><td>Хард</td><td>${escapeHtml(h2h.hard_player1_wins)}</td><td>${escapeHtml(h2h.hard_player2_wins)}</td></tr><tr><td>Clay</td><td>${escapeHtml(h2h.clay_player1_wins)}</td><td>${escapeHtml(h2h.clay_player2_wins)}</td></tr><tr><td>Grass</td><td>${escapeHtml(h2h.grass_player1_wins)}</td><td>${escapeHtml(h2h.grass_player2_wins)}</td></tr>`);
+        setHtml("h2h-history", `<div class="entity-card"><strong>Последний матч #${escapeHtml(h2h.last_match_id || "-")}</strong><div class="text-muted">${escapeHtml(compare.player1.full_name)} против ${escapeHtml(compare.player2.full_name)}</div><div class="mt-2">Текущий H2H: ${escapeHtml(h2h.player1_wins)}-${escapeHtml(h2h.player2_wins)}</div></div>`);
     };
     await render();
     player1Select?.addEventListener("change", render);
@@ -358,12 +358,12 @@ async function initAdminSettingsPage() {
 
 async function initAdminMediaPage() {
     const payload = await apiGet("/admin/media");
-    setHtml("admin-media-list", extractList(payload).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.filename)}</strong><div class="text-muted">${escapeHtml(item.content_type)}</div><div class="text-muted">${escapeHtml(item.url)}</div><div class="mt-2">${escapeHtml(item.size || 0)} bytes</div></div>`).join(""));
+    setHtml("admin-media-list", extractList(payload).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.filename)}</strong><div class="text-muted">${escapeHtml(item.content_type)}</div><div class="text-muted">${escapeHtml(item.url)}</div><div class="mt-2">${escapeHtml(item.size || 0)} байт</div></div>`).join(""));
 }
 
 async function initAdminNotificationsPage() {
     const [templatesPayload, historyPayload] = await Promise.all([apiGet("/admin/notifications/templates"), apiGet("/admin/notifications")]);
-    setHtml("admin-notification-templates", extractList(templatesPayload).map((item) => `<tr><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.channel)}</td><td>${escapeHtml(item.is_active ? "active" : "disabled")}</td><td>${escapeHtml(item.updated_at)}</td></tr>`).join(""));
+    setHtml("admin-notification-templates", extractList(templatesPayload).map((item) => `<tr><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.channel)}</td><td>${escapeHtml(item.is_активен ? "активен" : "отключен")}</td><td>${escapeHtml(item.updated_at)}</td></tr>`).join(""));
     setHtml("admin-notification-history", extractList(historyPayload).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.created_at)}</div><strong>${escapeHtml(item.title)}</strong><div class="text-muted">${escapeHtml(item.status)} · sent ${escapeHtml(item.sent_count)}</div></div>`).join(""));
 }
 
@@ -381,7 +381,7 @@ async function initAdminRankingsPage() {
 
 async function initAdminLiveOperationsPage() {
     const [livePayload, feedPayload] = await Promise.all([apiGet("/live"), apiGet("/live/feed")]);
-    setHtml("admin-live-matches", extractList(livePayload).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.player1_name)} vs ${escapeHtml(item.player2_name)}</strong><div class="text-muted">${escapeHtml(item.tournament_name)} · ${escapeHtml(item.round_code || "-")}</div><div class="mt-2">${escapeHtml(item.score_summary || item.status)}</div></div>`).join(""));
+    setHtml("admin-live-matches", extractList(livePayload).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.player1_name)} против ${escapeHtml(item.player2_name)}</strong><div class="text-muted">${escapeHtml(item.tournament_name)} · ${escapeHtml(item.round_code || "-")}</div><div class="mt-2">${escapeHtml(item.score_summary || item.status)}</div></div>`).join(""));
     setHtml("admin-live-events", extractList(feedPayload).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.event_type)}</div><strong>${escapeHtml(item.created_at)}</strong><div class="text-muted">${escapeHtml(JSON.stringify(item.payload_json))}</div></div>`).join(""));
 }
 
@@ -407,7 +407,7 @@ async function initAdminMatchDetailPage() {
     if (!matchId) return;
     const payload = await apiGet(`/admin/matches/${matchId}`);
     const match = payload.data;
-    setHtml("admin-match-title", escapeHtml(`${match.player1_name} vs ${match.player2_name}`));
+    setHtml("admin-match-title", escapeHtml(`${match.player1_name} против ${match.player2_name}`));
     const scoreInput = document.querySelector("[name=score_summary]");
     if (scoreInput) scoreInput.value = match.score_summary || "";
     setHtml("admin-match-timeline", (match.timeline || []).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.event_type)}</div><strong>${escapeHtml(item.created_at)}</strong><div class="text-muted">${escapeHtml(JSON.stringify(item.payload_json))}</div></div>`).join(""));
@@ -419,8 +419,8 @@ function initTabs() {
         buttons.forEach((button) => {
             button.addEventListener("click", () => {
                 const target = button.getAttribute("data-tab-target");
-                buttons.forEach((item) => item.classList.remove("active"));
-                button.classList.add("active");
+                buttons.forEach((item) => item.classList.remove("активен"));
+                button.classList.add("активен");
                 document.querySelectorAll(`[data-tab-panel="${group.dataset.tabGroup}"]`).forEach((panel) => panel.classList.toggle("d-none", panel.id !== target));
             });
         });
@@ -431,9 +431,9 @@ function initLoadingButtons() {
     document.querySelectorAll("[data-loading-button]").forEach((button) => {
         button.addEventListener("click", () => {
             const original = button.innerHTML;
-            button.disabled = true;
-            button.innerHTML = "Loading...";
-            window.setTimeout(() => { button.disabled = false; button.innerHTML = original; }, 900);
+            button.отключен = true;
+            button.innerHTML = "Загрузка...";
+            window.setTimeout(() => { button.отключен = false; button.innerHTML = original; }, 900);
         });
     });
 }
@@ -465,12 +465,12 @@ function initLiveTicker() {
     const ticker = document.querySelector("[data-live-ticker]");
     if (!ticker) return;
     apiGet("/live").then((payload) => {
-        const frames = extractList(payload).map((item) => `${item.player1_name} vs ${item.player2_name}: ${item.score_summary || item.status}`);
+        const frames = extractList(payload).map((item) => `${item.player1_name} против ${item.player2_name}: ${item.score_summary || item.status}`);
         if (frames.length === 0) return;
         let index = 0;
         ticker.textContent = frames[0];
         window.setInterval(() => { index = (index + 1) % frames.length; ticker.textContent = frames[index]; }, 2200);
-    }).catch(() => { ticker.textContent = "Live feed unavailable"; });
+    }).catch(() => { ticker.textContent = "Лайв-лента недоступна"; });
 }
 
 function initFormProtection() {
@@ -480,16 +480,16 @@ function initFormProtection() {
             const submit = form.querySelector("[type='submit']");
             if (!submit) return;
             const original = submit.textContent;
-            submit.disabled = true;
-            submit.textContent = "Saving...";
+            submit.отключен = true;
+            submit.textContent = "Сохранение...";
             showFormState(form, true, "");
             try {
                 const payload = await apiRequest(form.dataset.apiPath, { method: form.dataset.apiMethod || "POST", body: JSON.stringify(formToJson(form)) });
-                showFormState(form, true, payload?.data?.message || payload?.message || "Saved successfully.");
+                showFormState(form, true, payload?.data?.message || payload?.message || "Успешно сохранено.");
             } catch (error) {
                 showFormState(form, false, error.message);
             } finally {
-                submit.disabled = false;
+                submit.отключен = false;
                 submit.textContent = original;
             }
         });
@@ -499,15 +499,15 @@ function initFormProtection() {
             const feedback = button.dataset.targetFeedback ? document.getElementById(button.dataset.targetFeedback) : null;
             const errorNode = button.dataset.targetError ? document.getElementById(button.dataset.targetError) : document.getElementById("match-finalize-error");
             const original = button.textContent;
-            button.disabled = true;
-            button.textContent = "Processing...";
+            button.отключен = true;
+            button.textContent = "Обработка...";
             if (feedback) feedback.classList.add("d-none");
             if (errorNode) errorNode.classList.add("d-none");
             try {
                 const payload = await apiRequest(button.dataset.apiPath, { method: button.dataset.apiMethod || "POST" });
                 if (feedback) {
                     feedback.classList.remove("d-none");
-                    feedback.textContent = payload?.data?.message || "Done.";
+                    feedback.textContent = payload?.data?.message || "Готово.";
                 }
             } catch (error) {
                 if (errorNode) {
@@ -515,7 +515,7 @@ function initFormProtection() {
                     errorNode.textContent = error.message;
                 }
             } finally {
-                button.disabled = false;
+                button.отключен = false;
                 button.textContent = original;
             }
         });
@@ -529,7 +529,7 @@ async function initPageData() {
         case "player-detail": await initPlayerDetailPage(); break;
         case "tournaments-list": await initTournamentsListPage(); break;
         case "tournament-detail": await initTournamentDetailPage(); break;
-        case "matches-list": await initMatchesListPage(); break;
+        case "matches-list": await initМатчиListPage(); break;
         case "match-detail": await initMatchDetailPage(); break;
         case "live-center": await initLiveCenterPage(); break;
         case "rankings": await initRankingsPage(); break;
@@ -542,9 +542,9 @@ async function initPageData() {
         case "admin-dashboard": await initAdminDashboard(); break;
         case "admin-users": await initAdminTable("/admin/users", "admin-users-body", (item) => `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(item.username)}</td><td>${escapeHtml(item.role)}</td><td>${escapeHtml(item.status)}</td></tr>`); break;
         case "admin-user-detail": await initAdminUserDetailPage(); break;
-        case "admin-players": await initAdminTable("/admin/players", "admin-players-body", (item) => `<tr><td>${escapeHtml(item.full_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.current_rank)}</td><td>active</td></tr>`); break;
+        case "admin-players": await initAdminTable("/admin/players", "admin-players-body", (item) => `<tr><td>${escapeHtml(item.full_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.current_rank)}</td><td>активен</td></tr>`); break;
         case "admin-tournaments": await initAdminTable("/admin/tournaments", "admin-tournaments-body", (item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.category)}</td><td>${escapeHtml(item.surface)}</td><td>${escapeHtml(item.status)}</td></tr>`); break;
-        case "admin-matches": await initAdminTable("/admin/matches", "admin-matches-body", (item) => `<tr><td>${escapeHtml(item.player1_name)} vs ${escapeHtml(item.player2_name)}</td><td>${escapeHtml(item.tournament_name)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.round_code || "-")}</td></tr>`); break;
+        case "admin-matches": await initAdminTable("/admin/matches", "admin-matches-body", (item) => `<tr><td>${escapeHtml(item.player1_name)} против ${escapeHtml(item.player2_name)}</td><td>${escapeHtml(item.tournament_name)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.round_code || "-")}</td></tr>`); break;
         case "admin-match-detail": await initAdminMatchDetailPage(); break;
         case "admin-news": await initAdminTable("/admin/news", "admin-news-body", (item) => `<tr><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.published_at || "-")}</td></tr>`); break;
         case "admin-integrations": await initAdminTable("/admin/integrations", "admin-integrations-body", (item) => `<tr><td>${escapeHtml(item.provider)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.last_sync_at || "-")}</td></tr>`); break;

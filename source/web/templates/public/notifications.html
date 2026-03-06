@@ -10,10 +10,10 @@
 </head>
 <body data-page="{{ page_name }}">
 <div class="site-shell">
-    <header class="topbar"><div class="container py-3 d-flex justify-content-between align-items-center gap-3"><a href="/" class="brand-mark"><span class="brand-ball">TP</span><span>Tennis Portal</span></a><nav class="nav-pills-custom"><a href="/account">Account</a><a class="active" href="/notifications">Notifications</a></nav></div></header>
+    <header class="topbar"><div class="container py-3 d-flex justify-content-between align-items-center gap-3"><a href="/" class="brand-mark"><span class="brand-ball">MO</span><span>Makhachkala Open</span></a><nav class="nav-pills-custom"><a href="/account">Профиль</a><a class="active" href="/notifications">Уведомления</a></nav></div></header>
     <main class="container py-4">
-        <section class="hero-panel mb-4"><div class="eyebrow">Inbox</div><h1 class="display-title">Unread count, recent alerts and read-all actions.</h1><p class="lead-copy" id="notifications-count">Loading notifications...</p></section>
-        <section class="content-card"><div class="d-flex justify-content-between align-items-center mb-3"><h2 class="section-title">Recent notifications</h2><button class="btn btn-outline-dark rounded-pill" data-api-action data-api-method="PATCH" data-api-path="/notifications/read-all" data-target-feedback="notifications-feedback">Mark all as read</button></div><div class="success-note d-none mb-3" id="notifications-feedback">Notifications updated.</div><div id="notifications-list"></div></section>
+        <section class="hero-panel mb-4"><div class="eyebrow">Входящие</div><h1 class="display-title">Непрочитанные уведомления, последние события и быстрые действия.</h1><p class="lead-copy" id="notifications-count">Загрузка уведомлений...</p></section>
+        <section class="content-card"><div class="d-flex justify-content-between align-items-center mb-3"><h2 class="section-title">Последние уведомления</h2><button class="btn btn-outline-dark rounded-pill" data-api-action data-api-method="PATCH" data-api-path="/notifications/read-all" data-target-feedback="notifications-feedback">Отметить все как прочитанные</button></div><div class="success-note d-none mb-3" id="notifications-feedback">Уведомления обновлены.</div><div id="notifications-list"></div></section>
     </main>
 </div>
 <script src="/static/js/app.js"></script>

@@ -12,39 +12,39 @@
 <div class="site-shell">
     <header class="topbar">
         <div class="container py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <a href="/" class="brand-mark"><span class="brand-ball">TP</span><span>Tennis Portal</span></a>
+            <a href="/" class="brand-mark"><span class="brand-ball">MO</span><span>Makhachkala Open</span></a>
             <nav class="nav-pills-custom">
-                <a class="active" href="/">Home</a><a href="/players">Players</a><a href="/tournaments">Tournaments</a><a href="/matches">Matches</a><a href="/live">Live</a><a href="/rankings">Rankings</a><a href="/news">News</a><a href="/account">Account</a>
+                <a class="active" href="/">Главная</a><a href="/players">Игроки</a><a href="/tournaments">Турниры</a><a href="/matches">Матчи</a><a href="/live">Лайв</a><a href="/rankings">Рейтинги</a><a href="/news">Новости</a><a href="/account">Профиль</a>
             </nav>
         </div>
     </header>
     <main class="container py-4">
         <section class="hero-panel mb-4">
-            <div class="eyebrow">Live tennis platform</div>
-            <h1 class="display-title">Scores, stories and rankings in one match-ready interface.</h1>
-            <p class="lead-copy">Главная страница теперь наполняется через API: live matches, results, top news, featured players и upcoming tournaments.</p>
+            <div class="eyebrow">Теннисная платформа в реальном времени</div>
+            <h1 class="display-title">Счета, новости и рейтинги в одном удобном интерфейсе.</h1>
+            <p class="lead-copy">Главная страница теперь наполняется через API: лайв-матчи, результаты, топ-новости, игроки в фокусе и ближайшие турниры.</p>
         </section>
         <div class="card-grid cols-3 mb-4">
-            <div class="metric-card"><div class="eyebrow">Live matches</div><div class="metric-value" id="home-live-count">-</div><div class="text-muted">Auto-refresh every few seconds</div></div>
-            <div class="metric-card"><div class="eyebrow">Top 10 updated</div><div class="metric-value" id="home-ranking-count">-</div><div class="text-muted">Movement arrows and date snapshot</div></div>
-            <div class="metric-card"><div class="eyebrow">Newsroom</div><div class="metric-value" id="home-news-count">-</div><div class="text-muted">Fresh articles in API feed</div></div>
+            <div class="metric-card"><div class="eyebrow">Матчи в лайве</div><div class="metric-value" id="home-live-count">-</div><div class="text-muted">Автообновление каждые несколько секунд</div></div>
+            <div class="metric-card"><div class="eyebrow">Обновление топ-10</div><div class="metric-value" id="home-ranking-count">-</div><div class="text-muted">Движение позиций и дата среза</div></div>
+            <div class="metric-card"><div class="eyebrow">Редакция</div><div class="metric-value" id="home-news-count">-</div><div class="text-muted">Свежие статьи из API-ленты</div></div>
         </div>
         <div class="row g-4">
             <div class="col-lg-8">
                 <section class="content-card mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
-                            <h2 class="section-title">Live matches</h2>
-                            <div class="section-subtitle">Grouped by tournament with instant drill-down.</div>
+                            <h2 class="section-title">Матчи в лайве</h2>
+                            <div class="section-subtitle">Группировка по турнирам с быстрым переходом к деталям.</div>
                         </div>
-                        <span class="live-pill" data-live-ticker>Loading live ticker...</span>
+                        <span class="live-pill" data-live-ticker>Загрузка лайв-ленты...</span>
                     </div>
                     <div class="card-grid cols-2" id="home-live-list">
                         <div class="entity-card"><div class="skeleton card"></div></div>
                     </div>
                 </section>
                 <section class="content-card">
-                    <h2 class="section-title">Top news</h2>
+                    <h2 class="section-title">Главные новости</h2>
                     <div class="card-grid cols-2" id="home-news-list">
                         <div class="entity-card"><div class="skeleton card"></div></div>
                     </div>
@@ -52,13 +52,13 @@
             </div>
             <div class="col-lg-4">
                 <section class="content-card mb-4">
-                    <h2 class="section-title">Featured players</h2>
+                    <h2 class="section-title">Игроки в фокусе</h2>
                     <div class="d-grid gap-3" id="home-players-list">
                         <div class="entity-card"><div class="skeleton text"></div></div>
                     </div>
                 </section>
                 <section class="content-card">
-                    <h2 class="section-title">Upcoming tournaments</h2>
+                    <h2 class="section-title">Ближайшие турниры</h2>
                     <div class="d-grid gap-3" id="home-tournaments-list">
                         <div class="entity-card"><div class="skeleton text"></div></div>
                     </div>

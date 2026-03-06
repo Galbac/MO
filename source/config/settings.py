@@ -11,7 +11,7 @@ class RunConfig(BaseModel):
 
 
 class ProjectName(BaseModel):
-    title: str = "Tennis Portal"
+    title: str = "Makhachkala Open"
     path: str = ""
     slug: str = "makhachkala_open"
 
