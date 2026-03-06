@@ -54,6 +54,11 @@ class PlayerRepository:
     async def get(self, session: AsyncSession, player_id: int) -> Player | None:
         return await session.get(Player, player_id)
 
+
+    async def get_by_slug(self, session: AsyncSession, slug: str) -> Player | None:
+        stmt = select(Player).where(Player.slug == slug)
+        return await session.scalar(stmt)
+
     async def get_matches(self, session: AsyncSession, player_id: int) -> list[Match]:
         stmt = select(Match).where(or_(Match.player1_id == player_id, Match.player2_id == player_id)).order_by(Match.scheduled_at.desc())
         return list((await session.scalars(stmt)).all())

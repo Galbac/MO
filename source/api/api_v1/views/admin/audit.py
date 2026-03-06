@@ -9,8 +9,20 @@ service = OperationsService()
 
 
 @router.get("", response_model=SuccessResponse[list[AuditLogItem]])
-async def list_audit_logs() -> SuccessResponse[list[AuditLogItem]]:
-    return await service.list_audit_logs()
+async def list_audit_logs(
+    user_id: int | None = None,
+    entity_type: str | None = None,
+    action: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> SuccessResponse[list[AuditLogItem]]:
+    return await service.list_audit_logs(
+        user_id=user_id,
+        entity_type=entity_type,
+        action=action,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
 
 @router.get("/{log_id}", response_model=SuccessResponse[AuditLogItem])

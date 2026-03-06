@@ -10,6 +10,9 @@ def test_makefile_contains_core_tasks() -> None:
 def test_makefile_has_worker_and_contract_targets() -> None:
     content = __import__("pathlib").Path("Makefile").read_text()
     assert "worker:" in content
+    assert "jobs:" in content
+    assert "jobs-prune:" in content
+    assert "jobs-retry:" in content
     assert "test-contract:" in content
     assert "test-load:" in content
     assert "backup-runtime:" in content

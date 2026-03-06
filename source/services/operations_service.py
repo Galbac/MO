@@ -268,6 +268,17 @@ class OperationsService:
                 duplicate = await self.matches.find_event_by_provider_key(session, match_id=match.id, provider_event_key=provider_event_key)
                 if duplicate is not None:
                     continue
+                existing_events = await self.matches.get_events(session, match.id)
+                latest_provider_event_at = max(
+                    (
+                        item.created_at.replace(tzinfo=UTC) if item.created_at is not None and item.created_at.tzinfo is None else item.created_at
+                        for item in existing_events
+                        if (item.payload_json or {}).get('provider') == provider and item.created_at is not None
+                    ),
+                    default=None,
+                )
+                if latest_provider_event_at is not None and latest_provider_event_at > event.occurred_at:
+                    continue
                 status_changed = match.status != event.status
                 score_changed = bool(event.score_summary and event.score_summary != match.score_summary)
                 if status_changed or score_changed:
@@ -403,14 +414,14 @@ class OperationsService:
         logs = current.get('logs', [])
         return MessageResponse(data=SimpleMessage(message='\n'.join(item['timestamp'] + ' ' + item['message'] for item in logs) or 'No logs available'))
 
-    async def list_audit_logs(self) -> SuccessResponse[list[AuditLogItem]]:
+    async def list_audit_logs(self, *, user_id: int | None = None, entity_type: str | None = None, action: str | None = None, date_from: str | None = None, date_to: str | None = None) -> SuccessResponse[list[AuditLogItem]]:
         async with db_session_manager.session() as session:
-            items = await self.audit_repo.list(session)
-            return SuccessResponse(data=[AuditLogItem(id=item.id, action=item.action, entity_type=item.entity_type, entity_id=item.entity_id, before_json=item.before_json, after_json=item.after_json, created_at=item.created_at) for item in items])
+            items = await self.audit_repo.list(session, user_id=user_id, entity_type=entity_type, action=action, date_from=date_from, date_to=date_to)
+            return SuccessResponse(data=[AuditLogItem(id=item.id, user_id=item.user_id, action=item.action, entity_type=item.entity_type, entity_id=item.entity_id, before_json=item.before_json, after_json=item.after_json, created_at=item.created_at) for item in items])
 
     async def get_audit_log(self, log_id: int) -> SuccessResponse[AuditLogItem]:
         async with db_session_manager.session() as session:
             item = await self.audit_repo.get(session, log_id)
             if item is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Audit log not found')
-            return SuccessResponse(data=AuditLogItem(id=item.id, action=item.action, entity_type=item.entity_type, entity_id=item.entity_id, before_json=item.before_json, after_json=item.after_json, created_at=item.created_at))
+            return SuccessResponse(data=AuditLogItem(id=item.id, user_id=item.user_id, action=item.action, entity_type=item.entity_type, entity_id=item.entity_id, before_json=item.before_json, after_json=item.after_json, created_at=item.created_at))

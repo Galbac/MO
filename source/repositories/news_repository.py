@@ -53,6 +53,13 @@ class NewsRepository:
         stmt = select(Tag).order_by(Tag.name.asc())
         return list((await session.scalars(stmt)).all())
 
+
+    async def get_tags_by_ids(self, session: AsyncSession, tag_ids: list[int]) -> list[Tag]:
+        if not tag_ids:
+            return []
+        stmt = select(Tag).where(Tag.id.in_(tag_ids)).order_by(Tag.name.asc())
+        return list((await session.scalars(stmt)).all())
+
     async def list_featured(self, session: AsyncSession) -> list[NewsArticle]:
         stmt = select(NewsArticle).order_by(NewsArticle.published_at.desc().nullslast()).limit(3)
         return list((await session.scalars(stmt)).all())

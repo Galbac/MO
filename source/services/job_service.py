@@ -6,6 +6,8 @@ from typing import Any
 from source.config.settings import settings
 from source.services.cache_service import CacheService
 from source.services.runtime_state_store import RuntimeStateStore
+from source.services.admin_support_service import AdminSupportService
+from source.services.operations_service import OperationsService
 from source.services.workflow_service import WorkflowService
 
 
@@ -14,6 +16,8 @@ class JobService:
         self.cache = CacheService()
         self.store = RuntimeStateStore()
         self.workflows = WorkflowService()
+        self.admin_support = AdminSupportService()
+        self.operations = OperationsService()
         self.namespace = 'jobs'
 
     def _read_jobs(self) -> list[dict[str, Any]]:
@@ -22,6 +26,29 @@ class JobService:
 
     def _write_jobs(self, payload: list[dict[str, Any]]) -> None:
         self.store.write_namespace(self.namespace, payload)
+
+    def list_jobs(self) -> list[dict[str, Any]]:
+        return self._read_jobs()
+
+    def prune_jobs(self, *, statuses: list[str] | None = None) -> int:
+        statuses = statuses or ['finished', 'failed']
+        jobs = self._read_jobs()
+        kept = [item for item in jobs if item.get('status') not in statuses]
+        removed = len(jobs) - len(kept)
+        self._write_jobs(kept)
+        return removed
+
+    async def retry_failed_job(self, job_id: int) -> dict[str, Any]:
+        jobs = self._read_jobs()
+        target = next((item for item in jobs if int(item.get('id', 0)) == job_id), None)
+        if target is None:
+            raise ValueError(f'Job not found: {job_id}')
+        target['status'] = 'pending'
+        target['error'] = None
+        target['updated_at'] = datetime.now(tz=UTC).isoformat()
+        self._write_jobs(jobs)
+        await self.process_due_jobs()
+        return next(item for item in self._read_jobs() if int(item.get('id', 0)) == job_id)
 
     async def enqueue(self, *, job_type: str, payload: dict[str, Any] | None = None, run_at: datetime | None = None) -> dict[str, Any]:
         jobs = self._read_jobs()
@@ -87,6 +114,20 @@ class JobService:
             return
         if job_type == 'rebuild_search_index':
             await self.workflows.rebuild_search_index()
+            return
+        if job_type == 'recalculate_player_stats':
+            player_ids = payload.get('player_ids') or []
+            await self.workflows.recalculate_player_aggregates([int(item) for item in player_ids] if player_ids else None)
+            return
+        if job_type == 'recalculate_h2h':
+            await self.workflows.recalculate_h2h(int(payload['match_id']))
+            return
+        if job_type == 'import_rankings':
+            await self.admin_support.import_rankings(payload)
+            return
+        if job_type == 'sync_live':
+            provider = str(payload.get('provider') or 'live-provider')
+            await self.operations.sync_integration(provider, payload)
             return
         raise ValueError(f'Unsupported job type: {job_type}')
 

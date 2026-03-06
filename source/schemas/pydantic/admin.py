@@ -19,8 +19,37 @@ class AdminIntegrationItem(BaseModel):
     last_error: str | None = None
 
 
+class AdminJobItem(BaseModel):
+    id: int
+    job_type: str
+    status: str
+    payload: dict
+    run_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    attempts: int
+    error: str | None = None
+
+
+class AdminJobPruneResult(BaseModel):
+    removed: int
+
+
+class AdminMaintenanceArtifact(BaseModel):
+    code: str
+    exists: bool
+    updated_at: datetime | None = None
+    path: str
+
+
+class AdminMaintenanceRunResult(BaseModel):
+    job_id: int
+    job_type: str
+
+
 class AuditLogItem(BaseModel):
     id: int
+    user_id: int | None = None
     action: str
     entity_type: str
     entity_id: int | None = None

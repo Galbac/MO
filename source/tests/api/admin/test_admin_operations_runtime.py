@@ -306,3 +306,143 @@ async def test_rankings_integration_endpoint_sync_updates_current_rankings(async
 
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/rankings-provider/logs", headers=admin_auth_headers)
     assert 'Fetched 2 ranking rows from provider endpoint, applied 2' in logs_response.json()['data']['message']
+
+
+async def test_live_integration_sync_ignores_out_of_order_older_event(async_client, admin_auth_headers) -> None:
+    newer_payload = {
+        'provider_payload': {
+            'events': [
+                {
+                    'type': 'score_updated',
+                    'timestamp': '2026-03-06T21:45:00Z',
+                    'match': {
+                        'slug': 'medvedev-vs-rublev-indian-wells-2026-sf',
+                        'status': 'live',
+                        'tournament_name': 'Indian Wells 2026',
+                        'score_summary': '6-4 4-6 4-2',
+                    },
+                    'players': [{'name': 'Daniil Medvedev'}, {'name': 'Andrey Rublev'}],
+                }
+            ]
+        }
+    }
+    older_payload = {
+        'provider_payload': {
+            'events': [
+                {
+                    'type': 'score_updated',
+                    'timestamp': '2026-03-06T20:45:00Z',
+                    'match': {
+                        'slug': 'medvedev-vs-rublev-indian-wells-2026-sf',
+                        'status': 'live',
+                        'tournament_name': 'Indian Wells 2026',
+                        'score_summary': '6-4 4-6 3-1',
+                    },
+                    'players': [{'name': 'Daniil Medvedev'}, {'name': 'Andrey Rublev'}],
+                }
+            ]
+        }
+    }
+
+    first = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+        headers=admin_auth_headers,
+        json=newer_payload,
+    )
+    second = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/sync",
+        headers=admin_auth_headers,
+        json=older_payload,
+    )
+    assert first.status_code == status.HTTP_200_OK
+    assert second.status_code == status.HTTP_200_OK
+
+    match_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/matches/2")
+    assert match_response.status_code == status.HTTP_200_OK
+    assert match_response.json()['data']['score_summary'] == '6-4 4-6 4-2'
+
+    logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
+    assert 'Validated 1 live events from provider payload, applied 0' in logs_response.json()['data']['message']
+
+
+
+async def test_audit_logs_support_filters(async_client, admin_auth_headers) -> None:
+    await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/users/2/role",
+        json={"role": "editor"},
+        headers=admin_auth_headers,
+    )
+    await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/users/2/status",
+        json={"status": "inactive"},
+        headers=admin_auth_headers,
+    )
+
+    action_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/audit-logs",
+        params={"action": "admin.user.update"},
+        headers=admin_auth_headers,
+    )
+    assert action_response.status_code == status.HTTP_200_OK
+    assert action_response.json()["data"]
+    assert all(item["action"] == "admin.user.update" for item in action_response.json()["data"])
+
+    entity_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/audit-logs",
+        params={"entity_type": "user", "user_id": 1},
+        headers=admin_auth_headers,
+    )
+    assert entity_response.status_code == status.HTTP_200_OK
+    assert entity_response.json()["data"]
+    assert all(item["entity_type"] == "user" for item in entity_response.json()["data"])
+
+    today = action_response.json()["data"][0]["created_at"][:10]
+    date_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/audit-logs",
+        params={"date_from": today, "date_to": today},
+        headers=admin_auth_headers,
+    )
+    assert date_response.status_code == status.HTTP_200_OK
+    assert date_response.json()["data"]
+
+
+
+async def test_admin_jobs_runtime(async_client, admin_auth_headers) -> None:
+    process_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/jobs/process",
+        headers=admin_auth_headers,
+    )
+    assert process_response.status_code == status.HTTP_200_OK
+
+    jobs_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/jobs",
+        headers=admin_auth_headers,
+    )
+    assert jobs_response.status_code == status.HTTP_200_OK
+    assert isinstance(jobs_response.json()["data"], list)
+
+    prune_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/jobs/prune",
+        headers=admin_auth_headers,
+        json={},
+    )
+    assert prune_response.status_code == status.HTTP_200_OK
+    assert "removed" in prune_response.json()["data"]
+
+
+
+async def test_admin_maintenance_runtime(async_client, admin_auth_headers) -> None:
+    list_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/maintenance",
+        headers=admin_auth_headers,
+    )
+    assert list_response.status_code == status.HTTP_200_OK
+    assert any(item["code"] == "search_index" for item in list_response.json()["data"])
+
+    run_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/maintenance/run",
+        headers=admin_auth_headers,
+        json={"job_type": "rebuild_search_index"},
+    )
+    assert run_response.status_code == status.HTTP_200_OK
+    assert run_response.json()["data"]["job_type"] == "rebuild_search_index"

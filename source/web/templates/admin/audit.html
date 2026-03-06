@@ -14,7 +14,35 @@
     <aside class="admin-sidebar" aria-label="Боковая панель админки"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav" aria-label="Навигация админки"><a href="/admin/audit" class="active">Аудит</a><a href="/admin/users">Пользователи</a></nav></aside>
     <main class="admin-main" id="admin-main-content" role="main" tabindex="-1">
         <header class="admin-header"><div class="eyebrow">Журнал аудита</div><h1 class="section-title">Критические действия с пользователем, сущностью и временем выполнения.</h1></header>
-        <section class="table-shell"><table class="table table-clean" aria-label="Таблица аудита"><thead><tr><th>Action</th><th>Entity</th><th>Created</th></tr></thead><tbody id="admin-audit-body"></tbody></table></section>
+        <section class="entity-card mb-4" aria-label="Фильтры аудита">
+            <form class="row g-3 align-items-end" id="admin-audit-filters">
+                <div class="col-md-2">
+                    <label class="form-label" for="audit-user-id">User ID</label>
+                    <input class="form-control" id="audit-user-id" name="user_id" inputmode="numeric" aria-label="Фильтр по пользователю">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="audit-entity-type">Entity</label>
+                    <input class="form-control" id="audit-entity-type" name="entity_type" placeholder="player, match, news" aria-label="Фильтр по сущности">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="audit-action">Action</label>
+                    <input class="form-control" id="audit-action" name="action" placeholder="match.finalize" aria-label="Фильтр по действию">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="audit-date-from">From</label>
+                    <input class="form-control" type="date" id="audit-date-from" name="date_from" aria-label="Фильтр по дате от">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="audit-date-to">To</label>
+                    <input class="form-control" type="date" id="audit-date-to" name="date_to" aria-label="Фильтр по дате до">
+                </div>
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-success" type="submit">Применить</button>
+                    <button class="btn btn-outline-secondary" type="button" id="admin-audit-reset">Сбросить</button>
+                </div>
+            </form>
+        </section>
+        <section class="table-shell"><table class="table table-clean" aria-label="Таблица аудита"><thead><tr><th>Action</th><th>Entity</th><th>User</th><th>Created</th></tr></thead><tbody id="admin-audit-body"></tbody></table></section>
     </main>
 </div>
 <script src="/static/js/app.js"></script>

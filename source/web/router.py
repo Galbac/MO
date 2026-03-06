@@ -390,6 +390,16 @@ async def admin_integrations_page(request: Request):
     return render(request, "admin/integrations.html", page_title="Админка - Интеграции", page_name="admin-integrations", section="admin", robots="noindex,nofollow")
 
 
+@router.get("/admin/jobs", include_in_schema=False)
+async def admin_jobs_page(request: Request):
+    return render(request, "admin/jobs.html", page_title="Админка - Очередь задач", page_name="admin-jobs", section="admin", robots="noindex,nofollow")
+
+
+@router.get("/admin/maintenance", include_in_schema=False)
+async def admin_maintenance_page(request: Request):
+    return render(request, "admin/maintenance.html", page_title="Админка - Maintenance", page_name="admin-maintenance", section="admin", robots="noindex,nofollow")
+
+
 @router.get("/admin/audit", include_in_schema=False)
 async def admin_audit_page(request: Request):
     return render(request, "admin/audit.html", page_title="Админка - Аудит", page_name="admin-audit", section="admin", robots="noindex,nofollow")

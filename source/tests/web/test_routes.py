@@ -155,3 +155,11 @@ async def test_additional_public_pages_include_accessible_filters(async_client) 
 
     assert 'href="#main-content"' in tournament_detail.text
     assert 'aria-label="Основная навигация"' in tournament_detail.text
+
+
+
+async def test_player_detail_page_mentions_extended_season_stats(async_client) -> None:
+    response = await async_client.get('/players/novak-djokovic')
+
+    assert response.status_code == 200
+    assert 'Статистика сезона и форма' in response.text

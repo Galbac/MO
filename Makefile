@@ -3,7 +3,7 @@ PYTEST ?= ./.venv/bin/pytest
 UVICORN ?= ./.venv/bin/uvicorn
 ALEMBIC ?= ./.venv/bin/alembic
 
-.PHONY: dev test lint format typecheck migrate-up migrate-down compose-up compose-down test-contract test-load worker backup-runtime restore-runtime coverage-service
+.PHONY: dev test lint format typecheck migrate-up migrate-down compose-up compose-down test-contract test-load worker jobs jobs-prune jobs-retry backup-runtime restore-runtime coverage-service
 
 dev:
 	$(UVICORN) source.main:create_app --factory --reload
@@ -42,6 +42,16 @@ test-load:
 
 worker:
 	./.venv/bin/python -m source.tasks.worker
+
+jobs:
+	$(PYTHON) -m source.tasks.job_admin list
+
+jobs-prune:
+	$(PYTHON) -m source.tasks.job_admin prune
+
+jobs-retry:
+	@test -n "$(JOB_ID)" || (echo "JOB_ID is required" && exit 1)
+	$(PYTHON) -m source.tasks.job_admin retry $(JOB_ID)
 
 
 backup-runtime:

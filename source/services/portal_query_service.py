@@ -17,6 +17,7 @@ from source.schemas.pydantic.news import NewsArticleDetail, NewsArticleSummary, 
 from source.schemas.pydantic.player import H2HResponse, PlayerComparison, PlayerDetail, PlayerNewsItem, PlayerStats, PlayerSummary, RankingHistoryPoint, SeoMeta, TitleItem, UpcomingMatchItem
 from source.schemas.pydantic.tournament import ChampionItem, DrawMatchItem, TournamentDetail, TournamentSummary
 from source.services.cache_service import CacheService
+from source.services.runtime_state_store import RuntimeStateStore
 
 
 class PortalQueryService:
@@ -26,6 +27,8 @@ class PortalQueryService:
         self.matches = MatchRepository()
         self.news = NewsRepository()
         self.cache = CacheService()
+        self.store = RuntimeStateStore()
+        self.news_tags_namespace = "news_tags"
 
     async def _cached(self, key: str, schema: Any, loader: Callable[[], Awaitable[Any]], ttl_seconds: int | None = None) -> Any:
         return await self.cache.get_or_set(key=key, schema=schema, loader=loader, ttl_seconds=ttl_seconds)
@@ -85,11 +88,23 @@ class PortalQueryService:
                 hard_record=str(aggregate_stats.get('hard_record') or '0-0'),
                 clay_record=str(aggregate_stats.get('clay_record') or '0-0'),
                 grass_record=str(aggregate_stats.get('grass_record') or '0-0'),
+                titles=int(aggregate_stats.get('titles') or 0),
+                finals=int(aggregate_stats.get('finals') or 0),
+                current_streak=int(aggregate_stats.get('current_streak') or 0),
             )
         completed = [item for item in matches if item.winner_id is not None]
         wins = sum(1 for item in completed if item.winner_id == player_id)
         losses = sum(1 for item in completed if item.winner_id and item.winner_id != player_id)
         season = max((item.scheduled_at.year for item in matches if item.scheduled_at), default=date.today().year)
+        form = ['W' if item.winner_id == player_id else 'L' for item in sorted(completed, key=lambda item: item.scheduled_at or datetime.min, reverse=True)[:5]]
+        streak = 0
+        for result in form:
+            if result == 'W':
+                streak += 1
+                continue
+            break
+        finals = sum(1 for item in completed if item.round_code == 'F')
+        titles = sum(1 for item in completed if item.round_code == 'F' and item.winner_id == player_id)
         return PlayerStats(
             season=season,
             matches_played=len(completed),
@@ -99,11 +114,26 @@ class PortalQueryService:
             hard_record=f"{wins}-{losses}",
             clay_record="0-0",
             grass_record="0-0",
+            titles=titles,
+            finals=finals,
+            current_streak=streak,
         )
 
     @staticmethod
     def _ranking_points(snapshots: list[RankingSnapshot]) -> list[RankingHistoryPoint]:
         return [RankingHistoryPoint(ranking_date=item.ranking_date, rank_position=item.rank_position, points=item.points, movement=item.movement) for item in snapshots]
+
+
+    def _news_tag_mapping(self) -> dict[str, list[int]]:
+        payload = self.store.read_namespace(self.news_tags_namespace, {})
+        return payload if isinstance(payload, dict) else {}
+
+    async def _news_tags(self, session, article_id: int) -> list[TagItem]:
+        mapping = self._news_tag_mapping()
+        raw_ids = mapping.get(str(article_id), [])
+        tag_ids = [int(item) for item in raw_ids if str(item).isdigit() or isinstance(item, int)]
+        tags = await self.news.get_tags_by_ids(session, tag_ids)
+        return [TagItem(id=item.id, slug=item.slug, name=item.name) for item in tags]
 
     @staticmethod
     def _news_category_item(category: NewsCategory | None) -> NewsCategoryItem | None:
@@ -112,7 +142,7 @@ class PortalQueryService:
         return NewsCategoryItem(id=category.id, slug=category.slug, name=category.name)
 
     @staticmethod
-    def _news_summary(article: NewsArticle, category: NewsCategory | None = None) -> NewsArticleSummary:
+    def _news_summary(article: NewsArticle, category: NewsCategory | None = None, tags: list[TagItem] | None = None) -> NewsArticleSummary:
         return NewsArticleSummary(
             id=article.id,
             slug=article.slug,
@@ -123,7 +153,7 @@ class PortalQueryService:
             status=article.status,
             published_at=article.published_at.isoformat() if article.published_at else None,
             category=PortalQueryService._news_category_item(category),
-            tags=[],
+            tags=tags or [],
         )
 
     @staticmethod
@@ -340,7 +370,7 @@ class PortalQueryService:
                 items, _ = await self.news.list(session, page=1, per_page=100)
                 categories = {item.id: item for item in await self.news.list_categories(session)}
                 related = [item for item in items if tournament.name.lower() in ' '.join(filter(None, [item.title, item.subtitle, item.lead, item.content_html])).lower()]
-                return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id)) for item in related])
+                return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for item in related])
 
         return await self._cached(f'tournaments:news:{tournament_id}', SuccessResponse[list[NewsArticleSummary]], loader)
 
@@ -456,7 +486,7 @@ class PortalQueryService:
             async with db_session_manager.session() as session:
                 items, total = await self.news.list(session, page=page, per_page=per_page)
                 categories = {category.id: category for category in await self.news.list_categories(session)}
-                data = [self._news_summary(item, categories.get(item.category_id)) for item in items]
+                data = [self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for item in items]
                 return PaginatedResponse(data=data, meta=self._paginate_meta(page, per_page, total))
 
         return await self._cached(f'news:list:{page}:{per_page}', PaginatedResponse[NewsArticleSummary], loader)
@@ -482,7 +512,7 @@ class PortalQueryService:
             async with db_session_manager.session() as session:
                 items = await self.news.list_featured(session)
                 categories = {category.id: category for category in await self.news.list_categories(session)}
-                return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id)) for item in items])
+                return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for item in items])
 
         return await self._cached('news:featured', SuccessResponse[list[NewsArticleSummary]], loader)
 
@@ -491,7 +521,7 @@ class PortalQueryService:
             async with db_session_manager.session() as session:
                 items = await self.news.list_related(session, slug=slug)
                 categories = {category.id: category for category in await self.news.list_categories(session)}
-                return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id)) for item in items])
+                return SuccessResponse(data=[self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for item in items])
 
         return await self._cached(f'news:related:{slug or ""}', SuccessResponse[list[NewsArticleSummary]], loader)
 
@@ -503,7 +533,7 @@ class PortalQueryService:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Article not found')
                 categories = {category.id: category for category in await self.news.list_categories(session)}
                 related = await self.news.list_related(session, slug=slug)
-                data = NewsArticleDetail(**self._news_summary(article, categories.get(article.category_id)).model_dump(), content_html=article.content_html, seo_title=article.seo_title, seo_description=article.seo_description, related_news=[self._news_summary(item, categories.get(item.category_id)) for item in related])
+                data = NewsArticleDetail(**self._news_summary(article, categories.get(article.category_id), await self._news_tags(session, article.id)).model_dump(), content_html=article.content_html, seo_title=article.seo_title, seo_description=article.seo_description, related_news=[self._news_summary(item, categories.get(item.category_id), await self._news_tags(session, item.id)) for item in related])
                 return SuccessResponse(data=data)
 
         return await self._cached(f'news:detail:{slug}', SuccessResponse[NewsArticleDetail], loader)

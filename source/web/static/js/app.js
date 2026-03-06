@@ -79,6 +79,10 @@ function formToJson(form) {
     const data = {};
     new FormData(form).forEach((value, key) => {
         if (value === "") return;
+        if (key === "tag_ids") {
+            data[key] = String(value).split(",").map((item) => item.trim()).filter(Boolean).map((item) => Number(item));
+            return;
+        }
         data[key] = value;
     });
     return data;
@@ -182,7 +186,7 @@ async function initPlayerDetailPage() {
     setHtml("player-bio", escapeHtml(data.biography || ""));
     setHtml("player-badges", `<span class="badge-soft">${escapeHtml(data.country_code)}</span><span class="badge-soft">Место ${escapeHtml(data.current_rank)}</span><span class="badge-soft">${escapeHtml(data.hand || "-handed")}</span><button class="btn btn-success rounded-pill" data-loading-button>Подписаться</button>`);
     setHtml("player-upcoming-card", data.upcoming_match ? `<div class="text-muted">Следующий матч</div><strong>${escapeHtml(data.upcoming_match.tournament_name)}</strong><div class="text-muted">vs ${escapeHtml(data.upcoming_match.opponent_name)}</div><div class="mt-2">${escapeHtml(data.upcoming_match.scheduled_at)}</div>` : `<div class="text-muted">Ближайший матч пока не назначен.</div>`);
-    setHtml("player-stats-grid", `<div class="entity-card"><strong>Матчи</strong><div class="metric-value">${escapeHtml(stats.matches_played)}</div></div><div class="entity-card"><strong>Процент побед</strong><div class="metric-value">${escapeHtml(stats.win_rate)}%</div></div><div class="entity-card"><strong>Хард</strong><div class="metric-value">${escapeHtml(stats.hard_record)}</div></div>`);
+    setHtml("player-stats-grid", `<div class="entity-card"><strong>Матчи</strong><div class="metric-value">${escapeHtml(stats.matches_played)}</div></div><div class="entity-card"><strong>Процент побед</strong><div class="metric-value">${escapeHtml(stats.win_rate)}%</div></div><div class="entity-card"><strong>Хард</strong><div class="metric-value">${escapeHtml(stats.hard_record)}</div></div><div class="entity-card"><strong>Титулы</strong><div class="metric-value">${escapeHtml(stats.titles ?? 0)}</div></div><div class="entity-card"><strong>Финалы</strong><div class="metric-value">${escapeHtml(stats.finals ?? 0)}</div></div><div class="entity-card"><strong>Streak</strong><div class="metric-value">${escapeHtml(stats.current_streak ?? 0)}</div></div>`);
     setHtml("player-recent-matches", extractList(matchesPayload).map(matchCard).join(""));
     setHtml("player-ranking-history", extractList(rankingPayload).map((item) => `<tr><td>${escapeHtml(item.ranking_date)}</td><td>${escapeHtml(item.rank_position)}</td><td>${escapeHtml(item.points)}</td><td>${escapeHtml(item.movement)}</td></tr>`).join(""));
     setHtml("player-titles", extractList(titlesPayload).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.tournament_name)}</strong><div class="text-muted">${escapeHtml(item.category)}, ${escapeHtml(item.surface)}</div></div>`).join(""));
@@ -341,15 +345,200 @@ async function initH2HPage() {
 }
 
 async function initAdminDashboard() {
-    const [live, news, integrations, audit] = await Promise.all([apiGet("/live"), apiGet("/admin/news"), apiGet("/admin/integrations"), apiGet("/admin/audit-logs")]);
+    const [live, news, integrations, audit, jobs] = await Promise.all([apiGet("/live"), apiGet("/admin/news"), apiGet("/admin/integrations"), apiGet("/admin/audit-logs"), apiGet("/admin/jobs")]);
     setHtml("admin-live-count", String(extractList(live).length));
     setHtml("admin-news-count", String(extractList(news).length));
     setHtml("admin-integrations-count", String(extractList(integrations).length));
+    setHtml("admin-jobs-count", String(extractList(jobs).length));
     setHtml("admin-audit-list", extractList(audit).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.created_at)}</div><strong>${escapeHtml(item.action)}</strong><div class="text-muted">${escapeHtml(item.entity_type)} #${escapeHtml(item.entity_id)}</div></div>`).join(""));
     setHtml("admin-integrations-list", extractList(integrations).map((item) => `<div class="entity-card"><strong>${escapeHtml(item.provider)}</strong><div class="text-muted">${escapeHtml(item.status)}</div></div>`).join(""));
 }
 
 async function initAdminTable(path, targetId, rowBuilder) { setHtml(targetId, extractList(await apiGet(path)).map(rowBuilder).join("")); }
+
+
+
+
+
+
+async function initAdminUsersPage() {
+    const render = async () => {
+        const payload = await apiGet("/admin/users");
+        setHtml("admin-users-body", extractList(payload).map((item) => `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(item.username)}</td><td>${escapeHtml(item.role)}</td><td>${escapeHtml(item.status)}</td><td>${item.status !== "deleted" ? `<button class="btn btn-sm btn-outline-danger" type="button" data-user-delete="${escapeHtml(item.id)}">Delete</button>` : "-"}</td></tr>`).join(""));
+        document.querySelectorAll("[data-user-delete]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                await apiRequest(`/admin/users/${button.dataset.userDelete}`, { method: "DELETE" });
+                await render();
+            });
+        });
+    };
+    await render();
+}
+
+async function initAdminPlayersPage() {
+    const importForm = document.getElementById("admin-player-import-form");
+    const importJson = document.getElementById("admin-player-import-json");
+    const importFeedback = document.getElementById("admin-player-import-feedback");
+    const importError = document.getElementById("admin-player-import-error");
+    const showImportState = (ok, message) => {
+        if (importFeedback) {
+            importFeedback.classList.toggle("d-none", !ok);
+            importFeedback.textContent = ok ? message : importFeedback.textContent;
+        }
+        if (importError) {
+            importError.classList.toggle("d-none", ok);
+            importError.textContent = ok ? importError.textContent : message;
+        }
+    };
+    const render = async () => {
+        const payload = await apiGet("/admin/players");
+        setHtml("admin-players-body", extractList(payload).map((item) => `<tr><td>${escapeHtml(item.full_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.current_rank)}</td><td>активен</td><td class="d-flex gap-2"><button class="btn btn-sm btn-outline-dark" type="button" data-player-photo="${escapeHtml(item.id)}">Photo</button><button class="btn btn-sm btn-success" type="button" data-player-recalc="${escapeHtml(item.id)}">Recalc</button></td></tr>`).join(""));
+        document.querySelectorAll("[data-player-photo]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                const value = window.prompt("Введите URL фото игрока");
+                if (!value) return;
+                await apiRequest(`/admin/players/${button.dataset.playerPhoto}/photo`, { method: "POST", body: JSON.stringify({ photo_url: value }) });
+                await render();
+            });
+        });
+        document.querySelectorAll("[data-player-recalc]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                await apiRequest(`/admin/players/${button.dataset.playerRecalc}/recalculate-stats`, { method: "POST" });
+            });
+        });
+    };
+    await render();
+    importForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+            const players = JSON.parse(importJson?.value || '[]');
+            const payload = await apiRequest("/admin/players/import", { method: "POST", body: JSON.stringify({ players }) });
+            showImportState(true, payload?.data?.message || "Импорт выполнен.");
+            await render();
+        } catch (error) {
+            showImportState(false, error.message);
+        }
+    });
+}
+
+async function initAdminMaintenancePage() {
+    const feedback = document.getElementById("admin-maintenance-feedback");
+    const errorNode = document.getElementById("admin-maintenance-error");
+    const showState = (ok, message) => {
+        if (feedback) {
+            feedback.classList.toggle("d-none", !ok);
+            feedback.textContent = ok ? message : feedback.textContent;
+        }
+        if (errorNode) {
+            errorNode.classList.toggle("d-none", ok);
+            errorNode.textContent = ok ? errorNode.textContent : message;
+        }
+    };
+    const render = async () => {
+        const payload = await apiGet("/admin/maintenance");
+        setHtml(
+            "admin-maintenance-body",
+            extractList(payload).map((item) => `<tr><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.exists ? "yes" : "no")}</td><td>${escapeHtml(item.updated_at || "-")}</td><td>${escapeHtml(item.path)}</td></tr>`).join(""),
+        );
+    };
+    document.querySelectorAll("[data-maintenance-run]").forEach((button) => {
+        button.addEventListener("click", async () => {
+            try {
+                const payload = await apiRequest("/admin/maintenance/run", { method: "POST", body: JSON.stringify({ job_type: button.dataset.maintenanceRun }) });
+                showState(true, `Запущена задача ${payload?.data?.job_type} #${payload?.data?.job_id}.`);
+                await render();
+            } catch (error) {
+                showState(false, error.message);
+            }
+        });
+    });
+    await render();
+}
+
+async function initAdminJobsPage() {
+    const feedback = document.getElementById("admin-jobs-feedback");
+    const errorNode = document.getElementById("admin-jobs-error");
+    const showState = (ok, message) => {
+        if (feedback) {
+            feedback.classList.toggle("d-none", !ok);
+            feedback.textContent = ok ? message : feedback.textContent;
+        }
+        if (errorNode) {
+            errorNode.classList.toggle("d-none", ok);
+            errorNode.textContent = ok ? errorNode.textContent : message;
+        }
+    };
+    const render = async () => {
+        const payload = await apiGet("/admin/jobs");
+        setHtml(
+            "admin-jobs-body",
+            extractList(payload).map((item) => `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.job_type)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.run_at)}</td><td>${escapeHtml(item.attempts)}</td><td>${escapeHtml(item.error || "-")}</td><td>${item.status === "failed" ? `<button class="btn btn-sm btn-outline-dark" type="button" data-job-retry="${escapeHtml(item.id)}">Retry</button>` : "-"}</td></tr>`).join(""),
+        );
+        document.querySelectorAll("[data-job-retry]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                try {
+                    await apiRequest(`/admin/jobs/${button.dataset.jobRetry}/retry`, { method: "POST" });
+                    showState(true, `Job ${button.dataset.jobRetry} повторно поставлен в очередь.`);
+                    await render();
+                } catch (error) {
+                    showState(false, error.message);
+                }
+            });
+        });
+    };
+    document.getElementById("admin-jobs-process")?.addEventListener("click", async () => {
+        try {
+            const payload = await apiRequest("/admin/jobs/process", { method: "POST" });
+            showState(true, payload?.data?.message || "Pending jobs обработаны.");
+            await render();
+        } catch (error) {
+            showState(false, error.message);
+        }
+    });
+    document.getElementById("admin-jobs-prune")?.addEventListener("click", async () => {
+        try {
+            const payload = await apiRequest("/admin/jobs/prune", { method: "POST", body: JSON.stringify({}) });
+            showState(true, `Удалено ${payload?.data?.removed ?? 0} задач.`);
+            await render();
+        } catch (error) {
+            showState(false, error.message);
+        }
+    });
+    await render();
+}
+
+async function initAdminAuditPage() {
+    const form = document.getElementById("admin-audit-filters");
+    const resetButton = document.getElementById("admin-audit-reset");
+    const render = async () => {
+        const params = new URLSearchParams();
+        const userId = document.getElementById("audit-user-id")?.value?.trim() || "";
+        const entityType = document.getElementById("audit-entity-type")?.value?.trim() || "";
+        const action = document.getElementById("audit-action")?.value?.trim() || "";
+        const dateFrom = document.getElementById("audit-date-from")?.value || "";
+        const dateTo = document.getElementById("audit-date-to")?.value || "";
+        if (userId) params.set("user_id", userId);
+        if (entityType) params.set("entity_type", entityType);
+        if (action) params.set("action", action);
+        if (dateFrom) params.set("date_from", dateFrom);
+        if (dateTo) params.set("date_to", dateTo);
+        const suffix = params.toString() ? `?${params.toString()}` : "";
+        const payload = await apiGet(`/admin/audit-logs${suffix}`);
+        setHtml(
+            "admin-audit-body",
+            extractList(payload).map((item) => `<tr><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.entity_type)} #${escapeHtml(item.entity_id)}</td><td>${escapeHtml(item.user_id || "-")}</td><td>${escapeHtml(item.created_at)}</td></tr>`).join(""),
+        );
+    };
+    await render();
+    form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await render();
+    });
+    resetButton?.addEventListener("click", async () => {
+        form?.reset();
+        await render();
+    });
+}
 
 async function initAdminSettingsPage() {
     const payload = await apiGet("/admin/settings");
@@ -557,15 +746,17 @@ async function initPageData() {
         case "account": await initAccountPage(); break;
         case "notifications": await initNotificationsPage(); break;
         case "admin-dashboard": await initAdminDashboard(); break;
-        case "admin-users": await initAdminTable("/admin/users", "admin-users-body", (item) => `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(item.username)}</td><td>${escapeHtml(item.role)}</td><td>${escapeHtml(item.status)}</td></tr>`); break;
+        case "admin-users": await initAdminUsersPage(); break;
         case "admin-user-detail": await initAdminUserDetailPage(); break;
-        case "admin-players": await initAdminTable("/admin/players", "admin-players-body", (item) => `<tr><td>${escapeHtml(item.full_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.current_rank)}</td><td>активен</td></tr>`); break;
-        case "admin-tournaments": await initAdminTable("/admin/tournaments", "admin-tournaments-body", (item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.category)}</td><td>${escapeHtml(item.surface)}</td><td>${escapeHtml(item.status)}</td></tr>`); break;
+        case "admin-players": await initAdminPlayersPage(); break;
+        case "admin-tournaments": await initAdminTable("/admin/tournaments", "admin-tournaments-body", (item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.category)}</td><td>${escapeHtml(item.surface)}</td><td>${escapeHtml(item.status)}</td><td class="d-flex gap-2"><button class="btn btn-sm btn-outline-dark" type="button" data-tournament-draw="${escapeHtml(item.id)}">Draw</button><button class="btn btn-sm btn-success" type="button" data-tournament-publish="${escapeHtml(item.id)}">Publish</button></td></tr>`); document.querySelectorAll("[data-tournament-draw]").forEach((button) => button.addEventListener("click", async () => { await apiRequest(`/admin/tournaments/${button.dataset.tournamentDraw}/draw/generate`, { method: "POST" }); })); document.querySelectorAll("[data-tournament-publish]").forEach((button) => button.addEventListener("click", async () => { await apiRequest(`/admin/tournaments/${button.dataset.tournamentPublish}/publish`, { method: "POST" }); })); break;
         case "admin-matches": await initAdminTable("/admin/matches", "admin-matches-body", (item) => `<tr><td>${escapeHtml(item.player1_name)} против ${escapeHtml(item.player2_name)}</td><td>${escapeHtml(item.tournament_name)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.round_code || "-")}</td></tr>`); break;
         case "admin-match-detail": await initAdminMatchDetailPage(); break;
-        case "admin-news": await initAdminTable("/admin/news", "admin-news-body", (item) => `<tr><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.published_at || "-")}</td></tr>`); break;
+        case "admin-news": await initAdminTable("/admin/news", "admin-news-body", (item) => `<tr><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.published_at || "-")}</td><td class="d-flex gap-2"><button class="btn btn-sm btn-outline-dark" type="button" data-news-cover="${escapeHtml(item.id)}">Cover</button><button class="btn btn-sm btn-success" type="button" data-news-tags="${escapeHtml(item.id)}">Tags</button></td></tr>`); document.querySelectorAll("[data-news-cover]").forEach((button) => button.addEventListener("click", async () => { const value = window.prompt("Введите URL cover image"); if (!value) return; await apiRequest(`/admin/news/${button.dataset.newsCover}/cover`, { method: "POST", body: JSON.stringify({ cover_image_url: value }) }); })); document.querySelectorAll("[data-news-tags]").forEach((button) => button.addEventListener("click", async () => { const value = window.prompt("Введите ID тегов через запятую"); if (value === null) return; const tagIds = value.split(",").map((item) => item.trim()).filter(Boolean).map((item) => Number(item)); await apiRequest(`/admin/news/${button.dataset.newsTags}/tags`, { method: "POST", body: JSON.stringify({ tag_ids: tagIds }) }); })); break;
         case "admin-integrations": await initAdminTable("/admin/integrations", "admin-integrations-body", (item) => `<tr><td>${escapeHtml(item.provider)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.last_sync_at || "-")}</td></tr>`); break;
-        case "admin-audit": await initAdminTable("/admin/audit-logs", "admin-audit-body", (item) => `<tr><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.entity_type)} #${escapeHtml(item.entity_id)}</td><td>${escapeHtml(item.created_at)}</td></tr>`); break;
+        case "admin-jobs": await initAdminJobsPage(); break;
+        case "admin-maintenance": await initAdminMaintenancePage(); break;
+        case "admin-audit": await initAdminAuditPage(); break;
         case "admin-media": await initAdminMediaPage(); break;
         case "admin-notifications": await initAdminNotificationsPage(); break;
         case "admin-categories": await initAdminTaxonomyPage("categories"); break;

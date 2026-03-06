@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,23 @@ def _json_ready(value):
     return value
 
 
+def _parse_date_floor(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+def _parse_date_ceil(value: str) -> datetime:
+    if 'T' in value:
+        parsed = datetime.fromisoformat(value)
+    else:
+        parsed = datetime.combine(date.fromisoformat(value), time.max)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed
+
+
 class AuditRepository:
     async def create(self, session: AsyncSession, payload: dict) -> AuditLog:
         item = AuditLog(
@@ -37,8 +54,28 @@ class AuditRepository:
         await session.refresh(item)
         return item
 
-    async def list(self, session: AsyncSession) -> list[AuditLog]:
-        stmt = select(AuditLog).order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+    async def list(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: int | None = None,
+        entity_type: str | None = None,
+        action: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> list[AuditLog]:
+        stmt = select(AuditLog)
+        if user_id is not None:
+            stmt = stmt.where(AuditLog.user_id == user_id)
+        if entity_type:
+            stmt = stmt.where(AuditLog.entity_type == entity_type)
+        if action:
+            stmt = stmt.where(AuditLog.action == action)
+        if date_from:
+            stmt = stmt.where(AuditLog.created_at >= _parse_date_floor(date_from))
+        if date_to:
+            stmt = stmt.where(AuditLog.created_at <= _parse_date_ceil(date_to))
+        stmt = stmt.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
         return list((await session.scalars(stmt)).all())
 
     async def get(self, session: AsyncSession, log_id: int) -> AuditLog | None:

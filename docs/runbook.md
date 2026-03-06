@@ -32,6 +32,18 @@
 - `generate_sitemap`: writes `var/maintenance/sitemap_snapshot.json`.
 - `rebuild_search_index`: writes `var/maintenance/search_index.json`.
 - `clear_cache`: clears runtime cache prefixes or the whole cache store.
+- `recalculate_player_stats`: rebuilds player aggregate artifacts.
+- `recalculate_h2h`: replays H2H state for a finalized match.
+- `import_rankings`: runs rankings import flow through the worker.
+- `sync_live`: runs provider live sync through the worker.
+
+## Job queue operations
+- Admin queue view: `/admin/jobs`.
+- Admin maintenance view: `/admin/maintenance`.
+- List jobs: `make jobs`.
+- Retry a failed job: `make jobs-retry JOB_ID=<id>`.
+- Prune finished and failed jobs: `make jobs-prune`.
+- Worker processes due jobs continuously via `make worker`.
 
 ## Backup and restore
 - Create local runtime backup: `make backup-runtime`.

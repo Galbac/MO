@@ -71,6 +71,23 @@ class WorkflowService:
         path = self._player_aggregates_path()
         path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
 
+    def maintenance_artifacts(self) -> list[dict[str, object]]:
+        artifacts = [
+            ('sitemap_snapshot', self._artifact_path('sitemap_snapshot.json')),
+            ('search_index', self._artifact_path('search_index.json')),
+            ('player_aggregates', self._player_aggregates_path()),
+        ]
+        result = []
+        for code, path in artifacts:
+            stat = path.stat() if path.exists() else None
+            result.append({
+                'code': code,
+                'exists': stat is not None,
+                'updated_at': datetime.fromtimestamp(stat.st_mtime, tz=UTC) if stat is not None else None,
+                'path': str(path),
+            })
+        return result
+
     def _read_delivery_log(self) -> list[dict[str, Any]]:
         if not self.delivery_log_path.exists():
             return []
@@ -137,10 +154,18 @@ class WorkflowService:
                     })
 
             season = max((item.scheduled_at.year for item in matches if item.scheduled_at), default=date.today().year)
+            recent_form = ['W' if item.winner_id == player_id else 'L' for item in ordered_completed[:5]]
+            streak = 0
+            for result in recent_form:
+                if result == 'W':
+                    streak += 1
+                    continue
+                break
+            finals = sum(1 for item in completed if item.round_code == 'F')
             aggregates['players'][str(player_id)] = {
                 'player_id': player_id,
                 'generated_at': generated_at,
-                'form': ['W' if item.winner_id == player_id else 'L' for item in ordered_completed[:5]],
+                'form': recent_form,
                 'stats': {
                     'season': season,
                     'matches_played': len(completed),
@@ -150,6 +175,9 @@ class WorkflowService:
                     'hard_record': self._surface_record(surface_wins['hard'], surface_losses['hard']),
                     'clay_record': self._surface_record(surface_wins['clay'], surface_losses['clay']),
                     'grass_record': self._surface_record(surface_wins['grass'], surface_losses['grass']),
+                    'titles': len(titles),
+                    'finals': finals,
+                    'current_streak': streak,
                 },
                 'titles': titles,
             }
@@ -264,6 +292,42 @@ class WorkflowService:
                 )
         return created
 
+    async def process_tournament_status_change(self, tournament_id: int, status_value: str) -> int:
+        if status_value != 'live':
+            return 0
+        async with db_session_manager.session() as session:
+            tournament = await self.tournaments.get(session, tournament_id)
+            if tournament is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+            subscriptions = await self.engagement.list_matching_subscriptions(
+                session,
+                entities=[('tournament', tournament.id)],
+                notification_type='tournament_start',
+            )
+            title = f'Tournament started: {tournament.name}'
+            body = f'{tournament.name} is now live.'
+            created = 0
+            for subscription in subscriptions:
+                subscription_user = await self.users.get(session, subscription.user_id)
+                if subscription_user is None:
+                    continue
+                created += await self._deliver_notification(
+                    session,
+                    user=subscription_user,
+                    subscription=subscription,
+                    notification_type='tournament_start',
+                    title=title,
+                    body=body,
+                    payload_json={
+                        'entity_type': 'tournament',
+                        'entity_id': tournament.id,
+                        'status': status_value,
+                    },
+                    entity_type='tournament',
+                    entity_id=tournament.id,
+                )
+        return created
+
     async def process_match_status_change(self, match_id: int, status_value: str) -> int:
         notification_type = {
             'about_to_start': 'match_soon',
@@ -331,6 +395,44 @@ class WorkflowService:
                 entity_id=match.id,
             )
 
+    async def process_published_news(self, news_id: int) -> int:
+        async with db_session_manager.session() as session:
+            article = await self.news.get(session, news_id)
+            if article is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='News not found')
+            content = ' '.join(filter(None, [article.title, article.subtitle, article.lead, article.content_html])).lower()
+            entities: list[tuple[str, int]] = [('news', article.id)]
+
+            players, _ = await self.players.list(session, search=None, country_code=None, hand=None, status='active', rank_from=None, rank_to=None, page=1, per_page=500)
+            for player in players:
+                if player.full_name and player.full_name.lower() in content:
+                    entities.append(('player', player.id))
+
+            tournaments, _ = await self.tournaments.list(session, page=1, per_page=500)
+            for tournament in tournaments:
+                if tournament.name and tournament.name.lower() in content:
+                    entities.append(('tournament', tournament.id))
+
+            deduped_entities = list(dict.fromkeys(entities))
+            subscriptions = await self.engagement.list_matching_subscriptions(session, entities=deduped_entities, notification_type='news')
+            created = 0
+            for subscription in subscriptions:
+                subscription_user = await self.users.get(session, subscription.user_id)
+                if subscription_user is None:
+                    continue
+                created += await self._deliver_notification(
+                    session,
+                    user=subscription_user,
+                    subscription=subscription,
+                    notification_type='news',
+                    title=article.title,
+                    body=article.lead or article.subtitle or 'New article published.',
+                    payload_json={'entity_type': 'news', 'entity_id': article.id, 'slug': article.slug},
+                    entity_type='news',
+                    entity_id=article.id,
+                )
+        return created
+
     async def process_ranking_updates(self, ranking_rows: list[dict[str, Any]], *, ranking_type: str, ranking_date: str) -> int:
         changed_rows = [row for row in ranking_rows if int(row.get('movement') or 0) != 0]
         if not changed_rows:
@@ -366,6 +468,31 @@ class WorkflowService:
                     )
         return created
 
+    async def recalculate_player_aggregates(self, player_ids: list[int] | None = None) -> int:
+        async with db_session_manager.session() as session:
+            if player_ids:
+                target_ids = set(int(item) for item in player_ids)
+            else:
+                players, _ = await self.players.list(session, search=None, country_code=None, hand=None, status='active', rank_from=None, rank_to=None, page=1, per_page=500)
+                target_ids = {item.id for item in players}
+            await self._rebuild_player_aggregates(session, target_ids)
+        self.cache.invalidate_prefixes('players:', 'matches:', 'tournaments:', 'search:')
+        return len(target_ids)
+
+    async def recalculate_h2h(self, match_id: int) -> int:
+        async with db_session_manager.session() as session:
+            match = await self.matches.get(session, match_id)
+            if match is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
+            if match.status not in {'finished', 'retired', 'walkover'} or not match.winner_id:
+                return 0
+            tournament = await self.tournaments.get(session, match.tournament_id)
+            if tournament is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+            await self.matches.upsert_h2h(session, player1_id=match.player1_id, player2_id=match.player2_id, winner_id=match.winner_id, surface=tournament.surface, match_id=match.id)
+        self.cache.invalidate_prefixes('players:', 'matches:', 'tournaments:', 'search:')
+        return 1
+
     async def publish_due_scheduled_news(self, news_id: int | None = None) -> int:
         async with db_session_manager.session() as session:
             now = datetime.now(tz=UTC)
@@ -373,14 +500,48 @@ class WorkflowService:
             if news_id is not None:
                 due_articles = [item for item in due_articles if item.id == news_id]
             published = 0
+            published_ids: list[int] = []
             for article in due_articles:
                 if article.status == 'published':
                     continue
                 await self.news.update(session, article, {'status': 'published'})
                 published += 1
+                published_ids.append(article.id)
+        for article_id in published_ids:
+            await self.process_published_news(article_id)
         if published:
             self.cache.invalidate_prefixes('news:', 'search:', 'players:', 'tournaments:')
         return published
+
+    async def generate_tournament_draw_snapshot(self, tournament_id: int) -> dict[str, object]:
+        async with db_session_manager.session() as session:
+            tournament = await self.tournaments.get(session, tournament_id)
+            if tournament is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+            matches = await self.tournaments.get_matches(session, tournament_id)
+            player_ids = {value for match in matches for value in (match.player1_id, match.player2_id)}
+            players = {item.id: item for item in [await self.players.get(session, player_id) for player_id in sorted(player_ids)] if item is not None}
+        draw_path = self._artifact_path(f'draw_{tournament_id}.json')
+        payload = {
+            'generated_at': datetime.now(tz=UTC).isoformat(),
+            'tournament_id': tournament_id,
+            'tournament_slug': tournament.slug,
+            'tournament_name': tournament.name,
+            'matches': [
+                {
+                    'match_id': match.id,
+                    'round_code': match.round_code,
+                    'status': match.status,
+                    'score_summary': match.score_summary,
+                    'player1_name': players.get(match.player1_id).full_name if players.get(match.player1_id) else None,
+                    'player2_name': players.get(match.player2_id).full_name if players.get(match.player2_id) else None,
+                    'scheduled_at': match.scheduled_at.isoformat() if match.scheduled_at else None,
+                }
+                for match in sorted(matches, key=lambda item: (item.round_code or '', item.scheduled_at or datetime.min))
+            ],
+        }
+        draw_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+        return {'path': str(draw_path), 'matches': len(payload['matches'])}
 
     async def generate_sitemap_snapshot(self, base_url: str | None = None) -> dict[str, object]:
         base = (base_url or '').rstrip('/')

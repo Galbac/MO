@@ -35,10 +35,10 @@ async def delete_admin_tournament(request: Request, tournament_id: int) -> Messa
 
 
 @router.post("/{tournament_id}/draw/generate", response_model=MessageResponse)
-async def generate_admin_tournament_draw(tournament_id: int) -> MessageResponse:
-    return MessageResponse(data={"message": f"Draw generation started for tournament {tournament_id}"})
+async def generate_admin_tournament_draw(request: Request, tournament_id: int) -> MessageResponse:
+    return await service.generate_admin_tournament_draw(tournament_id, actor_id=getattr(request.state.current_user, 'id', None))
 
 
 @router.post("/{tournament_id}/publish", response_model=MessageResponse)
-async def publish_admin_tournament(tournament_id: int) -> MessageResponse:
-    return MessageResponse(data={"message": f"Tournament {tournament_id} published"})
+async def publish_admin_tournament(request: Request, tournament_id: int) -> MessageResponse:
+    return await service.publish_admin_tournament(tournament_id, actor_id=getattr(request.state.current_user, 'id', None))

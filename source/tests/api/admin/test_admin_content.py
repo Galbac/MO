@@ -42,6 +42,20 @@ async def test_admin_tournaments_crud_flow(async_client, admin_auth_headers) -> 
     assert patch_response.status_code == status.HTTP_200_OK
     assert patch_response.json()["data"]["status"] == "published"
 
+    draw_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/tournaments/{tournament_id}/draw/generate",
+        headers=admin_auth_headers,
+    )
+    assert draw_response.status_code == status.HTTP_200_OK
+    assert "Draw generated" in draw_response.json()["data"]["message"]
+
+    publish_tournament_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/tournaments/{tournament_id}/publish",
+        headers=admin_auth_headers,
+    )
+    assert publish_tournament_response.status_code == status.HTTP_200_OK
+    assert publish_tournament_response.json()["data"]["message"] == "Tournament published"
+
     delete_response = await async_client.delete(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/tournaments/{tournament_id}", headers=admin_auth_headers)
     assert delete_response.status_code == status.HTTP_200_OK
     assert delete_response.json()["data"]["message"] == "Tournament deleted"
@@ -105,3 +119,150 @@ async def test_admin_news_crud_and_publish_flow(async_client, admin_auth_headers
     delete_response = await async_client.delete(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news/{news_id}", headers=admin_auth_headers)
     assert delete_response.status_code == status.HTTP_200_OK
     assert delete_response.json()["data"]["message"] == "News deleted"
+
+
+async def test_publishing_news_creates_notifications_for_related_subscribers(async_client, admin_auth_headers) -> None:
+    register_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/auth/register",
+        json={
+            'email': 'news-subscriber@example.com',
+            'username': 'news_subscriber',
+            'password': 'NewsPass123',
+            'locale': 'en',
+            'timezone': 'UTC',
+        },
+    )
+    assert register_response.status_code == status.HTTP_201_CREATED
+
+    login_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/auth/login",
+        json={'email_or_username': 'news_subscriber', 'password': 'NewsPass123'},
+    )
+    assert login_response.status_code == status.HTTP_200_OK
+    user_headers = {'Authorization': f"Bearer {login_response.json()['data']['access_token']}"}
+
+    subscribe_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/subscriptions",
+        headers=user_headers,
+        json={
+            'entity_type': 'player',
+            'entity_id': 1,
+            'notification_types': ['news'],
+            'channels': ['web'],
+        },
+    )
+    assert subscribe_response.status_code == status.HTTP_200_OK
+
+    create_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news",
+        json={
+            'slug': 'djokovic-notification-article',
+            'title': 'Novak Djokovic prepares for another title run',
+            'lead': 'Detailed match analysis for Novak Djokovic.',
+            'content_html': '<p>Novak Djokovic is back on court with fresh momentum.</p>',
+            'status': 'draft',
+        },
+        headers=admin_auth_headers,
+    )
+    assert create_response.status_code == status.HTTP_200_OK
+    news_id = create_response.json()['data']['id']
+
+    publish_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news/{news_id}/publish",
+        headers=admin_auth_headers,
+    )
+    assert publish_response.status_code == status.HTTP_200_OK
+
+    notifications_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/notifications",
+        headers=user_headers,
+    )
+    assert notifications_response.status_code == status.HTTP_200_OK
+    assert any(
+        item['type'] == 'news'
+        and item['title'] == 'Novak Djokovic prepares for another title run'
+        and item['payload_json']['slug'] == 'djokovic-notification-article'
+        for item in notifications_response.json()['data']
+    )
+
+
+
+async def test_admin_players_import_photo_and_recalculate_flow(async_client, admin_auth_headers) -> None:
+    import_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/players/import",
+        json={
+            "players": [
+                {
+                    "first_name": "Casper",
+                    "last_name": "Ruud",
+                    "full_name": "Casper Ruud",
+                    "slug": "casper-ruud",
+                    "country_code": "NOR",
+                    "current_rank": 8,
+                }
+            ]
+        },
+        headers=admin_auth_headers,
+    )
+    assert import_response.status_code == status.HTTP_200_OK
+    assert import_response.json()["data"]["message"] == "Imported 1 players"
+
+    players_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/players",
+        headers=admin_auth_headers,
+    )
+    imported = next(item for item in players_response.json()["data"] if item["slug"] == "casper-ruud")
+
+    photo_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/players/{imported['id']}/photo",
+        json={"photo_url": "https://example.com/ruud.jpg"},
+        headers=admin_auth_headers,
+    )
+    assert photo_response.status_code == status.HTTP_200_OK
+    assert photo_response.json()["data"]["message"] == "Player photo updated"
+
+    recalc_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/players/{imported['id']}/recalculate-stats",
+        headers=admin_auth_headers,
+    )
+    assert recalc_response.status_code == status.HTTP_200_OK
+    assert "Player stats recalculated via job" in recalc_response.json()["data"]["message"]
+
+
+
+async def test_admin_news_cover_and_tags_flow(async_client, admin_auth_headers) -> None:
+    create_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news",
+        json={"slug": "tagged-admin-article", "title": "Tagged article", "content_html": "<p>Body</p>", "status": "draft"},
+        headers=admin_auth_headers,
+    )
+    assert create_response.status_code == status.HTTP_200_OK
+    news_id = create_response.json()["data"]["id"]
+
+    cover_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news/{news_id}/cover",
+        json={"cover_image_url": "https://example.com/cover.jpg"},
+        headers=admin_auth_headers,
+    )
+    assert cover_response.status_code == status.HTTP_200_OK
+    assert cover_response.json()["data"]["message"] == "News cover updated"
+
+    tags_list = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news/tags/list",
+        headers=admin_auth_headers,
+    )
+    assert tags_list.status_code == status.HTTP_200_OK
+    tag_ids = [item["id"] for item in tags_list.json()["data"][:2]]
+
+    tags_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news/{news_id}/tags",
+        json={"tag_ids": tag_ids},
+        headers=admin_auth_headers,
+    )
+    assert tags_response.status_code == status.HTTP_200_OK
+    assert len(tags_response.json()["data"]) == len(tag_ids)
+
+    article_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/news/tagged-admin-article")
+    assert article_response.status_code == status.HTTP_200_OK
+    assert len(article_response.json()["data"]["tags"]) == len(tag_ids)
+    assert article_response.json()["data"]["cover_image_url"] == "https://example.com/cover.jpg"

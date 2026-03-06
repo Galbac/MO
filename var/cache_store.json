@@ -1,18 +1,40 @@
 {
-  "tournaments:detail:1": {
-    "expires_at": 1772826208.741632,
+  "players:detail:1": {
+    "expires_at": 1772830407.409421,
     "payload": {
       "data": {
-        "category": "grand_slam",
-        "champions": [
+        "backhand": "two-handed",
+        "biography": "24-time Grand Slam champion.",
+        "birth_date": "1987-05-22",
+        "country_code": "SRB",
+        "country_name": "Serbia",
+        "current_points": 9850,
+        "current_rank": 1,
+        "first_name": "Novak",
+        "form": [
+          "W"
+        ],
+        "full_name": "Novak Djokovic",
+        "hand": "right",
+        "height_cm": 188,
+        "id": 1,
+        "last_name": "Djokovic",
+        "photo_url": "/media/players/djokovic.jpg",
+        "ranking_history": [
           {
-            "player_name": "Novak Djokovic",
-            "season_year": 2026
+            "movement": 1,
+            "points": 9410,
+            "rank_position": 2,
+            "ranking_date": "2026-02-16"
+          },
+          {
+            "movement": 1,
+            "points": 9850,
+            "rank_position": 1,
+            "ranking_date": "2026-03-02"
           }
         ],
-        "city": "Melbourne",
-        "country_code": "AUS",
-        "current_matches": [
+        "recent_matches": [
           {
             "actual_end_at": "2026-01-26T13:51:00",
             "actual_start_at": "2026-01-26T10:35:00",
@@ -31,91 +53,116 @@
             "tournament_name": "Australian Open 2026"
           }
         ],
-        "description": "First Grand Slam of the season.",
-        "draw": [
+        "seo": {
+          "canonical_url": "/players/novak-djokovic",
+          "description": "24-time Grand Slam champion.",
+          "title": "Novak Djokovic"
+        },
+        "slug": "novak-djokovic",
+        "stats": {
+          "clay_record": "0-0",
+          "current_streak": 1,
+          "finals": 1,
+          "grass_record": "0-0",
+          "hard_record": "1-0",
+          "losses": 0,
+          "matches_played": 1,
+          "season": 2026,
+          "titles": 1,
+          "win_rate": 100.0,
+          "wins": 1
+        },
+        "status": "active",
+        "titles": [
           {
-            "player1_name": "Novak Djokovic",
-            "player2_name": "Jannik Sinner",
-            "round_code": "F",
-            "score_summary": "6-4 3-6 7-5 6-3"
+            "category": "grand_slam",
+            "season_year": 2026,
+            "surface": "hard",
+            "tournament_name": "Australian Open 2026"
           }
         ],
-        "end_date": "2026-01-26",
-        "id": 1,
-        "indoor": false,
-        "logo_url": "/media/tournaments/ao.png",
-        "name": "Australian Open 2026",
-        "participants": [
-          {
-            "country_code": "SRB",
-            "current_points": 9850,
-            "current_rank": 1,
-            "form": [],
-            "full_name": "Novak Djokovic",
-            "id": 1,
-            "photo_url": "/media/players/djokovic.jpg",
-            "slug": "novak-djokovic"
-          },
-          {
-            "country_code": "ITA",
-            "current_points": 8610,
-            "current_rank": 2,
-            "form": [],
-            "full_name": "Jannik Sinner",
-            "id": 2,
-            "photo_url": "/media/players/sinner.jpg",
-            "slug": "jannik-sinner"
-          }
-        ],
-        "points_winner": 2000,
-        "prize_money": "$86,500,000",
-        "season_year": 2026,
-        "seo": {},
-        "short_name": "AO 2026",
-        "slug": "australian-open-2026",
-        "start_date": "2026-01-12",
-        "status": "finished",
-        "surface": "hard"
+        "upcoming_match": null,
+        "weight_kg": 77
       },
       "errors": null,
       "meta": {},
       "success": true
     }
   },
-  "tournaments:list:1:300": {
-    "expires_at": 1772826208.739375,
+  "players:list:::::::1:300": {
+    "expires_at": 1772830407.406759,
     "payload": {
       "data": [
         {
-          "category": "masters_1000",
-          "city": "Indian Wells",
-          "end_date": "2026-03-16",
-          "id": 2,
-          "name": "Indian Wells 2026",
-          "season_year": 2026,
-          "slug": "indian-wells-2026",
-          "start_date": "2026-03-05",
-          "status": "live",
-          "surface": "hard"
+          "country_code": "POL",
+          "current_points": 10420,
+          "current_rank": 1,
+          "form": [],
+          "full_name": "Iga Swiatek",
+          "id": 5,
+          "photo_url": "/media/players/swiatek.jpg",
+          "slug": "iga-swiatek"
         },
         {
-          "category": "grand_slam",
-          "city": "Melbourne",
-          "end_date": "2026-01-26",
+          "country_code": "SRB",
+          "current_points": 9850,
+          "current_rank": 1,
+          "form": [
+            "W"
+          ],
+          "full_name": "Novak Djokovic",
           "id": 1,
-          "name": "Australian Open 2026",
-          "season_year": 2026,
-          "slug": "australian-open-2026",
-          "start_date": "2026-01-12",
-          "status": "finished",
-          "surface": "hard"
+          "photo_url": "/media/players/djokovic.jpg",
+          "slug": "novak-djokovic"
+        },
+        {
+          "country_code": "BLR",
+          "current_points": 9030,
+          "current_rank": 2,
+          "form": [],
+          "full_name": "Aryna Sabalenka",
+          "id": 6,
+          "photo_url": "/media/players/sabalenka.jpg",
+          "slug": "aryna-sabalenka"
+        },
+        {
+          "country_code": "ITA",
+          "current_points": 8610,
+          "current_rank": 2,
+          "form": [
+            "L"
+          ],
+          "full_name": "Jannik Sinner",
+          "id": 2,
+          "photo_url": "/media/players/sinner.jpg",
+          "slug": "jannik-sinner"
+        },
+        {
+          "country_code": "RUS",
+          "current_points": 6530,
+          "current_rank": 4,
+          "form": [],
+          "full_name": "Daniil Medvedev",
+          "id": 3,
+          "photo_url": "/media/players/medvedev.jpg",
+          "slug": "daniil-medvedev"
+        },
+        {
+          "country_code": "RUS",
+          "current_points": 5120,
+          "current_rank": 6,
+          "form": [],
+          "full_name": "Andrey Rublev",
+          "id": 4,
+          "photo_url": "/media/players/rublev.jpg",
+          "slug": "andrey-rublev"
         }
       ],
       "errors": null,
       "meta": {
         "page": 1,
         "per_page": 300,
-        "total": 2,
+        "total": 6,
         "total_pages": 1
       },
       "success": true

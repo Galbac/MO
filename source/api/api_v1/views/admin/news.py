@@ -51,13 +51,13 @@ async def schedule_admin_news(request: Request, news_id: int, payload: NewsStatu
 
 
 @router.post("/{news_id}/cover", response_model=MessageResponse)
-async def upload_admin_news_cover(news_id: int) -> MessageResponse:
-    return MessageResponse(data={"message": f"Cover uploaded for news {news_id}"})
+async def upload_admin_news_cover(request: Request, news_id: int, payload: dict | None = None) -> MessageResponse:
+    return await service.upload_admin_news_cover(news_id, payload or {}, actor_id=getattr(request.state.current_user, 'id', None))
 
 
 @router.post("/{news_id}/tags", response_model=SuccessResponse[list[TagItem]])
-async def attach_admin_news_tags(news_id: int) -> SuccessResponse[list[TagItem]]:
-    return await service.attach_admin_news_tags(news_id)
+async def attach_admin_news_tags(request: Request, news_id: int, payload: dict | None = None) -> SuccessResponse[list[TagItem]]:
+    return await service.attach_admin_news_tags(news_id, payload or {}, actor_id=getattr(request.state.current_user, 'id', None))
 
 
 @router.get("/categories/list", response_model=SuccessResponse[list[NewsCategoryItem]])

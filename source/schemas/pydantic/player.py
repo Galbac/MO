@@ -35,6 +35,9 @@ class PlayerStats(BaseModel):
     hard_record: str
     clay_record: str
     grass_record: str
+    titles: int = 0
+    finals: int = 0
+    current_streak: int = 0
 
 
 class RankingHistoryPoint(BaseModel):

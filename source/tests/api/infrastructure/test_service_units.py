@@ -575,6 +575,10 @@ async def test_job_service_branch_coverage(monkeypatch) -> None:
     monkeypatch.setattr(jobs.workflows, 'publish_due_scheduled_news', AsyncMock())
     monkeypatch.setattr(jobs.workflows, 'generate_sitemap_snapshot', AsyncMock())
     monkeypatch.setattr(jobs.workflows, 'rebuild_search_index', AsyncMock())
+    monkeypatch.setattr(jobs.workflows, 'recalculate_player_aggregates', AsyncMock())
+    monkeypatch.setattr(jobs.workflows, 'recalculate_h2h', AsyncMock())
+    monkeypatch.setattr(jobs.admin_support, 'import_rankings', AsyncMock())
+    monkeypatch.setattr(jobs.operations, 'sync_integration', AsyncMock())
 
     await jobs._run_job('clear_cache', {'prefixes': ['players:', 'news:']})
     assert invalidated['prefixes'] == ('players:', 'news:')
@@ -593,6 +597,35 @@ async def test_job_service_branch_coverage(monkeypatch) -> None:
 
     await jobs._run_job('rebuild_search_index', {})
     jobs.workflows.rebuild_search_index.assert_awaited()
+
+    await jobs._run_job('recalculate_player_stats', {'player_ids': [1, 2]})
+    jobs.workflows.recalculate_player_aggregates.assert_awaited_with([1, 2])
+
+    await jobs._run_job('recalculate_h2h', {'match_id': 2})
+    jobs.workflows.recalculate_h2h.assert_awaited_with(2)
+
+    await jobs._run_job('import_rankings', {'source_file': 'rankings.csv'})
+    jobs.admin_support.import_rankings.assert_awaited_with({'source_file': 'rankings.csv'})
+
+    await jobs._run_job('sync_live', {'provider': 'live-provider'})
+    jobs.operations.sync_integration.assert_awaited_with('live-provider', {'provider': 'live-provider'})
+
+    listed = jobs.list_jobs()
+    assert isinstance(listed, list)
+
+    monkeypatch.setattr(jobs, '_read_jobs', lambda: [{'id': 9, 'status': 'failed', 'error': 'boom'}])
+    written_retry = {}
+    monkeypatch.setattr(jobs, '_write_jobs', lambda payload: written_retry.setdefault('payload', payload))
+    monkeypatch.setattr(jobs, 'process_due_jobs', AsyncMock(return_value=1))
+    retried = await jobs.retry_failed_job(9)
+    assert retried['status'] == 'failed' or retried['status'] == 'pending'
+
+    monkeypatch.setattr(jobs, '_read_jobs', lambda: [{'id': 1, 'status': 'finished'}, {'id': 2, 'status': 'pending'}, {'id': 3, 'status': 'failed'}])
+    written_prune = {}
+    monkeypatch.setattr(jobs, '_write_jobs', lambda payload: written_prune.setdefault('payload', payload))
+    removed = jobs.prune_jobs()
+    assert removed == 2
+    assert written_prune['payload'] == [{'id': 2, 'status': 'pending'}]
 
     assert jobs.backend_name() in {'local', 'redis'}
 

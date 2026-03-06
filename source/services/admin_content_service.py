@@ -12,12 +12,13 @@ from source.repositories import AuditRepository, MatchRepository, NewsRepository
 from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.match import MatchEventCreateRequest, MatchEventItem, MatchScoreUpdateRequest, MatchStatsUpdateRequest, MatchStatusUpdateRequest
-from source.schemas.pydantic.news import NewsArticleCreateRequest, NewsStatusRequest
+from source.schemas.pydantic.news import NewsArticleCreateRequest, NewsStatusRequest, TagItem
 from source.services.cache_service import CacheService
 from source.services.job_service import JobService
 from source.services.live_hub import live_hub
 from source.services.portal_query_service import PortalQueryService
 from source.services.workflow_service import WorkflowService
+from source.services.runtime_state_store import RuntimeStateStore
 
 
 class AdminContentService:
@@ -31,6 +32,8 @@ class AdminContentService:
         self.cache = CacheService()
         self.jobs = JobService()
         self.workflows = WorkflowService()
+        self.store = RuntimeStateStore()
+        self.news_tags_namespace = "news_tags"
 
     @staticmethod
     def _require(payload: dict[str, Any], field: str, current: Any = None) -> Any:
@@ -151,6 +154,14 @@ class AdminContentService:
             'published_at': current.get('published_at'),
         }
 
+
+    def _news_tag_mapping(self) -> dict[str, list[int]]:
+        payload = self.store.read_namespace(self.news_tags_namespace, {})
+        return payload if isinstance(payload, dict) else {}
+
+    def _save_news_tag_mapping(self, payload: dict[str, list[int]]) -> None:
+        self.store.write_namespace(self.news_tags_namespace, payload)
+
     @staticmethod
     def _entity_dict(entity) -> dict[str, Any]:
         return {column.name: getattr(entity, column.name) for column in entity.__table__.columns}
@@ -240,6 +251,55 @@ class AdminContentService:
         self._invalidate_cache('players:', 'matches:', 'live:', 'search:')
         return MessageResponse(data=SimpleMessage(message='Player deleted'))
 
+
+    async def import_admin_players(self, payload: dict[str, Any], actor_id: int | None = None):
+        rows = payload.get('players') if isinstance(payload, dict) else None
+        if not isinstance(rows, list) or not rows:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='players is required')
+        imported = 0
+        updated_ids: list[int] = []
+        async with db_session_manager.session() as session:
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                normalized = self._player_payload(row)
+                existing = await self.players.get_by_slug(session, normalized['slug'])
+                if existing is None:
+                    item = await self.players.create(session, normalized)
+                else:
+                    item = await self.players.update(session, existing, normalized)
+                updated_ids.append(item.id)
+                imported += 1
+        await self._log_audit(action='player.import', entity_type='player', entity_id=None, before_json=None, after_json={'count': imported, 'player_ids': updated_ids}, user_id=actor_id)
+        self._invalidate_cache('players:', 'matches:', 'live:', 'search:')
+        return MessageResponse(data=SimpleMessage(message=f'Imported {imported} players'))
+
+    async def upload_admin_player_photo(self, player_id: int, payload: dict[str, Any], actor_id: int | None = None):
+        photo_url = str(payload.get('photo_url') or '').strip()
+        if not photo_url:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='photo_url is required')
+        async with db_session_manager.session() as session:
+            player = await self.players.get(session, player_id)
+            if player is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Player not found')
+            before = self._entity_dict(player)
+            updated = await self.players.update(session, player, {'photo_url': photo_url})
+            after = self._entity_dict(updated)
+        await self._log_audit(action='player.photo.update', entity_type='player', entity_id=player_id, before_json=before, after_json=after, user_id=actor_id)
+        self._invalidate_cache('players:', 'matches:', 'live:', 'search:')
+        return MessageResponse(data=SimpleMessage(message='Player photo updated'))
+
+    async def recalculate_admin_player_stats(self, player_id: int, actor_id: int | None = None):
+        async with db_session_manager.session() as session:
+            player = await self.players.get(session, player_id)
+            if player is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Player not found')
+        job = await self.jobs.enqueue(job_type='recalculate_player_stats', payload={'player_ids': [player_id]})
+        await self.jobs.process_due_jobs()
+        await self._log_audit(action='player.recalculate_stats', entity_type='player', entity_id=player_id, before_json=None, after_json={'job_id': job['id']}, user_id=actor_id)
+        self._invalidate_cache('players:', 'matches:', 'live:', 'search:')
+        return MessageResponse(data=SimpleMessage(message=f'Player stats recalculated via job {job["id"]}'))
+
     async def list_admin_tournaments(self):
         payload = await self.query.list_tournaments(1, 100)
         return SuccessResponse(data=payload.data)
@@ -265,6 +325,8 @@ class AdminContentService:
             after = self._entity_dict(updated)
         await self._log_audit(action='tournament.update', entity_type='tournament', entity_id=tournament_id, before_json=before, after_json=after, user_id=actor_id)
         self._invalidate_cache('tournaments:', 'matches:', 'live:', 'news:', 'search:')
+        if before.get('status') != after.get('status') and after.get('status') == 'live':
+            await self.workflows.process_tournament_status_change(tournament_id, 'live')
         return await self.query.get_tournament(tournament_id)
 
     async def delete_admin_tournament(self, tournament_id: int, actor_id: int | None = None):
@@ -277,6 +339,16 @@ class AdminContentService:
         await self._log_audit(action='tournament.delete', entity_type='tournament', entity_id=tournament_id, before_json=before, after_json=None, user_id=actor_id)
         self._invalidate_cache('tournaments:', 'matches:', 'live:', 'news:', 'search:')
         return MessageResponse(data=SimpleMessage(message='Tournament deleted'))
+
+    async def generate_admin_tournament_draw(self, tournament_id: int, actor_id: int | None = None):
+        result = await self.workflows.generate_tournament_draw_snapshot(tournament_id)
+        await self._log_audit(action='tournament.draw.generate', entity_type='tournament', entity_id=tournament_id, before_json=None, after_json=result, user_id=actor_id)
+        return MessageResponse(data=SimpleMessage(message=f"Draw generated with {result['matches']} matches"))
+
+    async def publish_admin_tournament(self, tournament_id: int, actor_id: int | None = None):
+        await self.update_admin_tournament(tournament_id, {'status': 'published'}, actor_id=actor_id)
+        await self._log_audit(action='tournament.publish', entity_type='tournament', entity_id=tournament_id, before_json=None, after_json={'status': 'published'}, user_id=actor_id)
+        return MessageResponse(data=SimpleMessage(message='Tournament published'))
 
     async def list_admin_matches(self):
         payload = await self.query.list_matches(1, 100, None)
@@ -444,6 +516,8 @@ class AdminContentService:
             after = self._entity_dict(updated)
         await self._log_audit(action='news.update_status', entity_type='news', entity_id=news_id, before_json=before, after_json=after, user_id=actor_id)
         self._invalidate_cache('news:', 'search:', 'players:', 'tournaments:')
+        if before.get('status') != after.get('status') and after.get('status') == 'published':
+            await self.workflows.process_published_news(news_id)
         return await self.query.get_news_article(updated.slug)
 
     async def publish_admin_news(self, news_id: int, actor_id: int | None = None):
@@ -457,9 +531,38 @@ class AdminContentService:
         await self.jobs.enqueue(job_type='publish_scheduled_news', payload={'news_id': news_id}, run_at=datetime.fromisoformat(payload.publish_at))
         return MessageResponse(data=SimpleMessage(message=f'News scheduled for {payload.publish_at}'))
 
-    async def attach_admin_news_tags(self, news_id: int):
+    async def upload_admin_news_cover(self, news_id: int, payload: dict[str, Any], actor_id: int | None = None):
+        cover_image_url = str(payload.get('cover_image_url') or '').strip()
+        if not cover_image_url:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='cover_image_url is required')
         async with db_session_manager.session() as session:
             article = await self.news.get(session, news_id)
             if article is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='News not found')
-        return SuccessResponse(data=[])
+            before = self._entity_dict(article)
+            updated = await self.news.update(session, article, {'cover_image_url': cover_image_url})
+            after = self._entity_dict(updated)
+        await self._log_audit(action='news.cover.update', entity_type='news', entity_id=news_id, before_json=before, after_json=after, user_id=actor_id)
+        self._invalidate_cache('news:', 'search:', 'players:', 'tournaments:')
+        return MessageResponse(data=SimpleMessage(message='News cover updated'))
+
+    async def attach_admin_news_tags(self, news_id: int, payload: dict[str, Any] | None = None, actor_id: int | None = None):
+        payload = payload or {}
+        raw_tag_ids = payload.get('tag_ids')
+        if not isinstance(raw_tag_ids, list):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='tag_ids is required')
+        async with db_session_manager.session() as session:
+            article = await self.news.get(session, news_id)
+            if article is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='News not found')
+            tag_ids = [int(item) for item in raw_tag_ids]
+            tags = await self.news.get_tags_by_ids(session, tag_ids)
+            if len(tags) != len(set(tag_ids)):
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Some tags were not found')
+        mapping = self._news_tag_mapping()
+        before = list(mapping.get(str(news_id), []))
+        mapping[str(news_id)] = sorted({item.id for item in tags})
+        self._save_news_tag_mapping(mapping)
+        await self._log_audit(action='news.tags.update', entity_type='news', entity_id=news_id, before_json={'tag_ids': before}, after_json={'tag_ids': mapping[str(news_id)]}, user_id=actor_id)
+        self._invalidate_cache('news:', 'search:', 'players:', 'tournaments:')
+        return SuccessResponse(data=[TagItem(id=item.id, slug=item.slug, name=item.name) for item in tags])
