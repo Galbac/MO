@@ -14,7 +14,16 @@
     <aside class="admin-sidebar" aria-label="Боковая панель админки"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav" aria-label="Навигация админки"><a href="/admin/news" class="active">Новости</a><a href="/admin/categories">Категории</a><a href="/admin/tags">Теги</a></nav></aside>
     <main id="admin-main-content" class="admin-main" role="main" tabindex="-1">
         <header class="admin-header d-flex justify-content-between align-items-center"><div><div class="eyebrow">Редакция</div><h1 class="section-title mb-0">Список новостей и очередь публикации</h1></div><a class="btn btn-success rounded-pill" href="/admin/news/new">Создать статью</a></header>
-        <section class="table-shell"><table class="table table-clean" aria-label="Таблица новостей"><thead><tr><th>Заголовок</th><th>Статус</th><th>Опубликовано</th><th>Действия</th></tr></thead><tbody id="admin-news-body"></tbody></table></section>
+        <section class="entity-card mb-4" aria-label="Фильтры новостей">
+            <form id="admin-news-filters" class="row g-3 align-items-end">
+                <div class="col-md-4"><label class="form-label" for="admin-news-search">Search</label><input class="form-control" id="admin-news-search" name="search" placeholder="заголовок статьи"></div>
+                <div class="col-md-3"><label class="form-label" for="admin-news-status">Status</label><select class="form-select" id="admin-news-status" name="status"><option value="">Все</option><option value="draft">draft</option><option value="review">review</option><option value="scheduled">scheduled</option><option value="published">published</option><option value="archived">archived</option></select></div>
+                <div class="col-md-2 d-grid"><button class="btn btn-outline-secondary" id="admin-news-reset" type="button">Сброс</button></div>
+            </form>
+        </section>
+        <section class="alert alert-success d-none" id="admin-news-feedback"></section>
+        <section class="alert alert-danger d-none" id="admin-news-error"></section>
+        <section class="table-shell"><table class="table table-clean" aria-label="Таблица новостей"><thead><tr><th>Заголовок</th><th>Статус</th><th>Опубликовано</th><th>Теги</th><th>Действия</th></tr></thead><tbody id="admin-news-body"></tbody></table></section>
     </main>
 </div>
 <script src="/static/js/app.js"></script>

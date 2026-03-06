@@ -350,6 +350,15 @@ async def test_auth_user_service_helper_branches(async_client, user_auth_headers
     with pytest.raises(HTTPException):
         await service.verify_email(VerifyEmailRequest(token=' '))
 
+    with pytest.raises(HTTPException):
+        service._consume_action_token('bad-token', purpose='password_reset')
+
+    action_token = service._issue_action_token(user_id=2, purpose='verify_email', ttl_minutes=5)
+    consumed = service._consume_action_token(action_token, purpose='verify_email')
+    assert consumed['sub'] == 2
+    with pytest.raises(HTTPException):
+        service._consume_action_token(action_token, purpose='verify_email')
+
     wrong_type_token = token_codec.encode({'sub': 2, 'typ': 'access', 'exp': int(time.time()) + 30})
     with pytest.raises(HTTPException):
         service._consume_refresh_token(wrong_type_token, revoke_only=False)
@@ -487,7 +496,8 @@ async def test_operations_service_list_integrations_reads_file_store(tmp_path) -
     assert payload.data[0].status == 'ok'
 
     logs = await service.get_integration_logs('live-provider')
-    assert 'sync ok' in logs.data.message
+    assert logs.data[0].message == 'sync ok'
+    assert logs.data[0].level == 'info'
 
     with pytest.raises(HTTPException):
         await service.get_integration_logs('missing-provider')

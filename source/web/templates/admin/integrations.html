@@ -9,11 +9,30 @@
     <link rel="canonical" href="{{ canonical_url }}">
 </head>
 <body data-page="{{ page_name }}">
+<a class="visually-hidden-focusable skip-link" href="#admin-main-content">Перейти к содержимому админки</a>
 <div class="admin-shell">
-    <aside class="admin-sidebar"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav"><a href="/admin/integrations" class="active">Интеграции</a><a href="/admin/rankings">Рейтинги</a></nav></aside>
-    <main class="admin-main">
+    <aside class="admin-sidebar" aria-label="Боковая панель админки"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav" aria-label="Навигация админки"><a href="/admin/integrations" class="active">Интеграции</a><a href="/admin/rankings">Рейтинги</a></nav></aside>
+    <main class="admin-main" id="admin-main-content" role="main" tabindex="-1">
         <header class="admin-header"><div class="eyebrow">Интеграции</div><h1 class="section-title">Статус провайдеров, время последней синхронизации и ручной запуск.</h1></header>
-        <section class="table-shell"><table class="table table-clean"><thead><tr><th>Провайдер</th><th>Статус</th><th>Последняя синхронизация</th></tr></thead><tbody id="admin-integrations-body"></tbody></table></section>
+        <section class="entity-card mb-4" aria-label="Фильтры интеграций">
+            <form id="admin-integrations-filters" class="row g-3 align-items-end">
+                <div class="col-md-4"><label class="form-label" for="admin-integrations-provider">Provider</label><input class="form-control" id="admin-integrations-provider" name="provider" placeholder="live-provider"></div>
+                <div class="col-md-3"><label class="form-label" for="admin-integrations-status">Status</label><select class="form-select" id="admin-integrations-status" name="status"><option value="">Все</option><option value="configured">configured</option><option value="ok">ok</option><option value="error">error</option></select></div>
+                <div class="col-md-2 d-grid"><button class="btn btn-outline-secondary" id="admin-integrations-reset" type="button">Сброс</button></div>
+            </form>
+        </section>
+        <section class="entity-card mb-4" aria-label="Управление интеграцией">
+            <form id="admin-integrations-update-form" class="row g-3 align-items-end">
+                <div class="col-md-3"><label class="form-label" for="admin-integrations-target">Provider</label><input class="form-control" id="admin-integrations-target" name="provider" placeholder="live-provider"></div>
+                <div class="col-md-7"><label class="form-label" for="admin-integrations-endpoint">Endpoint</label><input class="form-control" id="admin-integrations-endpoint" name="endpoint" placeholder="https://api.example.com/live"></div>
+                <div class="col-md-2 d-grid"><button class="btn btn-success" id="admin-integrations-save" type="submit">Save</button></div>
+            </form>
+            <div class="d-flex gap-2 mt-3"><button class="btn btn-outline-dark" id="admin-integrations-sync" type="button">Sync</button><button class="btn btn-outline-secondary" id="admin-integrations-load-logs" type="button">Load logs</button></div>
+        </section>
+        <section class="alert alert-success d-none" id="admin-integrations-feedback"></section>
+        <section class="alert alert-danger d-none" id="admin-integrations-error"></section>
+        <section class="table-shell mb-4"><table class="table table-clean" aria-label="Таблица интеграций"><thead><tr><th>Провайдер</th><th>Статус</th><th>Последняя синхронизация</th><th>Ошибка</th></tr></thead><tbody id="admin-integrations-body"></tbody></table></section>
+        <section class="entity-card"><h2 class="h5 mb-3">Логи интеграции</h2><div id="admin-integrations-logs"></div></section>
     </main>
 </div>
 <script src="/static/js/app.js"></script>

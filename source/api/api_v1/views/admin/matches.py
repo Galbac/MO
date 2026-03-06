@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
 from source.schemas.pydantic.auth import MessageResponse
 from source.schemas.pydantic.common import SuccessResponse
@@ -10,8 +10,24 @@ service = AdminContentService()
 
 
 @router.get("", response_model=SuccessResponse[list[MatchSummary]])
-async def list_admin_matches() -> SuccessResponse[list[MatchSummary]]:
-    return await service.list_admin_matches()
+async def list_admin_matches(
+    search: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    tournament_id: int | None = Query(default=None),
+    player_id: int | None = Query(default=None),
+    round_code: str | None = Query(default=None),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+) -> SuccessResponse[list[MatchSummary]]:
+    return await service.list_admin_matches(
+        search=search,
+        status=status,
+        tournament_id=tournament_id,
+        player_id=player_id,
+        round_code=round_code,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
 
 @router.post("", response_model=SuccessResponse[MatchDetail])

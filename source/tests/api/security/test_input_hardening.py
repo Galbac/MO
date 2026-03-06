@@ -3,10 +3,22 @@ from fastapi import status
 from source.config.settings import settings
 
 
-async def test_public_media_rejects_unsupported_content_type(async_client) -> None:
+async def test_public_media_write_requires_privileged_auth(async_client) -> None:
+    upload_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
+        files={"file": ("story.txt", b"hello world", "text/plain")},
+    )
+    assert upload_response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    delete_response = await async_client.delete(f"{settings.api.prefix}{settings.api.v1.prefix}/media/1")
+    assert delete_response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+async def test_public_media_rejects_unsupported_content_type(async_client, admin_auth_headers) -> None:
     response = await async_client.post(
         f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
         files={"file": ("malware.exe", b"binary", "application/octet-stream")},
+        headers=admin_auth_headers,
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -41,18 +53,20 @@ async def test_news_html_is_sanitized(async_client, admin_auth_headers) -> None:
     assert 'srcdoc=' not in content_html.lower()
 
 
-async def test_public_media_rejects_unsafe_filename(async_client) -> None:
+async def test_public_media_rejects_unsafe_filename(async_client, admin_auth_headers) -> None:
     response = await async_client.post(
         f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
         files={"file": ("../escape.txt", b"payload", "text/plain")},
+        headers=admin_auth_headers,
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
-async def test_media_rejects_mismatched_extension(async_client) -> None:
+async def test_media_rejects_mismatched_extension(async_client, admin_auth_headers) -> None:
     response = await async_client.post(
         f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
         files={"file": ("cover.jpg", b"plain text", "text/plain")},
+        headers=admin_auth_headers,
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -65,10 +79,11 @@ async def test_media_rejects_forbidden_extension(async_client, admin_auth_header
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-async def test_media_rejects_invalid_jpeg_signature(async_client) -> None:
+async def test_media_rejects_invalid_jpeg_signature(async_client, admin_auth_headers) -> None:
     response = await async_client.post(
         f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
         files={"file": ("cover.jpg", b"not-a-jpeg", "image/jpeg")},
+        headers=admin_auth_headers,
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 

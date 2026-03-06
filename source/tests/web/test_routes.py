@@ -163,3 +163,22 @@ async def test_player_detail_page_mentions_extended_season_stats(async_client) -
 
     assert response.status_code == 200
     assert 'Статистика сезона и форма' in response.text
+
+
+async def test_public_list_pages_have_state_placeholders(async_client) -> None:
+    tournaments = await async_client.get('/tournaments')
+    matches = await async_client.get('/matches')
+    news = await async_client.get('/news')
+    search = await async_client.get('/search')
+    notifications = await async_client.get('/notifications')
+
+    assert 'id="tournaments-error"' in tournaments.text
+    assert 'id="tournaments-empty"' in tournaments.text
+    assert 'id="matches-error"' in matches.text
+    assert 'id="matches-empty"' in matches.text
+    assert 'id="news-list-error"' in news.text
+    assert 'id="news-list-empty"' in news.text
+    assert 'id="search-error"' in search.text
+    assert 'id="search-empty"' in search.text
+    assert 'id="notifications-error"' in notifications.text
+    assert 'id="notifications-empty"' in notifications.text

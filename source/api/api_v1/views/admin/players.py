@@ -10,8 +10,8 @@ service = AdminContentService()
 
 
 @router.get("", response_model=SuccessResponse[list[PlayerSummary]])
-async def list_admin_players() -> SuccessResponse[list[PlayerSummary]]:
-    return await service.list_admin_players()
+async def list_admin_players(search: str | None = None, country_code: str | None = None, hand: str | None = None, status: str | None = None) -> SuccessResponse[list[PlayerSummary]]:
+    return await service.list_admin_players(search=search, country_code=country_code, hand=hand, status=status)
 
 
 @router.post("", response_model=SuccessResponse[PlayerDetail])

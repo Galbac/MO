@@ -9,6 +9,7 @@ from source.services.runtime_state_store import RuntimeStateStore
 from source.services.admin_support_service import AdminSupportService
 from source.services.operations_service import OperationsService
 from source.services.workflow_service import WorkflowService
+from source.tasks.runtime_backup import create_runtime_backup, restore_runtime_backup
 
 
 class JobService:
@@ -58,6 +59,7 @@ class JobService:
             'job_type': job_type,
             'status': 'pending',
             'payload': payload or {},
+            'result': None,
             'run_at': (run_at or now).isoformat(),
             'created_at': now.isoformat(),
             'updated_at': now.isoformat(),
@@ -83,52 +85,60 @@ class JobService:
             job['attempts'] = int(job.get('attempts', 0)) + 1
             job['updated_at'] = now.isoformat()
             try:
-                await self._run_job(job['job_type'], job.get('payload') or {})
+                result = await self._run_job(job['job_type'], job.get('payload') or {})
                 job['status'] = 'finished'
+                job['result'] = result if isinstance(result, dict) else {'value': result} if result is not None else None
                 job['error'] = None
                 processed += 1
             except Exception as exc:  # noqa: BLE001
                 job['status'] = 'failed'
                 job['error'] = str(exc)
+                job['result'] = None
             job['updated_at'] = datetime.now(tz=UTC).isoformat()
         self._write_jobs(jobs)
         return processed
 
-    async def _run_job(self, job_type: str, payload: dict[str, Any]) -> None:
+    async def _run_job(self, job_type: str, payload: dict[str, Any]) -> Any:
         if job_type == 'finalize_match_postprocess':
             await self.workflows.process_finalized_match(int(payload['match_id']))
-            return
+            return {'match_id': int(payload['match_id']), 'processed': True}
         if job_type == 'publish_scheduled_news':
             news_id = payload.get('news_id')
-            await self.workflows.publish_due_scheduled_news(int(news_id) if news_id is not None else None)
-            return
+            published = await self.workflows.publish_due_scheduled_news(int(news_id) if news_id is not None else None)
+            return {'news_id': int(news_id) if news_id is not None else None, 'published': published}
         if job_type == 'clear_cache':
             prefixes = payload.get('prefixes') or []
             if prefixes:
                 self.cache.invalidate_prefixes(*[str(item) for item in prefixes])
             else:
                 self.cache.clear()
-            return
+            return {'prefixes': [str(item) for item in prefixes], 'cleared_all': not prefixes}
         if job_type == 'generate_sitemap':
-            await self.workflows.generate_sitemap_snapshot(payload.get('base_url'))
-            return
+            return await self.workflows.generate_sitemap_snapshot(payload.get('base_url'))
         if job_type == 'rebuild_search_index':
-            await self.workflows.rebuild_search_index()
-            return
+            return await self.workflows.rebuild_search_index()
         if job_type == 'recalculate_player_stats':
             player_ids = payload.get('player_ids') or []
-            await self.workflows.recalculate_player_aggregates([int(item) for item in player_ids] if player_ids else None)
-            return
+            processed = await self.workflows.recalculate_player_aggregates([int(item) for item in player_ids] if player_ids else None)
+            return {'player_ids': [int(item) for item in player_ids], 'processed_players': processed}
         if job_type == 'recalculate_h2h':
-            await self.workflows.recalculate_h2h(int(payload['match_id']))
-            return
+            recalculated = await self.workflows.recalculate_h2h(int(payload['match_id']))
+            return {'match_id': int(payload['match_id']), 'updated': recalculated}
+        if job_type == 'generate_draw_snapshot':
+            return await self.workflows.generate_tournament_draw_snapshot(int(payload['tournament_id']))
         if job_type == 'import_rankings':
-            await self.admin_support.import_rankings(payload)
-            return
+            response = await self.admin_support.import_rankings(payload)
+            return {'message': response.data.message}
         if job_type == 'sync_live':
             provider = str(payload.get('provider') or 'live-provider')
-            await self.operations.sync_integration(provider, payload)
-            return
+            response = await self.operations.sync_integration(provider, payload)
+            return {'provider': provider, 'message': response.data.message}
+        if job_type == 'backup_runtime':
+            archive = create_runtime_backup(destination_path=payload.get('destination_path'), source_dir=payload.get('source_dir'))
+            return {'archive_path': str(archive)}
+        if job_type == 'restore_runtime':
+            restored = restore_runtime_backup(str(payload['archive_path']), target_dir=payload.get('target_dir'))
+            return {'restored_path': str(restored)}
         raise ValueError(f'Unsupported job type: {job_type}')
 
     def backend_name(self) -> str:

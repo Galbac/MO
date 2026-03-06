@@ -16,7 +16,7 @@ from source.config.settings import settings
 from source.db.session import db_session_manager
 from source.integrations import IntegrationSyncError, LiveScoreProviderClient, ProviderPayloadMapper, RankingsProviderClient
 from source.repositories import AdminSupportRepository, AuditRepository, MatchRepository
-from source.schemas.pydantic.admin import AdminIntegrationItem, AuditLogItem
+from source.schemas.pydantic.admin import AdminIntegrationItem, AdminIntegrationLogItem, AuditLogItem
 from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.media import MediaFile
@@ -349,9 +349,16 @@ class OperationsService:
         await workflows.process_ranking_updates(ranking_rows, ranking_type=rows[0].ranking_type, ranking_date=rows[0].ranking_date)
         return len(rows)
 
-    async def list_integrations(self) -> SuccessResponse[list[AdminIntegrationItem]]:
+    async def list_integrations(self, *, provider: str | None = None, status: str | None = None) -> SuccessResponse[list[AdminIntegrationItem]]:
         records = self._integration_records()
-        data = [AdminIntegrationItem(provider=provider, status=item.get('status', 'configured'), last_sync_at=datetime.fromisoformat(item['last_sync_at']) if item.get('last_sync_at') else None, last_error=item.get('last_error')) for provider, item in sorted(records.items())]
+        data = []
+        for provider_name, item in sorted(records.items()):
+            integration_status = item.get('status', 'configured')
+            if provider and provider.lower() not in provider_name.lower():
+                continue
+            if status and integration_status != status:
+                continue
+            data.append(AdminIntegrationItem(provider=provider_name, status=integration_status, last_sync_at=datetime.fromisoformat(item['last_sync_at']) if item.get('last_sync_at') else None, last_error=item.get('last_error')))
         return SuccessResponse(data=data)
 
     async def update_integration(self, provider: str, payload: dict[str, Any]) -> MessageResponse:
@@ -392,27 +399,36 @@ class OperationsService:
                         rows = await client.fetch_rankings(endpoint, headers=headers)
                         applied = await self._apply_ranking_provider_rows(provider, rows)
                         log_message = f'Fetched {len(rows)} ranking rows from provider endpoint, applied {applied}'
-            log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'message': log_message}
+            log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'level': 'info', 'message': log_message}
             updated = current | {'status': 'ok', 'last_sync_at': log_entry['timestamp'], 'last_error': None, 'logs': [*current.get('logs', []), log_entry][-20:]}
             records[provider] = updated
             self._save_integration_records(records)
             await self._log_audit(action='integration.sync', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
             return MessageResponse(data=SimpleMessage(message=f'Integration {provider} sync started'))
         except IntegrationSyncError as exc:
-            log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'message': f'Provider sync failed: {exc}'}
+            log_entry = {'timestamp': datetime.now(tz=UTC).isoformat(), 'level': 'error', 'message': f'Provider sync failed: {exc}'}
             updated = current | {'status': 'error', 'last_sync_at': log_entry['timestamp'], 'last_error': str(exc), 'logs': [*current.get('logs', []), log_entry][-20:]}
             records[provider] = updated
             self._save_integration_records(records)
             await self._log_audit(action='integration.sync.failed', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
-    async def get_integration_logs(self, provider: str) -> MessageResponse:
+    async def get_integration_logs(self, provider: str) -> SuccessResponse[list[AdminIntegrationLogItem]]:
         records = self._integration_records()
         current = records.get(provider)
         if current is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Integration not found')
         logs = current.get('logs', [])
-        return MessageResponse(data=SimpleMessage(message='\n'.join(item['timestamp'] + ' ' + item['message'] for item in logs) or 'No logs available'))
+        payload = [
+            AdminIntegrationLogItem(
+                timestamp=datetime.fromisoformat(item['timestamp']),
+                level=str(item.get('level') or 'info'),
+                message=str(item.get('message') or ''),
+            )
+            for item in logs
+            if item.get('timestamp') and item.get('message')
+        ]
+        return SuccessResponse(data=payload)
 
     async def list_audit_logs(self, *, user_id: int | None = None, entity_type: str | None = None, action: str | None = None, date_from: str | None = None, date_to: str | None = None) -> SuccessResponse[list[AuditLogItem]]:
         async with db_session_manager.session() as session:

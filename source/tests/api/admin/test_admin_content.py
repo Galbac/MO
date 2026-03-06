@@ -266,3 +266,96 @@ async def test_admin_news_cover_and_tags_flow(async_client, admin_auth_headers) 
     assert article_response.status_code == status.HTTP_200_OK
     assert len(article_response.json()["data"]["tags"]) == len(tag_ids)
     assert article_response.json()["data"]["cover_image_url"] == "https://example.com/cover.jpg"
+
+
+
+async def test_admin_players_support_filters(async_client, admin_auth_headers) -> None:
+    create_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/players",
+        json={"first_name": "Filter", "last_name": "Player", "full_name": "Filter Player", "slug": "filter-player", "country_code": "FRA", "hand": "left", "status": "active"},
+        headers=admin_auth_headers,
+    )
+    assert create_response.status_code == status.HTTP_200_OK
+
+    response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/players",
+        params={"search": "Filter", "country_code": "FRA", "hand": "left", "status": "active"},
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()["data"]
+    assert payload
+    assert any(item["slug"] == "filter-player" for item in payload)
+
+
+
+async def test_admin_tournaments_support_filters(async_client, admin_auth_headers) -> None:
+    create_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/tournaments",
+        json={"name": "Rome Masters 2026", "slug": "rome-masters-2026", "category": "masters_1000", "surface": "clay", "season_year": 2026, "status": "scheduled", "city": "Rome", "country_code": "ITA"},
+        headers=admin_auth_headers,
+    )
+    assert create_response.status_code == status.HTTP_200_OK
+
+    response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/tournaments",
+        params={"search": "Rome", "category": "masters_1000", "surface": "clay", "status": "scheduled", "season_year": 2026},
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()["data"]
+    assert payload
+    assert any(item["slug"] == "rome-masters-2026" for item in payload)
+
+
+async def test_admin_matches_support_filters(async_client, admin_auth_headers) -> None:
+    create_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches",
+        json={
+            "slug": "filter-match-finals",
+            "tournament_id": 1,
+            "player1_id": 1,
+            "player2_id": 2,
+            "status": "scheduled",
+            "round_code": "F",
+            "scheduled_at": "2026-03-15T12:00:00+00:00",
+        },
+        headers=admin_auth_headers,
+    )
+    assert create_response.status_code == status.HTTP_200_OK
+
+    response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches",
+        params={
+            "search": "filter-match",
+            "status": "scheduled",
+            "tournament_id": 1,
+            "player_id": 1,
+            "round_code": "F",
+            "date_from": "2026-03-15",
+            "date_to": "2026-03-15",
+        },
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()["data"]
+    assert payload
+    assert any(item["slug"] == "filter-match-finals" for item in payload)
+
+
+async def test_admin_news_support_filters(async_client, admin_auth_headers) -> None:
+    create_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news",
+        json={"slug": "filtered-admin-news", "title": "Filtered Admin Story", "content_html": "<p>Body</p>", "status": "draft"},
+        headers=admin_auth_headers,
+    )
+    assert create_response.status_code == status.HTTP_200_OK
+
+    response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/news",
+        params={"search": "Filtered", "status": "draft"},
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()["data"]
+    assert any(item["slug"] == "filtered-admin-news" for item in payload)

@@ -23,6 +23,7 @@ class RuntimeStateStore:
             'jobs': Path(settings.jobs.storage_path),
             'auth_security': self.base_path.parent / 'auth_security.json',
             'refresh_tokens': self.base_path.parent / 'refresh_tokens.json',
+            'auth_action_tokens': self.base_path.parent / 'auth_action_tokens.json',
         }
         return mapped.get(namespace, self.base_path / f'{namespace}.json')
 

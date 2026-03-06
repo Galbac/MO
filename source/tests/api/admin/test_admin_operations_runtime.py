@@ -28,10 +28,11 @@ async def test_media_and_audit_runtime(async_client, admin_auth_headers) -> None
     assert delete_response.status_code == status.HTTP_200_OK
 
 
-async def test_public_media_upload_runtime(async_client) -> None:
+async def test_public_media_upload_runtime(async_client, admin_auth_headers) -> None:
     response = await async_client.post(
         f"{settings.api.prefix}{settings.api.v1.prefix}/media/upload",
         files={"file": ("story.txt", b"hello world", "text/plain")},
+        headers=admin_auth_headers,
     )
     assert response.status_code == status.HTTP_201_CREATED
     media_id = response.json()["data"]["id"]
@@ -39,6 +40,12 @@ async def test_public_media_upload_runtime(async_client) -> None:
     get_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/media/{media_id}")
     assert get_response.status_code == status.HTTP_200_OK
     assert get_response.json()["data"]["filename"] == "story.txt"
+
+    delete_response = await async_client.delete(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/media/{media_id}",
+        headers=admin_auth_headers,
+    )
+    assert delete_response.status_code == status.HTTP_200_OK
 
 
 async def test_integrations_runtime(async_client, admin_auth_headers) -> None:
@@ -73,7 +80,7 @@ async def test_integrations_runtime(async_client, admin_auth_headers) -> None:
 
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
     assert logs_response.status_code == status.HTTP_200_OK
-    assert "Validated 1 live events from provider payload, applied 0" in logs_response.json()["data"]["message"]
+    assert any("Validated 1 live events from provider payload, applied 0" in item["message"] for item in logs_response.json()["data"])
 
 
 async def test_integrations_runtime_endpoint_fetch_failure(async_client, admin_auth_headers, monkeypatch) -> None:
@@ -99,7 +106,7 @@ async def test_integrations_runtime_endpoint_fetch_failure(async_client, admin_a
     assert response.status_code == status.HTTP_502_BAD_GATEWAY
 
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
-    assert 'upstream unavailable' in logs_response.json()['data']['message']
+    assert any('upstream unavailable' in item['message'] for item in logs_response.json()['data'])
 
 
 async def test_integrations_runtime_endpoint_fetch_success(async_client, admin_auth_headers, monkeypatch) -> None:
@@ -139,7 +146,7 @@ async def test_integrations_runtime_endpoint_fetch_success(async_client, admin_a
     assert response.status_code == status.HTTP_200_OK
 
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
-    assert 'Fetched 1 live events from provider endpoint, applied 0' in logs_response.json()['data']['message']
+    assert any('Fetched 1 live events from provider endpoint, applied 0' in item['message'] for item in logs_response.json()['data'])
 
 async def test_integration_update_rejects_localhost_endpoint(async_client, admin_auth_headers) -> None:
     response = await async_client.patch(
@@ -209,7 +216,7 @@ async def test_live_integration_sync_updates_existing_match(async_client, admin_
     assert any(item['event_type'] == 'set_finished' for item in match_payload['timeline'])
 
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
-    assert 'Validated 1 live events from provider payload, applied 1' in logs_response.json()['data']['message']
+    assert any('Validated 1 live events from provider payload, applied 1' in item['message'] for item in logs_response.json()['data'])
 
 
 async def test_live_integration_sync_is_idempotent_for_same_provider_event(async_client, admin_auth_headers) -> None:
@@ -305,7 +312,7 @@ async def test_rankings_integration_endpoint_sync_updates_current_rankings(async
     assert player_response.json()['data']['current_points'] == 9400
 
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/rankings-provider/logs", headers=admin_auth_headers)
-    assert 'Fetched 2 ranking rows from provider endpoint, applied 2' in logs_response.json()['data']['message']
+    assert any('Fetched 2 ranking rows from provider endpoint, applied 2' in item['message'] for item in logs_response.json()['data'])
 
 
 async def test_live_integration_sync_ignores_out_of_order_older_event(async_client, admin_auth_headers) -> None:
@@ -362,7 +369,7 @@ async def test_live_integration_sync_ignores_out_of_order_older_event(async_clie
     assert match_response.json()['data']['score_summary'] == '6-4 4-6 4-2'
 
     logs_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider/logs", headers=admin_auth_headers)
-    assert 'Validated 1 live events from provider payload, applied 0' in logs_response.json()['data']['message']
+    assert any('Validated 1 live events from provider payload, applied 0' in item['message'] for item in logs_response.json()['data'])
 
 
 
@@ -446,3 +453,20 @@ async def test_admin_maintenance_runtime(async_client, admin_auth_headers) -> No
     )
     assert run_response.status_code == status.HTTP_200_OK
     assert run_response.json()["data"]["job_type"] == "rebuild_search_index"
+
+
+async def test_admin_integrations_support_filters(async_client, admin_auth_headers) -> None:
+    update_response = await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations/live-provider",
+        json={"endpoint": "https://example.com/live-feed"},
+        headers=admin_auth_headers,
+    )
+    assert update_response.status_code == status.HTTP_200_OK
+
+    response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/integrations",
+        params={"provider": "live", "status": "configured"},
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert any(item["provider"] == "live-provider" for item in response.json()["data"])

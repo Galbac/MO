@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import and_, func, select
+from datetime import date, datetime, time
+
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from source.db.models import HeadToHead, Match, MatchEvent, MatchSet, MatchStats, NewsArticle
@@ -25,12 +27,42 @@ class MatchRepository:
         await session.delete(match)
         await session.commit()
 
-    async def list(self, session: AsyncSession, *, page: int, per_page: int, status: str | None) -> tuple[list[Match], int]:
+    async def list(
+        self,
+        session: AsyncSession,
+        *,
+        page: int,
+        per_page: int,
+        status: str | None,
+        tournament_id: int | None = None,
+        player_id: int | None = None,
+        round_code: str | None = None,
+        search: str | None = None,
+        date_from: date | datetime | None = None,
+        date_to: date | datetime | None = None,
+    ) -> tuple[list[Match], int]:
         stmt = select(Match)
         count_stmt = select(func.count()).select_from(Match)
+        filters = []
         if status:
-            stmt = stmt.where(Match.status == status)
-            count_stmt = count_stmt.where(Match.status == status)
+            filters.append(Match.status == status)
+        if tournament_id is not None:
+            filters.append(Match.tournament_id == tournament_id)
+        if player_id is not None:
+            filters.append(or_(Match.player1_id == player_id, Match.player2_id == player_id))
+        if round_code:
+            filters.append(Match.round_code == round_code)
+        if search:
+            filters.append(func.lower(Match.slug).like(f"%{search.strip().lower()}%"))
+        if date_from:
+            start_value = date_from if isinstance(date_from, datetime) else datetime.combine(date_from, time.min)
+            filters.append(Match.scheduled_at >= start_value)
+        if date_to:
+            end_value = date_to if isinstance(date_to, datetime) else datetime.combine(date_to, time.max)
+            filters.append(Match.scheduled_at <= end_value)
+        if filters:
+            stmt = stmt.where(and_(*filters))
+            count_stmt = count_stmt.where(and_(*filters))
         stmt = stmt.order_by(Match.scheduled_at.desc()).offset((page - 1) * per_page).limit(per_page)
         items = list((await session.scalars(stmt)).all())
         total = int((await session.scalar(count_stmt)) or 0)

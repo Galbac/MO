@@ -45,6 +45,8 @@ class AuthSettings(BaseModel):
     secret_key: str = os.getenv("FASTAPI_CFG__AUTH__SECRET_KEY", "dev-secret-key-change-me")
     access_token_ttl_minutes: int = 60
     refresh_token_ttl_minutes: int = 60 * 24 * 14
+    password_reset_token_ttl_minutes: int = 30
+    email_verification_token_ttl_minutes: int = 60 * 24
     refresh_token_rotation_enabled: bool = True
     login_rate_limit_max_attempts: int = 5
     login_rate_limit_window_seconds: int = 60

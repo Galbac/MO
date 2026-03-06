@@ -42,6 +42,27 @@ class DiscoveryRepository:
         stmt = select(Player).where(Player.id.in_(player_ids))
         return list((await session.scalars(stmt)).all())
 
+    async def list_rankings_for_player(self, session: AsyncSession, *, player_id: int) -> list[RankingSnapshot]:
+        stmt = (
+            select(RankingSnapshot)
+            .where(RankingSnapshot.player_id == player_id)
+            .order_by(RankingSnapshot.ranking_date.desc(), RankingSnapshot.ranking_type.asc())
+        )
+        return list((await session.scalars(stmt)).all())
+
+    async def list_finished_matches_for_season(self, session: AsyncSession, *, season_year: int) -> list[tuple[Match, Tournament]]:
+        stmt = (
+            select(Match, Tournament)
+            .join(Tournament, Tournament.id == Match.tournament_id)
+            .where(
+                Tournament.season_year == season_year,
+                Match.status.in_(["finished", "retired", "walkover"]),
+                Match.winner_id.is_not(None),
+            )
+            .order_by(Match.scheduled_at.desc(), Match.id.desc())
+        )
+        return list((await session.execute(stmt)).all())
+
     async def search_players(self, session: AsyncSession, query: str, *, limit: int = 5) -> list[Player]:
         variants = self._query_variants(query)
         conditions = []

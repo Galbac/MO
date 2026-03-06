@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
 from source.schemas.pydantic.auth import MessageResponse
 from source.schemas.pydantic.common import SuccessResponse
@@ -11,8 +11,11 @@ query_service = PortalQueryService()
 
 
 @router.get("", response_model=SuccessResponse[list[NewsArticleSummary]])
-async def list_admin_news() -> SuccessResponse[list[NewsArticleSummary]]:
-    return await service.list_admin_news()
+async def list_admin_news(
+    search: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+) -> SuccessResponse[list[NewsArticleSummary]]:
+    return await service.list_admin_news(search=search, status=status)
 
 
 @router.post("", response_model=SuccessResponse[NewsArticleDetail])

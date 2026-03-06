@@ -130,3 +130,75 @@ async def test_admin_users_page_has_action_column(async_client) -> None:
 
     assert response.status_code == status.HTTP_200_OK
     assert 'Действия' in response.text
+
+
+
+async def test_admin_users_page_has_filter_controls(async_client) -> None:
+    response = await async_client.get('/admin/users')
+
+    assert response.status_code == status.HTTP_200_OK
+    assert 'id="admin-users-filters"' in response.text
+    assert 'id="admin-users-search"' in response.text
+    assert 'id="admin-users-role"' in response.text
+    assert 'id="admin-users-status"' in response.text
+
+
+
+async def test_admin_players_page_has_filter_controls(async_client) -> None:
+    response = await async_client.get('/admin/players')
+
+    assert response.status_code == status.HTTP_200_OK
+    assert 'id="admin-players-filters"' in response.text
+    assert 'id="admin-players-search"' in response.text
+    assert 'id="admin-players-country"' in response.text
+    assert 'id="admin-players-hand"' in response.text
+    assert 'id="admin-players-status"' in response.text
+
+
+
+async def test_admin_tournaments_page_has_filter_controls(async_client) -> None:
+    response = await async_client.get('/admin/tournaments')
+
+    assert response.status_code == status.HTTP_200_OK
+    assert 'id="admin-tournaments-filters"' in response.text
+    assert 'id="admin-tournaments-search"' in response.text
+    assert 'id="admin-tournaments-category"' in response.text
+    assert 'id="admin-tournaments-surface"' in response.text
+    assert 'id="admin-tournaments-status"' in response.text
+    assert 'id="admin-tournaments-season"' in response.text
+
+
+async def test_admin_matches_page_has_filter_controls(async_client) -> None:
+    response = await async_client.get('/admin/matches')
+
+    assert response.status_code == status.HTTP_200_OK
+    assert 'id="admin-matches-filters"' in response.text
+    assert 'id="admin-matches-search"' in response.text
+    assert 'id="admin-matches-status"' in response.text
+    assert 'id="admin-matches-tournament"' in response.text
+    assert 'id="admin-matches-player"' in response.text
+    assert 'id="admin-matches-round"' in response.text
+    assert 'id="admin-matches-date-from"' in response.text
+    assert 'id="admin-matches-date-to"' in response.text
+    assert 'Действия' in response.text
+
+
+async def test_admin_news_page_has_filter_controls(async_client) -> None:
+    response = await async_client.get('/admin/news')
+
+    assert response.status_code == status.HTTP_200_OK
+    assert 'id="admin-news-filters"' in response.text
+    assert 'id="admin-news-search"' in response.text
+    assert 'id="admin-news-status"' in response.text
+    assert 'id="admin-news-feedback"' in response.text
+
+
+async def test_admin_integrations_page_has_controls(async_client) -> None:
+    response = await async_client.get('/admin/integrations')
+
+    assert response.status_code == status.HTTP_200_OK
+    assert 'id="admin-integrations-filters"' in response.text
+    assert 'id="admin-integrations-provider"' in response.text
+    assert 'id="admin-integrations-status"' in response.text
+    assert 'id="admin-integrations-update-form"' in response.text
+    assert 'id="admin-integrations-logs"' in response.text

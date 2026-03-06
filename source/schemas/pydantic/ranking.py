@@ -20,6 +20,14 @@ class RankingSnapshotItem(BaseModel):
     entries: list[RankingEntry]
 
 
+class PlayerRankingRecord(BaseModel):
+    ranking_type: str
+    ranking_date: str
+    position: int
+    points: int
+    movement: int
+
+
 class RankingImportJob(BaseModel):
     id: int
     ranking_type: str

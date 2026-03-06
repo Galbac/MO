@@ -30,9 +30,24 @@ class NewsRepository:
         await session.delete(article)
         await session.commit()
 
-    async def list(self, session: AsyncSession, *, page: int, per_page: int) -> tuple[list[NewsArticle], int]:
-        stmt = select(NewsArticle).order_by(NewsArticle.published_at.desc().nullslast(), NewsArticle.id.desc()).offset((page - 1) * per_page).limit(per_page)
+    async def list(
+        self,
+        session: AsyncSession,
+        *,
+        page: int,
+        per_page: int,
+        search: str | None = None,
+        status: str | None = None,
+    ) -> tuple[list[NewsArticle], int]:
+        stmt = select(NewsArticle)
         count_stmt = select(func.count()).select_from(NewsArticle)
+        if search:
+            stmt = stmt.where(func.lower(NewsArticle.title).like(f"%{search.strip().lower()}%"))
+            count_stmt = count_stmt.where(func.lower(NewsArticle.title).like(f"%{search.strip().lower()}%"))
+        if status:
+            stmt = stmt.where(NewsArticle.status == status)
+            count_stmt = count_stmt.where(NewsArticle.status == status)
+        stmt = stmt.order_by(NewsArticle.published_at.desc().nullslast(), NewsArticle.id.desc()).offset((page - 1) * per_page).limit(per_page)
         items = list((await session.scalars(stmt)).all())
         total = int((await session.scalar(count_stmt)) or 0)
         return items, total

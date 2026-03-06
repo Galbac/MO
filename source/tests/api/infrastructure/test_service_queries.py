@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from starlette.requests import Request
 
+from source.config.settings import settings
 from source.schemas.pydantic.auth import ForgotPasswordRequest, ResetPasswordRequest, VerifyEmailRequest
 from source.schemas.pydantic.user import UserPasswordChangeRequest, UserUpdateRequest
 from source.services.auth_user_service import AuthUserService
@@ -93,13 +94,15 @@ async def test_auth_user_service_direct_methods(async_client, admin_auth_headers
     )
     assert changed.data.message == 'Password changed and tokens revoked'
 
-    forgot = await service.forgot_password(None, ForgotPasswordRequest(email='demo@example.com'))
+    forgot = await service.forgot_password(None, ForgotPasswordRequest(email='user@example.com'))
     assert 'reset instructions' in forgot.data.message
 
-    reset = await service.reset_password(ResetPasswordRequest(token='token', new_password='StrongPass123'))
+    reset_token = service._issue_action_token(user_id=2, purpose='password_reset', ttl_minutes=settings.auth.password_reset_token_ttl_minutes)
+    reset = await service.reset_password(ResetPasswordRequest(token=reset_token, new_password='StrongPass123'))
     assert reset.data.message == 'Password reset completed'
 
-    verify = await service.verify_email(VerifyEmailRequest(token='verify-token'))
+    verify_token = service._issue_action_token(user_id=2, purpose='verify_email', ttl_minutes=settings.auth.email_verification_token_ttl_minutes)
+    verify = await service.verify_email(VerifyEmailRequest(token=verify_token))
     assert verify.data.message == 'Email verified'
 
     users = await service.list_admin_users()
@@ -109,5 +112,5 @@ async def test_auth_user_service_direct_methods(async_client, admin_auth_headers
     admin_updated = await service.update_admin_user(1, {'first_name': 'Root', 'timezone': 'UTC'}, actor_id=1)
     assert admin_updated.data.id == 1
 
-    relogin = await async_client.post('/api/v1/auth/login', json={'email_or_username': 'demo_user', 'password': 'UserPass456'})
+    relogin = await async_client.post('/api/v1/auth/login', json={'email_or_username': 'demo_user', 'password': 'StrongPass123'})
     assert relogin.status_code == 200

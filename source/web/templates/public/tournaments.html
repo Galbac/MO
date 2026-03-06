@@ -23,7 +23,7 @@
     <main class="container py-4" id="main-content" role="main" tabindex="-1">
         <section class="hero-panel mb-4"><div class="eyebrow">Календарь турниров</div><h1 class="display-title">Календарь сезона с фильтрами по категории, покрытию и стране.</h1></section>
         <section class="filter-bar mb-4"><div class="row g-3"><div class="col-md-3"><select class="form-select" aria-label="Фильтр по сезону"><option>Сезон</option></select></div><div class="col-md-3"><select class="form-select" aria-label="Фильтр по категории турнира"><option>Все категории</option></select></div><div class="col-md-3"><select class="form-select" aria-label="Фильтр по покрытию"><option>Покрытие</option></select></div><div class="col-md-3"><select class="form-select" aria-label="Фильтр по статусу турнира"><option>Статус</option></select></div></div></section>
-        <section class="card-grid cols-3" id="tournaments-grid"><div class="entity-card"><div class="skeleton card"></div></div></section>
+        <section class="alert alert-danger d-none" id="tournaments-error"></section><section class="empty-state mt-4 d-none" id="tournaments-empty">Турниры по выбранным фильтрам не найдены.</section><section class="card-grid cols-3" id="tournaments-grid"><div class="entity-card"><div class="skeleton card"></div></div></section>
     </main>
 </div>
 <script src="/static/js/app.js"></script>

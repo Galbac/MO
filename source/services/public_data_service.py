@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 import difflib
 import json
 from pathlib import Path
@@ -14,7 +14,7 @@ from source.db.session import db_session_manager
 from source.repositories import DiscoveryRepository, NewsRepository
 from source.schemas.pydantic.common import PaginatedResponse, PaginationMeta, SuccessResponse
 from source.schemas.pydantic.match import MatchDetail, MatchEventItem, MatchSummary
-from source.schemas.pydantic.ranking import RankingEntry, RankingSnapshotItem
+from source.schemas.pydantic.ranking import PlayerRankingRecord, RankingEntry, RankingSnapshotItem
 from source.schemas.pydantic.search import SearchResults, SearchSuggestion
 from source.services.cache_service import CacheService
 from source.services.portal_query_service import PortalQueryService
@@ -82,10 +82,120 @@ class PublicDataService:
         return await self._cached(f'rankings:history:{ranking_type}', SuccessResponse[list[RankingSnapshotItem]], loader, ttl_seconds=settings.cache.rankings_ttl_seconds)
 
     async def get_player_rankings(self, player_id: int) -> SuccessResponse[list[dict]]:
-        return await self.query.get_player_ranking_history(player_id)
+        async def loader() -> SuccessResponse[list[PlayerRankingRecord]]:
+            async with db_session_manager.session() as session:
+                player = await self.repo.list_players_by_ids(session, [player_id])
+                if not player:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Player not found')
+                snapshots = await self.repo.list_rankings_for_player(session, player_id=player_id)
+                payload = [
+                    PlayerRankingRecord(
+                        ranking_type=item.ranking_type,
+                        ranking_date=item.ranking_date,
+                        position=item.rank_position,
+                        points=item.points,
+                        movement=item.movement,
+                    )
+                    for item in snapshots
+                ]
+                return SuccessResponse(data=payload)
+
+        return await self._cached(
+            f'rankings:player:{player_id}',
+            SuccessResponse[list[PlayerRankingRecord]],
+            loader,
+            ttl_seconds=settings.cache.rankings_ttl_seconds,
+        )
 
     async def get_race_rankings(self) -> SuccessResponse[list[RankingEntry]]:
-        return await self._cached('rankings:race', SuccessResponse[list[RankingEntry]], lambda: self.get_current_rankings('atp'), ttl_seconds=settings.cache.rankings_ttl_seconds)
+        async def loader() -> SuccessResponse[list[RankingEntry]]:
+            season_year = datetime.now(tz=UTC).year
+            async with db_session_manager.session() as session:
+                rows = await self.repo.list_finished_matches_for_season(session, season_year=season_year)
+                if not rows:
+                    current = await self.get_current_rankings('atp')
+                    return SuccessResponse(
+                        data=[
+                            item.model_copy(update={'ranking_type': 'race', 'movement': 0})
+                            for item in current.data
+                        ]
+                    )
+
+                player_ids = sorted({match.player1_id for match, _ in rows} | {match.player2_id for match, _ in rows})
+                players = {item.id: item for item in await self.repo.list_players_by_ids(session, player_ids)}
+
+                def round_multiplier(round_code: str | None) -> float:
+                    mapping = {
+                        'F': 1.0,
+                        'SF': 0.6,
+                        'QF': 0.36,
+                        'R16': 0.18,
+                        'R32': 0.09,
+                        'R64': 0.045,
+                    }
+                    return mapping.get((round_code or '').upper(), 0.03)
+
+                points_by_player: dict[int, int] = {}
+                latest_match_at: dict[int, datetime] = {}
+
+                for match, tournament in rows:
+                    base_points = int(tournament.points_winner or 0)
+                    if base_points <= 0:
+                        continue
+                    winner_points = base_points
+                    loser_points = max(int(base_points * round_multiplier(match.round_code)), 0)
+                    awarded = (
+                        (match.winner_id, winner_points),
+                        (
+                            match.player2_id if match.winner_id == match.player1_id else match.player1_id,
+                            loser_points,
+                        ),
+                    )
+                    for player_id, value in awarded:
+                        if player_id is None:
+                            continue
+                        points_by_player[player_id] = points_by_player.get(player_id, 0) + value
+                        scheduled_at = match.scheduled_at
+                        if scheduled_at is not None:
+                            current_latest = latest_match_at.get(player_id)
+                            if current_latest is None or scheduled_at > current_latest:
+                                latest_match_at[player_id] = scheduled_at
+
+                ordered = sorted(
+                    points_by_player.items(),
+                    key=lambda item: (-item[1], latest_match_at.get(item[0], datetime.min.replace(tzinfo=UTC)), item[0]),
+                )
+                payload: list[RankingEntry] = []
+                previous_points: int | None = None
+                previous_position = 0
+                for index, (player_id, points) in enumerate(ordered, start=1):
+                    player = players.get(player_id)
+                    if player is None:
+                        continue
+                    position = previous_position if previous_points == points else index
+                    movement = 0 if player.current_rank is None else int(player.current_rank) - int(position)
+                    payload.append(
+                        RankingEntry(
+                            position=position,
+                            player_id=player.id,
+                            player_name=player.full_name,
+                            country_code=player.country_code,
+                            points=points,
+                            movement=movement,
+                            ranking_type='race',
+                            ranking_date=date.today().isoformat(),
+                        )
+                    )
+                    previous_points = points
+                    previous_position = position
+                return SuccessResponse(data=payload)
+
+        return await self._cached(
+            'rankings:race',
+            SuccessResponse[list[RankingEntry]],
+            loader,
+            ttl_seconds=settings.cache.rankings_ttl_seconds,
+        )
 
     def _search_index_path(self) -> Path:
         return Path(settings.maintenance.artifacts_dir) / 'search_index.json'

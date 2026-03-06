@@ -35,6 +35,38 @@ function setHtml(id, html) {
     if (node) node.innerHTML = html;
 }
 
+function showNode(id, visible, message = null) {
+    const node = document.getElementById(id);
+    if (!node) return;
+    node.classList.toggle("d-none", !visible);
+    if (message !== null) node.innerHTML = message;
+}
+
+function setLoadingCollection(targetId, columns = 1) {
+    const skeleton = Array.from({ length: Math.max(columns, 1) }, () => '<div class="entity-card"><div class="skeleton card"></div></div>').join("");
+    setHtml(targetId, skeleton);
+}
+
+function renderCollectionState({
+    targetId,
+    items,
+    renderItem,
+    emptyId = null,
+    errorId = null,
+    error = null,
+    emptyMessage = null,
+}) {
+    if (errorId) showNode(errorId, Boolean(error), error ? escapeHtml(error.message || String(error)) : null);
+    if (error) {
+        setHtml(targetId, "");
+        if (emptyId) showNode(emptyId, false);
+        return;
+    }
+    const rendered = items.map(renderItem).join("");
+    setHtml(targetId, rendered);
+    if (emptyId) showNode(emptyId, items.length === 0, items.length === 0 ? escapeHtml(emptyMessage || "Нет данных") : null);
+}
+
 function wsBaseUrl(path) {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${protocol}//${window.location.host}${API_BASE}${path}`;
@@ -194,7 +226,22 @@ async function initPlayerDetailPage() {
     initLoadingButtons();
 }
 
-async function initTournamentsListPage() { setHtml("tournaments-grid", extractList(await apiGet("/tournaments")).map(tournamentCard).join("")); }
+async function initTournamentsListPage() {
+    setLoadingCollection("tournaments-grid", 3);
+    try {
+        const payload = await apiGet("/tournaments");
+        renderCollectionState({
+            targetId: "tournaments-grid",
+            items: extractList(payload),
+            renderItem: tournamentCard,
+            emptyId: "tournaments-empty",
+            errorId: "tournaments-error",
+            emptyMessage: "Турниры по выбранным фильтрам не найдены.",
+        });
+    } catch (error) {
+        renderCollectionState({ targetId: "tournaments-grid", items: [], renderItem: tournamentCard, emptyId: "tournaments-empty", errorId: "tournaments-error", error });
+    }
+}
 
 async function initTournamentDetailPage() {
     const tournament = await resolveEntityBySlug("/tournaments", getEntitySlug());
@@ -214,7 +261,20 @@ async function initMatchesListPage() {
     const render = async () => {
         const status = document.getElementById("matches-status")?.value || "";
         const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
-        setHtml("matches-list", extractList(await apiGet(`/matches${suffix}`)).map(matchCard).join(""));
+        setLoadingCollection("matches-list", 2);
+        try {
+            const payload = await apiGet(`/matches${suffix}`);
+            renderCollectionState({
+                targetId: "matches-list",
+                items: extractList(payload),
+                renderItem: matchCard,
+                emptyId: "matches-empty",
+                errorId: "matches-error",
+                emptyMessage: "Матчи по выбранным фильтрам не найдены.",
+            });
+        } catch (error) {
+            renderCollectionState({ targetId: "matches-list", items: [], renderItem: matchCard, emptyId: "matches-empty", errorId: "matches-error", error });
+        }
     };
     await render();
     document.getElementById("matches-filter")?.addEventListener("click", render);
@@ -265,10 +325,37 @@ async function initRankingsPage() {
 }
 
 async function initNewsListPage() {
-    const [newsPayload, categoriesPayload] = await Promise.all([apiGet("/news"), apiGet("/news/categories")]);
-    setHtml("news-list-grid", extractList(newsPayload).map(newsCard).join(""));
     const categorySelect = document.getElementById("news-category");
-    if (categorySelect) categorySelect.innerHTML += extractList(categoriesPayload).map((item) => `<option value="${escapeHtml(item.slug)}">${escapeHtml(item.name)}</option>`).join("");
+    const searchInput = document.getElementById("news-search");
+    let allItems = [];
+    const render = () => {
+        const selectedCategory = categorySelect?.value || "";
+        const query = searchInput?.value?.trim().toLowerCase() || "";
+        const filtered = allItems.filter((item) => {
+            const categoryOk = !selectedCategory || item.category?.slug === selectedCategory;
+            const queryOk = !query || String(item.title || "").toLowerCase().includes(query) || String(item.lead || "").toLowerCase().includes(query);
+            return categoryOk && queryOk;
+        });
+        renderCollectionState({
+            targetId: "news-list-grid",
+            items: filtered,
+            renderItem: newsCard,
+            emptyId: "news-list-empty",
+            errorId: "news-list-error",
+            emptyMessage: "По выбранным параметрам новости не найдены.",
+        });
+    };
+    setLoadingCollection("news-list-grid", 2);
+    try {
+        const [newsPayload, categoriesPayload] = await Promise.all([apiGet("/news"), apiGet("/news/categories")]);
+        allItems = extractList(newsPayload);
+        if (categorySelect) categorySelect.innerHTML += extractList(categoriesPayload).map((item) => `<option value="${escapeHtml(item.slug)}">${escapeHtml(item.name)}</option>`).join("");
+        render();
+    } catch (error) {
+        renderCollectionState({ targetId: "news-list-grid", items: [], renderItem: newsCard, emptyId: "news-list-empty", errorId: "news-list-error", error });
+    }
+    categorySelect?.addEventListener("change", render);
+    searchInput?.addEventListener("input", debounce(render, 200));
 }
 
 async function initNewsDetailPage() {
@@ -285,11 +372,25 @@ async function initSearchPage() {
     const input = document.getElementById("search-query");
     const render = async () => {
         const query = input?.value?.trim() || "";
-        const payload = await apiGet(`/search?q=${encodeURIComponent(query)}`);
-        const data = payload.data;
-        setHtml("search-all-results", [...data.players.map(playerCard), ...data.news.map(newsCard), ...data.matches.map(matchCard)].join(""));
-        setHtml("search-player-results", data.players.map(playerCard).join(""));
-        setHtml("search-news-results", data.news.map(newsCard).join(""));
+        if (!query) {
+            renderCollectionState({ targetId: "search-all-results", items: [], renderItem: (item) => item, emptyId: "search-empty", errorId: "search-error", emptyMessage: "Введите запрос для поиска." });
+            setHtml("search-player-results", "");
+            setHtml("search-news-results", "");
+            return;
+        }
+        setLoadingCollection("search-all-results", 2);
+        try {
+            const payload = await apiGet(`/search?q=${encodeURIComponent(query)}`);
+            const data = payload.data;
+            const allResults = [...data.players.map(playerCard), ...data.news.map(newsCard), ...data.matches.map(matchCard)];
+            renderCollectionState({ targetId: "search-all-results", items: allResults, renderItem: (item) => item, emptyId: "search-empty", errorId: "search-error", emptyMessage: "Ничего не найдено по вашему запросу." });
+            setHtml("search-player-results", data.players.map(playerCard).join(""));
+            setHtml("search-news-results", data.news.map(newsCard).join(""));
+        } catch (error) {
+            renderCollectionState({ targetId: "search-all-results", items: [], renderItem: (item) => item, emptyId: "search-empty", errorId: "search-error", error });
+            setHtml("search-player-results", "");
+            setHtml("search-news-results", "");
+        }
     };
     await render();
     input?.addEventListener("input", () => { window.clearTimeout(input._searchTimer); input._searchTimer = window.setTimeout(render, 250); });
@@ -309,9 +410,20 @@ async function initAccountPage() {
 }
 
 async function initNotificationsPage() {
-    const [count, list] = await Promise.all([apiGet("/notifications/unread-count"), apiGet("/notifications")]);
-    setHtml("notifications-count", escapeHtml(`Непрочитано: ${count.data.unread_count}`));
-    setHtml("notifications-list", extractList(list).map(notificationCard).join(""));
+    try {
+        const [count, list] = await Promise.all([apiGet("/notifications/unread-count"), apiGet("/notifications")]);
+        setHtml("notifications-count", escapeHtml(`Непрочитано: ${count.data.unread_count}`));
+        renderCollectionState({
+            targetId: "notifications-list",
+            items: extractList(list),
+            renderItem: notificationCard,
+            emptyId: "notifications-empty",
+            errorId: "notifications-error",
+            emptyMessage: "Уведомлений пока нет.",
+        });
+    } catch (error) {
+        renderCollectionState({ targetId: "notifications-list", items: [], renderItem: notificationCard, emptyId: "notifications-empty", errorId: "notifications-error", error });
+    }
 }
 
 async function initH2HPage() {
@@ -361,9 +473,53 @@ async function initAdminTable(path, targetId, rowBuilder) { setHtml(targetId, ex
 
 
 
-async function initAdminUsersPage() {
+
+async function initAdminTournamentsPage() {
+    const form = document.getElementById("admin-tournaments-filters");
+    const resetButton = document.getElementById("admin-tournaments-reset");
     const render = async () => {
-        const payload = await apiGet("/admin/users");
+        const params = new URLSearchParams();
+        const search = document.getElementById("admin-tournaments-search")?.value?.trim() || "";
+        const category = document.getElementById("admin-tournaments-category")?.value?.trim() || "";
+        const surface = document.getElementById("admin-tournaments-surface")?.value || "";
+        const status = document.getElementById("admin-tournaments-status")?.value || "";
+        const seasonYear = document.getElementById("admin-tournaments-season")?.value?.trim() || "";
+        if (search) params.set("search", search);
+        if (category) params.set("category", category);
+        if (surface) params.set("surface", surface);
+        if (status) params.set("status", status);
+        if (seasonYear) params.set("season_year", seasonYear);
+        const suffix = params.toString() ? `?${params.toString()}` : "";
+        const payload = await apiGet(`/admin/tournaments${suffix}`);
+        setHtml("admin-tournaments-body", extractList(payload).map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.category)}</td><td>${escapeHtml(item.surface)}</td><td>${escapeHtml(item.status)}</td><td class="d-flex gap-2"><button class="btn btn-sm btn-outline-dark" type="button" data-tournament-draw="${escapeHtml(item.id)}">Draw</button><button class="btn btn-sm btn-success" type="button" data-tournament-publish="${escapeHtml(item.id)}">Publish</button></td></tr>`).join(""));
+        document.querySelectorAll("[data-tournament-draw]").forEach((button) => button.addEventListener("click", async () => { await apiRequest(`/admin/tournaments/${button.dataset.tournamentDraw}/draw/generate`, { method: "POST" }); }));
+        document.querySelectorAll("[data-tournament-publish]").forEach((button) => button.addEventListener("click", async () => { await apiRequest(`/admin/tournaments/${button.dataset.tournamentPublish}/publish`, { method: "POST" }); }));
+    };
+    await render();
+    form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await render();
+    });
+    document.getElementById("admin-tournaments-search")?.addEventListener("input", debounce(render, 250));
+    resetButton?.addEventListener("click", async () => {
+        form?.reset();
+        await render();
+    });
+}
+
+async function initAdminUsersPage() {
+    const form = document.getElementById("admin-users-filters");
+    const resetButton = document.getElementById("admin-users-reset");
+    const render = async () => {
+        const params = new URLSearchParams();
+        const search = document.getElementById("admin-users-search")?.value?.trim() || "";
+        const role = document.getElementById("admin-users-role")?.value || "";
+        const status = document.getElementById("admin-users-status")?.value || "";
+        if (search) params.set("search", search);
+        if (role) params.set("role", role);
+        if (status) params.set("status", status);
+        const suffix = params.toString() ? `?${params.toString()}` : "";
+        const payload = await apiGet(`/admin/users${suffix}`);
         setHtml("admin-users-body", extractList(payload).map((item) => `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.email)}</td><td>${escapeHtml(item.username)}</td><td>${escapeHtml(item.role)}</td><td>${escapeHtml(item.status)}</td><td>${item.status !== "deleted" ? `<button class="btn btn-sm btn-outline-danger" type="button" data-user-delete="${escapeHtml(item.id)}">Delete</button>` : "-"}</td></tr>`).join(""));
         document.querySelectorAll("[data-user-delete]").forEach((button) => {
             button.addEventListener("click", async () => {
@@ -373,9 +529,73 @@ async function initAdminUsersPage() {
         });
     };
     await render();
+    form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await render();
+    });
+    resetButton?.addEventListener("click", async () => {
+        form?.reset();
+        await render();
+    });
+}
+
+async function initAdminMatchesPage() {
+    const form = document.getElementById("admin-matches-filters");
+    const resetButton = document.getElementById("admin-matches-reset");
+    let searchTimer = null;
+    const render = async () => {
+        const params = new URLSearchParams();
+        const search = document.getElementById("admin-matches-search")?.value?.trim() || "";
+        const status = document.getElementById("admin-matches-status")?.value || "";
+        const tournamentId = document.getElementById("admin-matches-tournament")?.value?.trim() || "";
+        const playerId = document.getElementById("admin-matches-player")?.value?.trim() || "";
+        const roundCode = document.getElementById("admin-matches-round")?.value?.trim() || "";
+        const dateFrom = document.getElementById("admin-matches-date-from")?.value || "";
+        const dateTo = document.getElementById("admin-matches-date-to")?.value || "";
+        if (search) params.set("search", search);
+        if (status) params.set("status", status);
+        if (tournamentId) params.set("tournament_id", tournamentId);
+        if (playerId) params.set("player_id", playerId);
+        if (roundCode) params.set("round_code", roundCode);
+        if (dateFrom) params.set("date_from", dateFrom);
+        if (dateTo) params.set("date_to", dateTo);
+        const suffix = params.toString() ? `?${params.toString()}` : "";
+        const payload = await apiGet(`/admin/matches${suffix}`);
+        setHtml(
+            "admin-matches-body",
+            extractList(payload).map((item) => `<tr><td>${escapeHtml(item.player1_name)} против ${escapeHtml(item.player2_name)}</td><td>${escapeHtml(item.tournament_name)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.round_code || "-")}</td><td>${escapeHtml(item.scheduled_at || "-")}</td><td class="d-flex gap-2"><a class="btn btn-sm btn-outline-dark" href="/admin/matches/${escapeHtml(item.id)}">Open</a>${item.status !== "finished" ? `<button class="btn btn-sm btn-success" type="button" data-match-finalize="${escapeHtml(item.id)}">Finalize</button>` : `<button class="btn btn-sm btn-outline-secondary" type="button" data-match-reopen="${escapeHtml(item.id)}">Reopen</button>`}</td></tr>`).join(""),
+        );
+        document.querySelectorAll("[data-match-finalize]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                await apiRequest(`/admin/matches/${button.dataset.matchFinalize}/finalize`, { method: "POST" });
+                await render();
+            });
+        });
+        document.querySelectorAll("[data-match-reopen]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                await apiRequest(`/admin/matches/${button.dataset.matchReopen}/reopen`, { method: "POST" });
+                await render();
+            });
+        });
+    };
+    await render();
+    form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await render();
+    });
+    document.getElementById("admin-matches-search")?.addEventListener("input", () => {
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(() => { void render(); }, 250);
+    });
+    resetButton?.addEventListener("click", async () => {
+        form?.reset();
+        await render();
+    });
 }
 
 async function initAdminPlayersPage() {
+    const form = document.getElementById("admin-players-filters");
+    const resetButton = document.getElementById("admin-players-reset");
     const importForm = document.getElementById("admin-player-import-form");
     const importJson = document.getElementById("admin-player-import-json");
     const importFeedback = document.getElementById("admin-player-import-feedback");
@@ -391,8 +611,18 @@ async function initAdminPlayersPage() {
         }
     };
     const render = async () => {
-        const payload = await apiGet("/admin/players");
-        setHtml("admin-players-body", extractList(payload).map((item) => `<tr><td>${escapeHtml(item.full_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.current_rank)}</td><td>активен</td><td class="d-flex gap-2"><button class="btn btn-sm btn-outline-dark" type="button" data-player-photo="${escapeHtml(item.id)}">Photo</button><button class="btn btn-sm btn-success" type="button" data-player-recalc="${escapeHtml(item.id)}">Recalc</button></td></tr>`).join(""));
+        const params = new URLSearchParams();
+        const search = document.getElementById("admin-players-search")?.value?.trim() || "";
+        const countryCode = document.getElementById("admin-players-country")?.value?.trim() || "";
+        const hand = document.getElementById("admin-players-hand")?.value || "";
+        const status = document.getElementById("admin-players-status")?.value || "";
+        if (search) params.set("search", search);
+        if (countryCode) params.set("country_code", countryCode);
+        if (hand) params.set("hand", hand);
+        if (status) params.set("status", status);
+        const suffix = params.toString() ? `?${params.toString()}` : "";
+        const payload = await apiGet(`/admin/players${suffix}`);
+        setHtml("admin-players-body", extractList(payload).map((item) => `<tr><td>${escapeHtml(item.full_name)}</td><td>${escapeHtml(item.country_code)}</td><td>${escapeHtml(item.current_rank)}</td><td>${escapeHtml(item.form?.length ? "active" : "active")}</td><td class="d-flex gap-2"><button class="btn btn-sm btn-outline-dark" type="button" data-player-photo="${escapeHtml(item.id)}">Photo</button><button class="btn btn-sm btn-success" type="button" data-player-recalc="${escapeHtml(item.id)}">Recalc</button></td></tr>`).join(""));
         document.querySelectorAll("[data-player-photo]").forEach((button) => {
             button.addEventListener("click", async () => {
                 const value = window.prompt("Введите URL фото игрока");
@@ -408,6 +638,15 @@ async function initAdminPlayersPage() {
         });
     };
     await render();
+    form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await render();
+    });
+    document.getElementById("admin-players-search")?.addEventListener("input", debounce(render, 250));
+    resetButton?.addEventListener("click", async () => {
+        form?.reset();
+        await render();
+    });
     importForm?.addEventListener("submit", async (event) => {
         event.preventDefault();
         try {
@@ -537,6 +776,157 @@ async function initAdminAuditPage() {
     resetButton?.addEventListener("click", async () => {
         form?.reset();
         await render();
+    });
+}
+
+async function initAdminNewsPage() {
+    const form = document.getElementById("admin-news-filters");
+    const resetButton = document.getElementById("admin-news-reset");
+    const feedback = document.getElementById("admin-news-feedback");
+    const errorNode = document.getElementById("admin-news-error");
+    let searchTimer = null;
+    const showState = (ok, message) => {
+        if (feedback) {
+            feedback.classList.toggle("d-none", !ok);
+            feedback.textContent = ok ? message : feedback.textContent;
+        }
+        if (errorNode) {
+            errorNode.classList.toggle("d-none", ok);
+            errorNode.textContent = ok ? errorNode.textContent : message;
+        }
+    };
+    const render = async () => {
+        const params = new URLSearchParams();
+        const search = document.getElementById("admin-news-search")?.value?.trim() || "";
+        const status = document.getElementById("admin-news-status")?.value || "";
+        if (search) params.set("search", search);
+        if (status) params.set("status", status);
+        const suffix = params.toString() ? `?${params.toString()}` : "";
+        const payload = await apiGet(`/admin/news${suffix}`);
+        setHtml(
+            "admin-news-body",
+            extractList(payload).map((item) => `<tr><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.published_at || "-")}</td><td>${(item.tags || []).map((tag) => escapeHtml(tag.name)).join(", ") || "-"}</td><td class="d-flex gap-2"><button class="btn btn-sm btn-outline-dark" type="button" data-news-cover="${escapeHtml(item.id)}">Cover</button><button class="btn btn-sm btn-success" type="button" data-news-tags="${escapeHtml(item.id)}">Tags</button>${item.status !== "published" ? `<button class="btn btn-sm btn-outline-primary" type="button" data-news-publish="${escapeHtml(item.id)}">Publish</button>` : ""}</td></tr>`).join(""),
+        );
+        document.querySelectorAll("[data-news-cover]").forEach((button) => button.addEventListener("click", async () => {
+            const value = window.prompt("Введите URL cover image");
+            if (!value) return;
+            try {
+                await apiRequest(`/admin/news/${button.dataset.newsCover}/cover`, { method: "POST", body: JSON.stringify({ cover_image_url: value }) });
+                showState(true, "Cover обновлен.");
+                await render();
+            } catch (error) {
+                showState(false, error.message);
+            }
+        }));
+        document.querySelectorAll("[data-news-tags]").forEach((button) => button.addEventListener("click", async () => {
+            const value = window.prompt("Введите ID тегов через запятую");
+            if (value === null) return;
+            const tagIds = value.split(",").map((item) => item.trim()).filter(Boolean).map((item) => Number(item));
+            try {
+                await apiRequest(`/admin/news/${button.dataset.newsTags}/tags`, { method: "POST", body: JSON.stringify({ tag_ids: tagIds }) });
+                showState(true, "Теги обновлены.");
+                await render();
+            } catch (error) {
+                showState(false, error.message);
+            }
+        }));
+        document.querySelectorAll("[data-news-publish]").forEach((button) => button.addEventListener("click", async () => {
+            try {
+                await apiRequest(`/admin/news/${button.dataset.newsPublish}/publish`, { method: "POST" });
+                showState(true, "Статья опубликована.");
+                await render();
+            } catch (error) {
+                showState(false, error.message);
+            }
+        }));
+    };
+    await render();
+    form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await render();
+    });
+    document.getElementById("admin-news-search")?.addEventListener("input", () => {
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(() => { void render(); }, 250);
+    });
+    resetButton?.addEventListener("click", async () => {
+        form?.reset();
+        await render();
+    });
+}
+
+async function initAdminIntegrationsPage() {
+    const filterForm = document.getElementById("admin-integrations-filters");
+    const resetButton = document.getElementById("admin-integrations-reset");
+    const updateForm = document.getElementById("admin-integrations-update-form");
+    const syncButton = document.getElementById("admin-integrations-sync");
+    const logsButton = document.getElementById("admin-integrations-load-logs");
+    const providerInput = document.getElementById("admin-integrations-target");
+    const endpointInput = document.getElementById("admin-integrations-endpoint");
+    const feedback = document.getElementById("admin-integrations-feedback");
+    const errorNode = document.getElementById("admin-integrations-error");
+    const showState = (ok, message) => {
+        if (feedback) {
+            feedback.classList.toggle("d-none", !ok);
+            feedback.textContent = ok ? message : feedback.textContent;
+        }
+        if (errorNode) {
+            errorNode.classList.toggle("d-none", ok);
+            errorNode.textContent = ok ? errorNode.textContent : message;
+        }
+    };
+    const renderLogs = async (provider) => {
+        const payload = await apiGet(`/admin/integrations/${encodeURIComponent(provider)}/logs`);
+        setHtml("admin-integrations-logs", extractList(payload).map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.timestamp)}</div><strong>${escapeHtml(item.level)}</strong><div class="text-muted">${escapeHtml(item.message)}</div></div>`).join("") || '<div class="text-muted">Логи отсутствуют</div>');
+    };
+    const render = async () => {
+        const params = new URLSearchParams();
+        const provider = document.getElementById("admin-integrations-provider")?.value?.trim() || "";
+        const status = document.getElementById("admin-integrations-status")?.value || "";
+        if (provider) params.set("provider", provider);
+        if (status) params.set("status", status);
+        const suffix = params.toString() ? `?${params.toString()}` : "";
+        const payload = await apiGet(`/admin/integrations${suffix}`);
+        const items = extractList(payload);
+        setHtml("admin-integrations-body", items.map((item) => `<tr><td>${escapeHtml(item.provider)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.last_sync_at || "-")}</td><td>${escapeHtml(item.last_error || "-")}</td></tr>`).join(""));
+        if (!providerInput?.value && items[0]?.provider) providerInput.value = items[0].provider;
+    };
+    await render();
+    filterForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await render();
+    });
+    resetButton?.addEventListener("click", async () => {
+        filterForm?.reset();
+        await render();
+    });
+    updateForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+            await apiRequest(`/admin/integrations/${encodeURIComponent(providerInput?.value || "")}`, { method: "PATCH", body: JSON.stringify({ endpoint: endpointInput?.value || "" }) });
+            showState(true, "Интеграция обновлена.");
+            await render();
+        } catch (error) {
+            showState(false, error.message);
+        }
+    });
+    syncButton?.addEventListener("click", async () => {
+        try {
+            await apiRequest(`/admin/integrations/${encodeURIComponent(providerInput?.value || "")}/sync`, { method: "POST" });
+            showState(true, "Sync запущен.");
+            await render();
+            if (providerInput?.value) await renderLogs(providerInput.value);
+        } catch (error) {
+            showState(false, error.message);
+        }
+    });
+    logsButton?.addEventListener("click", async () => {
+        try {
+            if (!providerInput?.value) return;
+            await renderLogs(providerInput.value);
+        } catch (error) {
+            showState(false, error.message);
+        }
     });
 }
 
@@ -749,11 +1139,11 @@ async function initPageData() {
         case "admin-users": await initAdminUsersPage(); break;
         case "admin-user-detail": await initAdminUserDetailPage(); break;
         case "admin-players": await initAdminPlayersPage(); break;
-        case "admin-tournaments": await initAdminTable("/admin/tournaments", "admin-tournaments-body", (item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.category)}</td><td>${escapeHtml(item.surface)}</td><td>${escapeHtml(item.status)}</td><td class="d-flex gap-2"><button class="btn btn-sm btn-outline-dark" type="button" data-tournament-draw="${escapeHtml(item.id)}">Draw</button><button class="btn btn-sm btn-success" type="button" data-tournament-publish="${escapeHtml(item.id)}">Publish</button></td></tr>`); document.querySelectorAll("[data-tournament-draw]").forEach((button) => button.addEventListener("click", async () => { await apiRequest(`/admin/tournaments/${button.dataset.tournamentDraw}/draw/generate`, { method: "POST" }); })); document.querySelectorAll("[data-tournament-publish]").forEach((button) => button.addEventListener("click", async () => { await apiRequest(`/admin/tournaments/${button.dataset.tournamentPublish}/publish`, { method: "POST" }); })); break;
-        case "admin-matches": await initAdminTable("/admin/matches", "admin-matches-body", (item) => `<tr><td>${escapeHtml(item.player1_name)} против ${escapeHtml(item.player2_name)}</td><td>${escapeHtml(item.tournament_name)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.round_code || "-")}</td></tr>`); break;
+        case "admin-tournaments": await initAdminTournamentsPage(); break;
+        case "admin-matches": await initAdminMatchesPage(); break;
         case "admin-match-detail": await initAdminMatchDetailPage(); break;
-        case "admin-news": await initAdminTable("/admin/news", "admin-news-body", (item) => `<tr><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.published_at || "-")}</td><td class="d-flex gap-2"><button class="btn btn-sm btn-outline-dark" type="button" data-news-cover="${escapeHtml(item.id)}">Cover</button><button class="btn btn-sm btn-success" type="button" data-news-tags="${escapeHtml(item.id)}">Tags</button></td></tr>`); document.querySelectorAll("[data-news-cover]").forEach((button) => button.addEventListener("click", async () => { const value = window.prompt("Введите URL cover image"); if (!value) return; await apiRequest(`/admin/news/${button.dataset.newsCover}/cover`, { method: "POST", body: JSON.stringify({ cover_image_url: value }) }); })); document.querySelectorAll("[data-news-tags]").forEach((button) => button.addEventListener("click", async () => { const value = window.prompt("Введите ID тегов через запятую"); if (value === null) return; const tagIds = value.split(",").map((item) => item.trim()).filter(Boolean).map((item) => Number(item)); await apiRequest(`/admin/news/${button.dataset.newsTags}/tags`, { method: "POST", body: JSON.stringify({ tag_ids: tagIds }) }); })); break;
-        case "admin-integrations": await initAdminTable("/admin/integrations", "admin-integrations-body", (item) => `<tr><td>${escapeHtml(item.provider)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.last_sync_at || "-")}</td></tr>`); break;
+        case "admin-news": await initAdminNewsPage(); break;
+        case "admin-integrations": await initAdminIntegrationsPage(); break;
         case "admin-jobs": await initAdminJobsPage(); break;
         case "admin-maintenance": await initAdminMaintenancePage(); break;
         case "admin-audit": await initAdminAuditPage(); break;

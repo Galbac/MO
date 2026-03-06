@@ -64,6 +64,92 @@ async def test_refresh_token_rotation_invalidates_old_refresh(async_client) -> N
     assert reused_response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
+async def test_forgot_password_reset_flow_updates_password(async_client) -> None:
+    from source.services.auth_user_service import AuthUserService
+
+    service = AuthUserService()
+    forgot_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/auth/forgot-password",
+        json={"email": "user@example.com"},
+    )
+
+    assert forgot_response.status_code == status.HTTP_200_OK
+    action_store = service.store.read_namespace(service.action_token_namespace, {})
+    _, token_record = next(
+        (token_id, record)
+        for token_id, record in action_store.items()
+        if record.get("purpose") == "password_reset" and record.get("used") is False
+    )
+    assert token_record["user_id"] == 2
+
+    reset_token = service._issue_action_token(
+        user_id=token_record["user_id"],
+        purpose="password_reset",
+        ttl_minutes=settings.auth.password_reset_token_ttl_minutes,
+    )
+    reset_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/auth/reset-password",
+        json={"token": reset_token, "new_password": "UserPass456"},
+    )
+
+    assert reset_response.status_code == status.HTTP_200_OK
+    reused_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/auth/reset-password",
+        json={"token": reset_token, "new_password": "UserPass789"},
+    )
+    assert reused_response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    login_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/auth/login",
+        json={"email_or_username": "demo_user", "password": "UserPass456"},
+    )
+    assert login_response.status_code == status.HTTP_200_OK
+
+
+async def test_verify_email_marks_user_verified(async_client) -> None:
+    from source.services.auth_user_service import AuthUserService
+
+    register_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/auth/register",
+        json={
+            "email": "verify-me@example.com",
+            "username": "verify_me",
+            "password": "StrongPass123",
+            "locale": "ru",
+            "timezone": "Europe/Moscow",
+        },
+    )
+    assert register_response.status_code == status.HTTP_201_CREATED
+
+    service = AuthUserService()
+    action_store = service.store.read_namespace(service.action_token_namespace, {})
+    verify_token = None
+    for token_id, record in action_store.items():
+        if record.get("purpose") != "verify_email" or record.get("used") is not False:
+            continue
+        if int(record.get("user_id", 0)) == register_response.json()["data"]["user"]["id"]:
+            verify_token = service._issue_action_token(
+                user_id=record["user_id"],
+                purpose="verify_email",
+                ttl_minutes=settings.auth.email_verification_token_ttl_minutes,
+            )
+            break
+    assert verify_token is not None
+
+    verify_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/auth/verify-email",
+        json={"token": verify_token},
+    )
+    assert verify_response.status_code == status.HTTP_200_OK
+
+    login_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/auth/login",
+        json={"email_or_username": "verify_me", "password": "StrongPass123"},
+    )
+    assert login_response.status_code == status.HTTP_200_OK
+    assert login_response.json()["data"]["user"]["is_email_verified"] is True
+
+
 async def test_login_bruteforce_is_rate_limited(async_client) -> None:
     for _ in range(5):
         response = await async_client.post(

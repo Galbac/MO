@@ -7,8 +7,23 @@ from source.db.models import User
 
 
 class UserRepository:
-    async def list(self, session: AsyncSession) -> list[User]:
-        stmt = select(User).order_by(User.id.asc())
+    async def list(self, session: AsyncSession, *, search: str | None = None, role: str | None = None, status: str | None = None) -> list[User]:
+        stmt = select(User)
+        if search:
+            pattern = f"%{search.lower()}%"
+            stmt = stmt.where(
+                or_(
+                    func.lower(User.email).like(pattern),
+                    func.lower(User.username).like(pattern),
+                    func.lower(User.first_name).like(pattern),
+                    func.lower(User.last_name).like(pattern),
+                )
+            )
+        if role:
+            stmt = stmt.where(User.role == role)
+        if status:
+            stmt = stmt.where(User.status == status)
+        stmt = stmt.order_by(User.id.asc())
         return list((await session.scalars(stmt)).all())
 
     async def get(self, session: AsyncSession, user_id: int) -> User | None:

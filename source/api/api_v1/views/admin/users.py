@@ -10,8 +10,8 @@ service = AuthUserService()
 
 
 @router.get("", response_model=SuccessResponse[list[AdminUserItem]])
-async def list_admin_users() -> SuccessResponse[list[AdminUserItem]]:
-    return await service.list_admin_users()
+async def list_admin_users(search: str | None = None, role: str | None = None, status: str | None = None) -> SuccessResponse[list[AdminUserItem]]:
+    return await service.list_admin_users(search=search, role=role, status=status)
 
 
 @router.get("/{user_id}", response_model=SuccessResponse[AdminUserItem])
@@ -35,5 +35,5 @@ async def patch_admin_user_role(request: Request, user_id: int, payload: dict) -
 
 
 @router.delete("/{user_id}", response_model=MessageResponse)
-async def delete_admin_user(user_id: int) -> MessageResponse:
-    return MessageResponse(data={"message": f"User {user_id} soft deleted"})
+async def delete_admin_user(request: Request, user_id: int) -> MessageResponse:
+    return await service.delete_admin_user(user_id, actor_id=getattr(request.state.current_user, 'id', None))

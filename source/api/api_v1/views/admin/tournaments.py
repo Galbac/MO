@@ -10,8 +10,8 @@ service = AdminContentService()
 
 
 @router.get("", response_model=SuccessResponse[list[TournamentSummary]])
-async def list_admin_tournaments() -> SuccessResponse[list[TournamentSummary]]:
-    return await service.list_admin_tournaments()
+async def list_admin_tournaments(search: str | None = None, category: str | None = None, surface: str | None = None, status: str | None = None, season_year: int | None = None) -> SuccessResponse[list[TournamentSummary]]:
+    return await service.list_admin_tournaments(search=search, category=category, surface=surface, status=status, season_year=season_year)
 
 
 @router.post("", response_model=SuccessResponse[TournamentDetail])

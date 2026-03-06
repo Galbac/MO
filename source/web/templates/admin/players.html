@@ -14,6 +14,15 @@
     <aside class="admin-sidebar" aria-label="Боковая панель админки"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav" aria-label="Навигация админки"><a href="/admin/players" class="active">Игроки</a><a href="/admin/tournaments">Турниры</a><a href="/admin/matches">Матчи</a></nav></aside>
     <main class="admin-main" id="admin-main-content" role="main" tabindex="-1">
         <header class="admin-header d-flex justify-content-between align-items-center flex-wrap gap-2"><div><div class="eyebrow">Игроки</div><h1 class="section-title mb-0">Управление каталогом игроков</h1></div><a class="btn btn-success rounded-pill" href="/admin/players/new">Создать игрока</a></header>
+        <section class="entity-card mb-4" aria-label="Фильтры игроков">
+            <form id="admin-players-filters" class="row g-3 align-items-end">
+                <div class="col-md-4"><label class="form-label" for="admin-players-search">Search</label><input class="form-control" id="admin-players-search" name="search" placeholder="имя игрока"></div>
+                <div class="col-md-3"><label class="form-label" for="admin-players-country">Country</label><input class="form-control" id="admin-players-country" name="country_code" placeholder="ESP"></div>
+                <div class="col-md-2"><label class="form-label" for="admin-players-hand">Hand</label><select class="form-select" id="admin-players-hand" name="hand"><option value="">Все</option><option value="right">right</option><option value="left">left</option></select></div>
+                <div class="col-md-2"><label class="form-label" for="admin-players-status">Status</label><select class="form-select" id="admin-players-status" name="status"><option value="">Все</option><option value="active">active</option><option value="inactive">inactive</option></select></div>
+                <div class="col-md-1 d-grid"><button class="btn btn-outline-secondary" id="admin-players-reset" type="button">Сброс</button></div>
+            </form>
+        </section>
         <section class="entity-card mb-4" aria-label="Импорт игроков">
             <form id="admin-player-import-form" class="row g-3 align-items-end">
                 <div class="col-lg-10">

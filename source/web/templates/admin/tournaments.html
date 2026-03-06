@@ -14,6 +14,16 @@
     <aside class="admin-sidebar" aria-label="Боковая панель админки"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">MO</span><span>Админка</span></a><nav class="admin-nav" aria-label="Навигация админки"><a href="/admin/tournaments" class="active">Турниры</a><a href="/admin/matches">Матчи</a></nav></aside>
     <main class="admin-main" id="admin-main-content" role="main" tabindex="-1">
         <header class="admin-header d-flex justify-content-between align-items-center"><div><div class="eyebrow">Турниры</div><h1 class="section-title mb-0">Каталог турниров</h1></div><a class="btn btn-success rounded-pill" href="/admin/tournaments/new">Создать турнир</a></header>
+        <section class="entity-card mb-4" aria-label="Фильтры турниров">
+            <form id="admin-tournaments-filters" class="row g-3 align-items-end">
+                <div class="col-md-3"><label class="form-label" for="admin-tournaments-search">Search</label><input class="form-control" id="admin-tournaments-search" name="search" placeholder="название или город"></div>
+                <div class="col-md-2"><label class="form-label" for="admin-tournaments-category">Category</label><input class="form-control" id="admin-tournaments-category" name="category" placeholder="masters_1000"></div>
+                <div class="col-md-2"><label class="form-label" for="admin-tournaments-surface">Surface</label><select class="form-select" id="admin-tournaments-surface" name="surface"><option value="">Все</option><option value="hard">hard</option><option value="clay">clay</option><option value="grass">grass</option></select></div>
+                <div class="col-md-2"><label class="form-label" for="admin-tournaments-status">Status</label><select class="form-select" id="admin-tournaments-status" name="status"><option value="">Все</option><option value="scheduled">scheduled</option><option value="published">published</option><option value="live">live</option></select></div>
+                <div class="col-md-2"><label class="form-label" for="admin-tournaments-season">Season</label><input class="form-control" id="admin-tournaments-season" name="season_year" inputmode="numeric" placeholder="2026"></div>
+                <div class="col-md-1 d-grid"><button class="btn btn-outline-secondary" id="admin-tournaments-reset" type="button">Сброс</button></div>
+            </form>
+        </section>
         <section class="table-shell"><table class="table table-clean" aria-label="Таблица турниров"><thead><tr><th>Название</th><th>Категория</th><th>Покрытие</th><th>Статус</th><th>Действия</th></tr></thead><tbody id="admin-tournaments-body"></tbody></table></section>
     </main>
 </div>

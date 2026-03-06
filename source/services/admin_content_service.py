@@ -213,8 +213,8 @@ class AdminContentService:
             return match.winner_id
         return match.player1_id if player1_sets > player2_sets else match.player2_id
 
-    async def list_admin_players(self):
-        payload = await self.query.list_players(None, None, None, None, None, None, 1, 100)
+    async def list_admin_players(self, *, search: str | None = None, country_code: str | None = None, hand: str | None = None, status: str | None = None):
+        payload = await self.query.list_players(search, country_code, hand, status, None, None, 1, 100)
         return SuccessResponse(data=payload.data)
 
     async def create_admin_player(self, payload: dict[str, Any], actor_id: int | None = None):
@@ -300,9 +300,13 @@ class AdminContentService:
         self._invalidate_cache('players:', 'matches:', 'live:', 'search:')
         return MessageResponse(data=SimpleMessage(message=f'Player stats recalculated via job {job["id"]}'))
 
-    async def list_admin_tournaments(self):
-        payload = await self.query.list_tournaments(1, 100)
-        return SuccessResponse(data=payload.data)
+    async def list_admin_tournaments(self, *, search: str | None = None, category: str | None = None, surface: str | None = None, status: str | None = None, season_year: int | None = None):
+        if all(value is None for value in (search, category, surface, status, season_year)):
+            payload = await self.query.list_tournaments(1, 100)
+            return SuccessResponse(data=payload.data)
+        async with db_session_manager.session() as session:
+            items, _ = await self.tournaments.list(session, page=1, per_page=100, search=search, category=category, surface=surface, status=status, season_year=season_year)
+        return SuccessResponse(data=[self.query._tournament_summary(item) for item in items])
 
     async def create_admin_tournament(self, payload: dict[str, Any], actor_id: int | None = None):
         async with db_session_manager.session() as session:
@@ -350,9 +354,35 @@ class AdminContentService:
         await self._log_audit(action='tournament.publish', entity_type='tournament', entity_id=tournament_id, before_json=None, after_json={'status': 'published'}, user_id=actor_id)
         return MessageResponse(data=SimpleMessage(message='Tournament published'))
 
-    async def list_admin_matches(self):
-        payload = await self.query.list_matches(1, 100, None)
-        return SuccessResponse(data=payload.data)
+    async def list_admin_matches(
+        self,
+        *,
+        search: str | None = None,
+        status: str | None = None,
+        tournament_id: int | None = None,
+        player_id: int | None = None,
+        round_code: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ):
+        async with db_session_manager.session() as session:
+            items, _total = await self.matches.list(
+                session,
+                page=1,
+                per_page=100,
+                status=status,
+                tournament_id=tournament_id,
+                player_id=player_id,
+                round_code=round_code,
+                search=search,
+                date_from=date.fromisoformat(date_from) if date_from else None,
+                date_to=date.fromisoformat(date_to) if date_to else None,
+            )
+            tournaments = {match.tournament_id: await self.tournaments.get(session, match.tournament_id) for match in items}
+            player_ids = {value for match in items for value in (match.player1_id, match.player2_id)}
+            players = await self.query._players_map(session, player_ids)
+            data = [self.query._match_summary(match, tournaments[match.tournament_id], players) for match in items if tournaments.get(match.tournament_id)]
+        return SuccessResponse(data=data)
 
     async def create_admin_match(self, payload: dict[str, Any], actor_id: int | None = None):
         async with db_session_manager.session() as session:
@@ -463,9 +493,12 @@ class AdminContentService:
         await self._broadcast_match_update(match_id, 'match_status_changed', {'status': 'scheduled'})
         return MessageResponse(data=SimpleMessage(message='Match reopened'))
 
-    async def list_admin_news(self):
-        payload = await self.query.list_news(1, 100)
-        return SuccessResponse(data=payload.data)
+    async def list_admin_news(self, *, search: str | None = None, status: str | None = None):
+        async with db_session_manager.session() as session:
+            items, _total = await self.news.list(session, page=1, per_page=100, search=search, status=status)
+            categories = {category.id: category for category in await self.news.list_categories(session)}
+            data = [self.query._news_summary(item, categories.get(item.category_id), await self.query._news_tags(session, item.id)) for item in items]
+        return SuccessResponse(data=data)
 
     async def create_admin_news(self, payload: NewsArticleCreateRequest, actor_id: int | None = None):
         async with db_session_manager.session() as session:
@@ -549,17 +582,23 @@ class AdminContentService:
     async def attach_admin_news_tags(self, news_id: int, payload: dict[str, Any] | None = None, actor_id: int | None = None):
         payload = payload or {}
         raw_tag_ids = payload.get('tag_ids')
-        if not isinstance(raw_tag_ids, list):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='tag_ids is required')
         async with db_session_manager.session() as session:
             article = await self.news.get(session, news_id)
             if article is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='News not found')
-            tag_ids = [int(item) for item in raw_tag_ids]
+            mapping = self._news_tag_mapping()
+            if raw_tag_ids is None:
+                tag_ids = [int(item) for item in mapping.get(str(news_id), [])]
+            elif isinstance(raw_tag_ids, list):
+                tag_ids = [int(item) for item in raw_tag_ids]
+            else:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='tag_ids is required')
             tags = await self.news.get_tags_by_ids(session, tag_ids)
-            if len(tags) != len(set(tag_ids)):
+            if raw_tag_ids is not None and len(tags) != len(set(tag_ids)):
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Some tags were not found')
-        mapping = self._news_tag_mapping()
+        if raw_tag_ids is None:
+            return SuccessResponse(data=[TagItem(id=item.id, slug=item.slug, name=item.name) for item in tags])
+
         before = list(mapping.get(str(news_id), []))
         mapping[str(news_id)] = sorted({item.id for item in tags})
         self._save_news_tag_mapping(mapping)

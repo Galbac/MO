@@ -76,7 +76,19 @@ class WorkflowService:
             ('sitemap_snapshot', self._artifact_path('sitemap_snapshot.json')),
             ('search_index', self._artifact_path('search_index.json')),
             ('player_aggregates', self._player_aggregates_path()),
+            ('notification_delivery_log', self.delivery_log_path),
         ]
+        backups_dir = Path(settings.maintenance.backups_dir)
+        latest_backup = None
+        if backups_dir.exists():
+            bundles = sorted(
+                [item for item in backups_dir.glob('runtime-backup-*.tar.gz') if item.is_file()],
+                key=lambda item: item.stat().st_mtime,
+                reverse=True,
+            )
+            latest_backup = bundles[0] if bundles else None
+        if latest_backup is not None:
+            artifacts.append(('latest_runtime_backup', latest_backup))
         result = []
         for code, path in artifacts:
             stat = path.stat() if path.exists() else None
@@ -593,4 +605,3 @@ class WorkflowService:
         index['total_documents'] = sum(len(index[key]) for key in ('players', 'tournaments', 'matches', 'news'))
         self._artifact_path('search_index.json').write_text(json.dumps(index, ensure_ascii=True, indent=2, sort_keys=True))
         return index
-

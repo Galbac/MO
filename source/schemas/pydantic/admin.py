@@ -19,11 +19,18 @@ class AdminIntegrationItem(BaseModel):
     last_error: str | None = None
 
 
+class AdminIntegrationLogItem(BaseModel):
+    timestamp: datetime
+    level: str
+    message: str
+
+
 class AdminJobItem(BaseModel):
     id: int
     job_type: str
     status: str
     payload: dict
+    result: dict | None = None
     run_at: datetime
     created_at: datetime
     updated_at: datetime
