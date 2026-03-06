@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="canonical" href="{{ canonical_url }}">
+</head>
+<body data-page="{{ page_name }}">
+<div class="admin-shell">
+    <aside class="admin-sidebar"><a href="/admin" class="brand-mark mb-4"><span class="brand-ball">TP</span><span>Admin</span></a><nav class="admin-nav"><a class="active" href="/admin">Dashboard</a><a href="/admin/users">Users</a><a href="/admin/players">Players</a><a href="/admin/tournaments">Tournaments</a><a href="/admin/matches">Matches</a><a href="/admin/live-operations">Live Ops</a><a href="/admin/rankings">Rankings</a><a href="/admin/news">News</a><a href="/admin/integrations">Integrations</a><a href="/admin/audit">Audit</a><a href="/admin/settings">Settings</a></nav></aside>
+    <main class="admin-main">
+        <header class="admin-header"><div class="eyebrow">Dashboard</div><h1 class="section-title">Operational overview</h1><div class="section-subtitle">Live matches count, drafts, failed integrations and recent audit logs are populated from API endpoints.</div></header>
+        <div class="card-grid cols-3 mb-4"><div class="metric-card"><div class="eyebrow">Live matches</div><div class="metric-value" id="admin-live-count">-</div></div><div class="metric-card"><div class="eyebrow">Draft news</div><div class="metric-value" id="admin-news-count">-</div></div><div class="metric-card"><div class="eyebrow">Integrations</div><div class="metric-value" id="admin-integrations-count">-</div></div></div>
+        <div class="admin-layout-grid two"><section class="content-card"><h2 class="section-title">Recent audit logs</h2><div id="admin-audit-list"></div></section><section class="content-card"><h2 class="section-title">Integration status</h2><div id="admin-integrations-list"></div></section></div>
+    </main>
+</div>
+<script src="/static/js/app.js"></script>
+</body>
+</html>

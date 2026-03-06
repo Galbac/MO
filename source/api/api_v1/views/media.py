@@ -1,0 +1,24 @@
+from fastapi import APIRouter, UploadFile, status
+
+from source.schemas.pydantic.auth import MessageResponse
+from source.schemas.pydantic.common import SuccessResponse
+from source.schemas.pydantic.media import MediaFile
+from source.services import OperationsService
+
+router = APIRouter(prefix="/media", tags=["media"])
+service = OperationsService()
+
+
+@router.post("/upload", response_model=SuccessResponse[MediaFile], status_code=status.HTTP_201_CREATED)
+async def upload_media(file: UploadFile) -> SuccessResponse[MediaFile]:
+    return await service.upload_media_file(file)
+
+
+@router.get("/{media_id}", response_model=SuccessResponse[MediaFile])
+async def get_media(media_id: int) -> SuccessResponse[MediaFile]:
+    return await service.get_media(media_id)
+
+
+@router.delete("/{media_id}", response_model=MessageResponse)
+async def delete_media(media_id: int) -> MessageResponse:
+    return await service.delete_media(media_id)

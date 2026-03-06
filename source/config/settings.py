@@ -1,0 +1,75 @@
+import os
+
+from pydantic import BaseModel
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class RunConfig(BaseModel):
+    host: str = "0.0.0.0"
+    port: int = 8000
+    production: bool = False
+
+
+class ProjectName(BaseModel):
+    title: str = "Tennis Portal"
+    path: str = "/makhachkala-open"
+    slug: str = "makhachkala_open"
+
+
+class ApiV1Prefix(BaseModel):
+    prefix: str = "/v1"
+
+
+class ApiPrefix(BaseModel):
+    prefix: str = "/api"
+    v1: ApiV1Prefix = ApiV1Prefix()
+
+
+class MiddlewareSettings(BaseModel):
+    cors_origins: list[str] = ["http://localhost", "http://localhost:3000"]
+    allow_methods: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    allow_headers: list[str] = ["Authorization", "Content-Type"]
+
+
+class AuthSettings(BaseModel):
+    secret_key: str = os.getenv("FASTAPI_CFG__AUTH__SECRET_KEY", "dev-secret-key-change-me")
+    access_token_ttl_minutes: int = 60
+    refresh_token_ttl_minutes: int = 60 * 24 * 14
+    refresh_token_rotation_enabled: bool = True
+    login_rate_limit_max_attempts: int = 5
+    login_rate_limit_window_seconds: int = 60
+    brute_force_lockout_seconds: int = 300
+
+
+class DocsSettings(BaseModel):
+    username: str = os.getenv("FASTAPI_CFG__DOCS__USERNAME", "admin")
+    password: str = os.getenv("FASTAPI_CFG__DOCS__PASSWORD", "admin")
+
+
+class DbSettings(BaseModel):
+    url: str = os.getenv(
+        "FASTAPI_CFG__DB__URL",
+        "sqlite+aiosqlite:///./tennis_portal.db",
+    )
+    auto_create: bool = True
+    seed_demo_data: bool = True
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=(".env.template", ".env"),
+        case_sensitive=False,
+        env_nested_delimiter="__",
+        env_prefix="FASTAPI_CFG__",
+        extra="ignore",
+    )
+    run: RunConfig = RunConfig()
+    names: ProjectName = ProjectName()
+    api: ApiPrefix = ApiPrefix()
+    middleware: MiddlewareSettings = MiddlewareSettings()
+    auth: AuthSettings = AuthSettings()
+    docs: DocsSettings = DocsSettings()
+    db: DbSettings = DbSettings()
+
+
+settings = Settings()

@@ -1,0 +1,983 @@
+openapi: 3.1.0
+info:
+  title: Tennis Portal API
+  version: 1.0.0
+  description: API для теннисного спортивного портала на FastAPI.
+servers:
+  - url: /api/v1
+tags:
+  - name: Auth
+  - name: Users
+  - name: Players
+  - name: Tournaments
+  - name: Matches
+  - name: Live
+  - name: Rankings
+  - name: News
+  - name: Search
+  - name: Notifications
+  - name: Media
+  - name: Admin Users
+  - name: Admin Players
+  - name: Admin Tournaments
+  - name: Admin Matches
+  - name: Admin Rankings
+  - name: Admin News
+  - name: Admin Taxonomy
+  - name: Admin Integrations
+  - name: Admin Audit
+paths:
+  /health:
+    get:
+      tags: [Auth]
+      summary: Healthcheck
+      responses:
+        "200":
+          description: Service healthy
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Пользователь зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Авторизация пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Обновление access token
+      responses:
+        "200":
+          description: Токен обновлен
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Выход пользователя
+      responses:
+        "200":
+          description: Выход выполнен
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Запрос на сброс пароля
+      responses:
+        "200":
+          description: Заявка принята
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Сброс пароля
+      responses:
+        "200":
+          description: Пароль изменен
+  /auth/verify-email:
+    post:
+      tags: [Auth]
+      summary: Подтверждение email
+      responses:
+        "200":
+          description: Email подтвержден
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Текущий пользователь
+      responses:
+        "200":
+          description: Профиль пользователя
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Профиль пользователя
+      responses:
+        "200":
+          description: Профиль пользователя
+    patch:
+      tags: [Users]
+      summary: Обновление профиля
+      responses:
+        "200":
+          description: Профиль обновлен
+  /users/me/password:
+    patch:
+      tags: [Users]
+      summary: Смена пароля
+      responses:
+        "200":
+          description: Пароль изменен
+  /users/me/favorites:
+    get:
+      tags: [Users]
+      summary: Избранное пользователя
+      responses:
+        "200":
+          description: Список избранного
+    post:
+      tags: [Users]
+      summary: Добавление в избранное
+      responses:
+        "200":
+          description: Сущность добавлена в избранное
+  /users/me/favorites/{favorite_id}:
+    delete:
+      tags: [Users]
+      summary: Удаление из избранного
+      responses:
+        "200":
+          description: Избранное удалено
+  /users/me/subscriptions:
+    get:
+      tags: [Users]
+      summary: Подписки пользователя
+      responses:
+        "200":
+          description: Список подписок
+    post:
+      tags: [Users]
+      summary: Создание подписки
+      responses:
+        "200":
+          description: Подписка создана
+  /users/me/subscriptions/{subscription_id}:
+    patch:
+      tags: [Users]
+      summary: Обновление подписки
+      responses:
+        "200":
+          description: Подписка обновлена
+    delete:
+      tags: [Users]
+      summary: Удаление подписки
+      responses:
+        "200":
+          description: Подписка удалена
+  /users/me/notifications:
+    get:
+      tags: [Users]
+      summary: Уведомления пользователя
+      responses:
+        "200":
+          description: Список уведомлений
+  /users/me/notifications/{notification_id}/read:
+    patch:
+      tags: [Users]
+      summary: Отметить уведомление прочитанным
+      responses:
+        "200":
+          description: Уведомление прочитано
+  /users/me/notifications/read-all:
+    patch:
+      tags: [Users]
+      summary: Отметить все уведомления прочитанными
+      responses:
+        "200":
+          description: Все уведомления прочитаны
+  /players:
+    get:
+      tags: [Players]
+      summary: Список игроков
+      responses:
+        "200":
+          description: Список игроков
+  /players/compare:
+    get:
+      tags: [Players]
+      summary: Сравнение игроков
+      responses:
+        "200":
+          description: Данные сравнения
+  /players/h2h:
+    get:
+      tags: [Players]
+      summary: Личные встречи
+      responses:
+        "200":
+          description: H2H игроков
+  /players/{player_id}:
+    get:
+      tags: [Players]
+      summary: Карточка игрока
+      responses:
+        "200":
+          description: Игрок найден
+  /players/{player_id}/stats:
+    get:
+      tags: [Players]
+      summary: Статистика игрока
+      responses:
+        "200":
+          description: Статистика игрока
+  /players/{player_id}/matches:
+    get:
+      tags: [Players]
+      summary: Матчи игрока
+      responses:
+        "200":
+          description: Матчи игрока
+  /players/{player_id}/ranking-history:
+    get:
+      tags: [Players]
+      summary: История рейтинга игрока
+      responses:
+        "200":
+          description: История рейтинга
+  /players/{player_id}/titles:
+    get:
+      tags: [Players]
+      summary: Титулы игрока
+      responses:
+        "200":
+          description: Титулы игрока
+  /players/{player_id}/news:
+    get:
+      tags: [Players]
+      summary: Новости игрока
+      responses:
+        "200":
+          description: Новости игрока
+  /players/{player_id}/upcoming-matches:
+    get:
+      tags: [Players]
+      summary: Ближайшие матчи игрока
+      responses:
+        "200":
+          description: Ближайшие матчи
+  /tournaments:
+    get:
+      tags: [Tournaments]
+      summary: Список турниров
+      responses:
+        "200":
+          description: Список турниров
+  /tournaments/calendar:
+    get:
+      tags: [Tournaments]
+      summary: Календарь турниров
+      responses:
+        "200":
+          description: Календарь турниров
+  /tournaments/{tournament_id}:
+    get:
+      tags: [Tournaments]
+      summary: Карточка турнира
+      responses:
+        "200":
+          description: Турнир найден
+  /tournaments/{tournament_id}/matches:
+    get:
+      tags: [Tournaments]
+      summary: Матчи турнира
+      responses:
+        "200":
+          description: Матчи турнира
+  /tournaments/{tournament_id}/draw:
+    get:
+      tags: [Tournaments]
+      summary: Сетка турнира
+      responses:
+        "200":
+          description: Сетка турнира
+  /tournaments/{tournament_id}/players:
+    get:
+      tags: [Tournaments]
+      summary: Участники турнира
+      responses:
+        "200":
+          description: Участники турнира
+  /tournaments/{tournament_id}/champions:
+    get:
+      tags: [Tournaments]
+      summary: Чемпионы прошлых лет
+      responses:
+        "200":
+          description: Чемпионы турнира
+  /tournaments/{tournament_id}/news:
+    get:
+      tags: [Tournaments]
+      summary: Новости турнира
+      responses:
+        "200":
+          description: Новости турнира
+  /matches:
+    get:
+      tags: [Matches]
+      summary: Список матчей
+      responses:
+        "200":
+          description: Список матчей
+  /matches/upcoming:
+    get:
+      tags: [Matches]
+      summary: Ближайшие матчи
+      responses:
+        "200":
+          description: Ближайшие матчи
+  /matches/results:
+    get:
+      tags: [Matches]
+      summary: Завершенные матчи
+      responses:
+        "200":
+          description: Результаты матчей
+  /matches/{match_id}:
+    get:
+      tags: [Matches]
+      summary: Карточка матча
+      responses:
+        "200":
+          description: Матч найден
+  /matches/{match_id}/score:
+    get:
+      tags: [Matches]
+      summary: Счет матча
+      responses:
+        "200":
+          description: Счет матча
+  /matches/{match_id}/stats:
+    get:
+      tags: [Matches]
+      summary: Статистика матча
+      responses:
+        "200":
+          description: Статистика матча
+  /matches/{match_id}/timeline:
+    get:
+      tags: [Matches]
+      summary: Таймлайн матча
+      responses:
+        "200":
+          description: Таймлайн событий
+  /matches/{match_id}/h2h:
+    get:
+      tags: [Matches]
+      summary: H2H игроков матча
+      responses:
+        "200":
+          description: H2H игроков
+  /matches/{match_id}/preview:
+    get:
+      tags: [Matches]
+      summary: Превью матча
+      responses:
+        "200":
+          description: Превью матча
+  /matches/{match_id}/point-by-point:
+    get:
+      tags: [Matches]
+      summary: Point-by-point лог
+      responses:
+        "200":
+          description: Лента point-by-point
+  /live:
+    get:
+      tags: [Live]
+      summary: Список live матчей
+      responses:
+        "200":
+          description: Live список
+  /live/feed:
+    get:
+      tags: [Live]
+      summary: Общий live feed
+      responses:
+        "200":
+          description: Live события
+  /live/{match_id}:
+    get:
+      tags: [Live]
+      summary: Подробный live state
+      responses:
+        "200":
+          description: Live состояние матча
+  /rankings:
+    get:
+      tags: [Rankings]
+      summary: Список рейтинга
+      responses:
+        "200":
+          description: Список рейтинга
+  /rankings/current:
+    get:
+      tags: [Rankings]
+      summary: Текущий рейтинг
+      responses:
+        "200":
+          description: Текущий рейтинг
+  /rankings/{ranking_type}/history:
+    get:
+      tags: [Rankings]
+      summary: История снапшотов рейтинга
+      responses:
+        "200":
+          description: История рейтинга
+  /rankings/player/{player_id}:
+    get:
+      tags: [Rankings]
+      summary: История рейтинга игрока
+      responses:
+        "200":
+          description: История рейтинга игрока
+  /rankings/race:
+    get:
+      tags: [Rankings]
+      summary: Race ranking
+      responses:
+        "200":
+          description: Race ranking
+  /news:
+    get:
+      tags: [News]
+      summary: Список новостей
+      responses:
+        "200":
+          description: Список новостей
+  /news/categories:
+    get:
+      tags: [News]
+      summary: Категории новостей
+      responses:
+        "200":
+          description: Список категорий
+  /news/tags:
+    get:
+      tags: [News]
+      summary: Теги новостей
+      responses:
+        "200":
+          description: Список тегов
+  /news/featured:
+    get:
+      tags: [News]
+      summary: Featured news
+      responses:
+        "200":
+          description: Рекомендуемые новости
+  /news/related:
+    get:
+      tags: [News]
+      summary: Related news
+      responses:
+        "200":
+          description: Связанные новости
+  /news/{slug}:
+    get:
+      tags: [News]
+      summary: Детали новости
+      responses:
+        "200":
+          description: Новость найдена
+  /search:
+    get:
+      tags: [Search]
+      summary: Глобальный поиск
+      responses:
+        "200":
+          description: Результаты поиска
+  /search/suggestions:
+    get:
+      tags: [Search]
+      summary: Подсказки поиска
+      responses:
+        "200":
+          description: Подсказки
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Список уведомлений
+      responses:
+        "200":
+          description: Уведомления пользователя
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Количество непрочитанных
+      responses:
+        "200":
+          description: Число непрочитанных уведомлений
+  /notifications/{notification_id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Прочитать уведомление
+      responses:
+        "200":
+          description: Уведомление прочитано
+  /notifications/read-all:
+    patch:
+      tags: [Notifications]
+      summary: Прочитать все уведомления
+      responses:
+        "200":
+          description: Все уведомления прочитаны
+  /notifications/test:
+    post:
+      tags: [Notifications]
+      summary: Тестовое уведомление
+      responses:
+        "200":
+          description: Тестовое уведомление отправлено
+  /media/upload:
+    post:
+      tags: [Media]
+      summary: Загрузка файла
+      responses:
+        "201":
+          description: Файл загружен
+  /media/{media_id}:
+    get:
+      tags: [Media]
+      summary: Данные файла
+      responses:
+        "200":
+          description: Данные файла
+    delete:
+      tags: [Media]
+      summary: Удаление файла
+      responses:
+        "200":
+          description: Файл удален
+  /admin/users:
+    get:
+      tags: [Admin Users]
+      summary: Список пользователей
+      responses:
+        "200":
+          description: Список пользователей
+  /admin/users/{user_id}:
+    get:
+      tags: [Admin Users]
+      summary: Карточка пользователя
+      responses:
+        "200":
+          description: Пользователь найден
+    patch:
+      tags: [Admin Users]
+      summary: Обновить пользователя
+      responses:
+        "200":
+          description: Пользователь обновлен
+    delete:
+      tags: [Admin Users]
+      summary: Soft delete пользователя
+      responses:
+        "200":
+          description: Пользователь удален
+  /admin/players:
+    get:
+      tags: [Admin Players]
+      summary: Список игроков
+      responses:
+        "200":
+          description: Список игроков
+    post:
+      tags: [Admin Players]
+      summary: Создать игрока
+      responses:
+        "200":
+          description: Игрок создан
+  /admin/players/import:
+    post:
+      tags: [Admin Players]
+      summary: Импорт игроков
+      responses:
+        "200":
+          description: Импорт запущен
+  /admin/players/{player_id}:
+    get:
+      tags: [Admin Players]
+      summary: Детали игрока
+      responses:
+        "200":
+          description: Игрок найден
+    patch:
+      tags: [Admin Players]
+      summary: Обновить игрока
+      responses:
+        "200":
+          description: Игрок обновлен
+    delete:
+      tags: [Admin Players]
+      summary: Удалить игрока
+      responses:
+        "200":
+          description: Игрок удален
+  /admin/tournaments:
+    get:
+      tags: [Admin Tournaments]
+      summary: Список турниров
+      responses:
+        "200":
+          description: Список турниров
+    post:
+      tags: [Admin Tournaments]
+      summary: Создать турнир
+      responses:
+        "200":
+          description: Турнир создан
+  /admin/tournaments/{tournament_id}:
+    get:
+      tags: [Admin Tournaments]
+      summary: Детали турнира
+      responses:
+        "200":
+          description: Турнир найден
+    patch:
+      tags: [Admin Tournaments]
+      summary: Обновить турнир
+      responses:
+        "200":
+          description: Турнир обновлен
+    delete:
+      tags: [Admin Tournaments]
+      summary: Удалить турнир
+      responses:
+        "200":
+          description: Турнир удален
+  /admin/tournaments/{tournament_id}/draw/generate:
+    post:
+      tags: [Admin Tournaments]
+      summary: Генерация сетки
+      responses:
+        "200":
+          description: Генерация запущена
+  /admin/tournaments/{tournament_id}/publish:
+    post:
+      tags: [Admin Tournaments]
+      summary: Публикация турнира
+      responses:
+        "200":
+          description: Турнир опубликован
+  /admin/matches:
+    get:
+      tags: [Admin Matches]
+      summary: Список матчей
+      responses:
+        "200":
+          description: Список матчей
+    post:
+      tags: [Admin Matches]
+      summary: Создать матч
+      responses:
+        "200":
+          description: Матч создан
+  /admin/matches/{match_id}:
+    get:
+      tags: [Admin Matches]
+      summary: Детали матча
+      responses:
+        "200":
+          description: Матч найден
+    patch:
+      tags: [Admin Matches]
+      summary: Обновить матч
+      responses:
+        "200":
+          description: Матч обновлен
+    delete:
+      tags: [Admin Matches]
+      summary: Удалить матч
+      responses:
+        "200":
+          description: Матч удален
+  /admin/matches/{match_id}/status:
+    patch:
+      tags: [Admin Matches]
+      summary: Изменить статус матча
+      responses:
+        "200":
+          description: Статус обновлен
+  /admin/matches/{match_id}/score:
+    patch:
+      tags: [Admin Matches]
+      summary: Обновить счет матча
+      responses:
+        "200":
+          description: Счет обновлен
+  /admin/matches/{match_id}/stats:
+    patch:
+      tags: [Admin Matches]
+      summary: Обновить статистику матча
+      responses:
+        "200":
+          description: Статистика обновлена
+  /admin/matches/{match_id}/events:
+    post:
+      tags: [Admin Matches]
+      summary: Добавить live событие
+      responses:
+        "200":
+          description: Событие создано
+  /admin/matches/{match_id}/finalize:
+    post:
+      tags: [Admin Matches]
+      summary: Финализировать матч
+      responses:
+        "200":
+          description: Матч финализирован
+  /admin/matches/{match_id}/reopen:
+    post:
+      tags: [Admin Matches]
+      summary: Переоткрыть матч
+      responses:
+        "200":
+          description: Матч переоткрыт
+  /admin/rankings/import-jobs:
+    get:
+      tags: [Admin Rankings]
+      summary: История импортов рейтинга
+      responses:
+        "200":
+          description: История импортов
+  /admin/rankings/import:
+    post:
+      tags: [Admin Rankings]
+      summary: Импорт рейтинга
+      responses:
+        "200":
+          description: Импорт запущен
+  /admin/rankings/recalculate-movements:
+    post:
+      tags: [Admin Rankings]
+      summary: Пересчет movement
+      responses:
+        "200":
+          description: Пересчет запущен
+  /admin/news:
+    get:
+      tags: [Admin News]
+      summary: Список новостей
+      responses:
+        "200":
+          description: Список новостей
+    post:
+      tags: [Admin News]
+      summary: Создать новость
+      responses:
+        "200":
+          description: Новость создана
+  /admin/news/{news_id}:
+    get:
+      tags: [Admin News]
+      summary: Детали новости
+      responses:
+        "200":
+          description: Новость найдена
+    patch:
+      tags: [Admin News]
+      summary: Обновить новость
+      responses:
+        "200":
+          description: Новость обновлена
+    delete:
+      tags: [Admin News]
+      summary: Удалить новость
+      responses:
+        "200":
+          description: Новость удалена
+  /admin/news/{news_id}/status:
+    patch:
+      tags: [Admin News]
+      summary: Изменить статус новости
+      responses:
+        "200":
+          description: Статус новости обновлен
+  /admin/news/{news_id}/publish:
+    post:
+      tags: [Admin News]
+      summary: Публикация новости
+      responses:
+        "200":
+          description: Новость опубликована
+  /admin/news/{news_id}/schedule:
+    post:
+      tags: [Admin News]
+      summary: Планирование публикации
+      responses:
+        "200":
+          description: Публикация запланирована
+  /admin/news-categories:
+    get:
+      tags: [Admin Taxonomy]
+      summary: Список категорий новостей
+      responses:
+        "200":
+          description: Список категорий
+    post:
+      tags: [Admin Taxonomy]
+      summary: Создать категорию новостей
+      responses:
+        "200":
+          description: Категория создана
+  /admin/tags:
+    get:
+      tags: [Admin Taxonomy]
+      summary: Список тегов
+      responses:
+        "200":
+          description: Список тегов
+    post:
+      tags: [Admin Taxonomy]
+      summary: Создать тег
+      responses:
+        "200":
+          description: Тег создан
+  /admin/integrations:
+    get:
+      tags: [Admin Integrations]
+      summary: Список интеграций
+      responses:
+        "200":
+          description: Список интеграций
+  /admin/integrations/{provider}:
+    patch:
+      tags: [Admin Integrations]
+      summary: Обновить настройки интеграции
+      responses:
+        "200":
+          description: Интеграция обновлена
+  /admin/integrations/{provider}/sync:
+    post:
+      tags: [Admin Integrations]
+      summary: Ручной запуск синка
+      responses:
+        "200":
+          description: Синк запущен
+  /admin/integrations/{provider}/logs:
+    get:
+      tags: [Admin Integrations]
+      summary: Логи интеграции
+      responses:
+        "200":
+          description: Логи интеграции
+  /admin/audit-logs:
+    get:
+      tags: [Admin Audit]
+      summary: Список действий
+      responses:
+        "200":
+          description: Список аудит-логов
+  /admin/audit-logs/{log_id}:
+    get:
+      tags: [Admin Audit]
+      summary: Детали аудита
+      responses:
+        "200":
+          description: Детали аудита
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, username, password]
+      properties:
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        password:
+          type: string
+          minLength: 8
+        locale:
+          type: string
+        timezone:
+          type: string
+    LoginRequest:
+      type: object
+      required: [email_or_username, password]
+      properties:
+        email_or_username:
+          type: string
+        password:
+          type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        locale:
+          type: string
+        timezone:
+          type: string
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+            refresh_token:
+              type: string
+            user:
+              $ref: "#/components/schemas/User"
+        meta:
+          type: object
+        errors:
+          type: "null"
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        data:
+          type: "null"
+        meta:
+          type: object
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+              field:
+                type: string

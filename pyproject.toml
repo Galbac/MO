@@ -1,0 +1,45 @@
+[tool.poetry]
+name = "tennis-portal"
+version = "0.1.0"
+description = "Tennis Portal service skeleton"
+authors = ["Team <team@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "~3.12"
+fastapi = "^0.115.0"
+uvicorn = "^0.31.0"
+orjson = "^3.10.7"
+pydantic = { extras = ["email"], version = "^2.12.5" }
+pydantic-settings = "^2.5.2"
+sqlalchemy = { extras = ["asyncio"], version = "^2.0.35" }
+asyncpg = "^0.29.0"
+aiosqlite = "^0.21.0"
+alembic = "^1.13.3"
+redis = "^7.2.0"
+httpx = "^0.28.1"
+python-multipart = "^0.0.22"
+pyyaml = "^6.0.2"
+jinja2 = "^3.1.6"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+pytest-asyncio = "^1.3.0"
+ruff = "^0.12.7"
+black = "^25.1.0"
+mypy = "^1.17.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["source/tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+
+[tool.black]
+line-length = 100
