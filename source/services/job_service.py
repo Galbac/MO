@@ -8,6 +8,7 @@ from source.services.cache_service import CacheService
 from source.services.runtime_state_store import RuntimeStateStore
 from source.services.admin_support_service import AdminSupportService
 from source.services.operations_service import OperationsService
+from source.services.log_service import LogService
 from source.services.workflow_service import WorkflowService
 from source.tasks.runtime_backup import create_runtime_backup, restore_runtime_backup
 
@@ -19,6 +20,7 @@ class JobService:
         self.workflows = WorkflowService()
         self.admin_support = AdminSupportService()
         self.operations = OperationsService()
+        self.logs = LogService()
         self.namespace = 'jobs'
 
     def _read_jobs(self) -> list[dict[str, Any]]:
@@ -68,6 +70,7 @@ class JobService:
         }
         jobs.append(record)
         self._write_jobs(jobs)
+        self.logs.write('worker', message=f"Job enqueued: {job_type}", context={'job_id': record['id'], 'job_type': job_type})
         return record
 
     async def process_due_jobs(self) -> dict[str, Any]:
@@ -97,12 +100,14 @@ class JobService:
                 job['error'] = None
                 processed += 1
                 processed_job_ids.append(int(job['id']))
+                self.logs.write('worker', message=f"Job finished: {job['job_type']}", context={'job_id': int(job['id']), 'job_type': job['job_type']})
             except Exception as exc:  # noqa: BLE001
                 job['status'] = 'failed'
                 job['error'] = str(exc)
                 job['result'] = None
                 failed += 1
                 failed_job_ids.append(int(job['id']))
+                self.logs.write('worker', level='error', message=f"Job failed: {job['job_type']}", context={'job_id': int(job['id']), 'job_type': job['job_type'], 'error': str(exc)})
             job['updated_at'] = datetime.now(tz=UTC).isoformat()
         self._write_jobs(jobs)
         return {

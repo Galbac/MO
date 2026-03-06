@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Query
 
 from source.schemas.pydantic.admin import (
+    AdminActionResult,
     AdminNotificationBroadcast,
     AdminNotificationDeliveryLogItem,
     AdminNotificationTemplate,
 )
-from source.schemas.pydantic.auth import MessageResponse
 from source.schemas.pydantic.common import SuccessResponse
 from source.services import AdminSupportService
 
@@ -38,6 +38,6 @@ async def get_admin_notification_delivery_log(
     )
 
 
-@router.post("/test", response_model=MessageResponse)
-async def post_admin_notifications_test() -> MessageResponse:
+@router.post("/test", response_model=SuccessResponse[AdminActionResult])
+async def post_admin_notifications_test() -> SuccessResponse[AdminActionResult]:
     return await service.send_test_notification()

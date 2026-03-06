@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from source.config.settings import settings
+from source.services.log_service import LogService
 from source.services.runtime_state_store import RuntimeStateStore
 
 
@@ -18,6 +19,33 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers['Referrer-Policy'] = 'same-origin'
         response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
         response.headers['Content-Security-Policy'] = "default-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' ws: wss:; font-src 'self' https://cdn.jsdelivr.net; object-src 'none'; frame-ancestors 'none'; base-uri 'self'"
+        return response
+
+
+class AccessLogMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app) -> None:
+        super().__init__(app)
+        self.logs = LogService()
+
+    async def dispatch(self, request: Request, call_next):
+        if not settings.logging.access_enabled:
+            return await call_next(request)
+        started = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = round((time.perf_counter() - started) * 1000, 2)
+        self.logs.write(
+            'access',
+            level='info',
+            message=f'{request.method} {request.url.path}',
+            context={
+                'method': request.method,
+                'path': request.url.path,
+                'query': str(request.url.query),
+                'status_code': response.status_code,
+                'duration_ms': duration_ms,
+                'client_ip': request.client.host if request.client and request.client.host else 'unknown',
+            },
+        )
         return response
 
 

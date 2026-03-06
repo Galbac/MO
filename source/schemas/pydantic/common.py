@@ -43,5 +43,14 @@ class ErrorResponse(BaseModel):
     errors: list[ErrorItem]
 
 
+class ActionResult(BaseModel):
+    action: str
+    status: str
+    message: str | None = None
+    resource_type: str | None = None
+    resource_id: int | None = None
+    details: dict = Field(default_factory=dict)
+
+
 class PaginatedResponse(SuccessResponse[list[T]], Generic[T]):
     meta: PaginationMeta

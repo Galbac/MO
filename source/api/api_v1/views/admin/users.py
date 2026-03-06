@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Request
 
-from source.schemas.pydantic.admin import AdminUserItem
-from source.schemas.pydantic.auth import MessageResponse
+from source.schemas.pydantic.admin import AdminActionResult, AdminUserItem
 from source.schemas.pydantic.common import SuccessResponse
 from source.services import AuthUserService
 
@@ -34,6 +33,6 @@ async def patch_admin_user_role(request: Request, user_id: int, payload: dict) -
     return await service.update_admin_user(user_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.delete("/{user_id}", response_model=MessageResponse)
-async def delete_admin_user(request: Request, user_id: int) -> MessageResponse:
+@router.delete("/{user_id}", response_model=SuccessResponse[AdminActionResult])
+async def delete_admin_user(request: Request, user_id: int) -> SuccessResponse[AdminActionResult]:
     return await service.delete_admin_user(user_id, actor_id=getattr(request.state.current_user, 'id', None))

@@ -8,8 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from source.config.settings import settings
 from source.db.session import db_session_manager
 from source.repositories import EngagementRepository, MatchRepository, NewsRepository, PlayerRepository, TournamentRepository
-from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
-from source.schemas.pydantic.common import SuccessResponse
+from source.schemas.pydantic.common import ActionResult, SuccessResponse
 from source.schemas.pydantic.notification import NotificationItem, NotificationUnreadCount
 from source.schemas.pydantic.user import FavoriteCreateRequest, FavoriteItem, NotificationSubscriptionCreateRequest, NotificationSubscriptionItem, NotificationSubscriptionUpdateRequest
 from source.services.auth_user_service import AuthUserService
@@ -84,6 +83,27 @@ class UserEngagementService:
     def _notification_item(item) -> NotificationItem:
         return NotificationItem(id=item.id, type=item.type, title=item.title, body=item.body, payload_json=item.payload_json or {}, status=item.status, read_at=item.read_at, created_at=item.created_at)
 
+    @staticmethod
+    def _action_result(
+        *,
+        action: str,
+        resource_type: str | None = None,
+        resource_id: int | None = None,
+        message: str | None = None,
+        status: str = 'ok',
+        details: dict | None = None,
+    ) -> SuccessResponse[ActionResult]:
+        return SuccessResponse(
+            data=ActionResult(
+                action=action,
+                status=status,
+                message=message,
+                resource_type=resource_type,
+                resource_id=resource_id,
+                details=details or {},
+            )
+        )
+
     async def list_favorites(self, request: Request) -> SuccessResponse[list[FavoriteItem]]:
         user_id = await self._current_user_id(request)
         async with db_session_manager.session() as session:
@@ -104,14 +124,15 @@ class UserEngagementService:
             item = await self.repo.create_favorite(session, {'user_id': user_id, 'entity_type': payload.entity_type, 'entity_id': payload.entity_id})
             return SuccessResponse(data=FavoriteItem(id=item.id, user_id=item.user_id, entity_type=item.entity_type, entity_id=item.entity_id, entity_name=entity_name))
 
-    async def delete_favorite(self, request: Request, favorite_id: int) -> MessageResponse:
+    async def delete_favorite(self, request: Request, favorite_id: int) -> SuccessResponse[ActionResult]:
         user_id = await self._current_user_id(request)
         async with db_session_manager.session() as session:
             favorite = await self.repo.get_favorite(session, favorite_id, user_id)
             if favorite is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Favorite not found')
+            details = {'entity_type': favorite.entity_type, 'entity_id': favorite.entity_id}
             await self.repo.delete_favorite(session, favorite)
-            return MessageResponse(data=SimpleMessage(message='Favorite deleted'))
+            return self._action_result(action='favorite.delete', resource_type='favorite', resource_id=favorite_id, message='Favorite deleted', details=details)
 
     async def list_subscriptions(self, request: Request) -> SuccessResponse[list[NotificationSubscriptionItem]]:
         user_id = await self._current_user_id(request)
@@ -146,14 +167,20 @@ class UserEngagementService:
             updated = await self.repo.update_subscription(session, item, update_payload)
             return SuccessResponse(data=NotificationSubscriptionItem(id=updated.id, user_id=updated.user_id, entity_type=updated.entity_type, entity_id=updated.entity_id, notification_types=list(updated.notification_types or []), channels=list(updated.channels or []), is_active=updated.is_active))
 
-    async def delete_subscription(self, request: Request, subscription_id: int) -> MessageResponse:
+    async def delete_subscription(self, request: Request, subscription_id: int) -> SuccessResponse[ActionResult]:
         user_id = await self._current_user_id(request)
         async with db_session_manager.session() as session:
             item = await self.repo.get_subscription(session, subscription_id, user_id)
             if item is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Subscription not found')
+            details = {
+                'entity_type': item.entity_type,
+                'entity_id': item.entity_id,
+                'notification_types': list(item.notification_types or []),
+                'channels': list(item.channels or []),
+            }
             await self.repo.delete_subscription(session, item)
-            return MessageResponse(data=SimpleMessage(message='Subscription deleted'))
+            return self._action_result(action='subscription.delete', resource_type='subscription', resource_id=subscription_id, message='Subscription deleted', details=details)
 
     async def list_notifications(self, request: Request) -> SuccessResponse[list[NotificationItem]]:
         user_id = await self._current_user_id(request)
@@ -176,14 +203,15 @@ class UserEngagementService:
             updated = await self.repo.mark_notification_read(session, item, datetime.now(tz=UTC))
             return SuccessResponse(data=self._notification_item(updated))
 
-    async def mark_all_notifications_read(self, request: Request) -> MessageResponse:
+    async def mark_all_notifications_read(self, request: Request) -> SuccessResponse[ActionResult]:
         user_id = await self._current_user_id(request)
         async with db_session_manager.session() as session:
+            unread_before = await self.repo.count_unread_notifications(session, user_id)
             await self.repo.mark_all_notifications_read(session, user_id, datetime.now(tz=UTC))
-            return MessageResponse(data=SimpleMessage(message='All notifications marked as read'))
+            return self._action_result(action='notification.read_all', resource_type='notification', message='All notifications marked as read', details={'updated_count': unread_before})
 
-    async def send_test_notification(self, request: Request) -> MessageResponse:
+    async def send_test_notification(self, request: Request) -> SuccessResponse[ActionResult]:
         user_id = await self._current_user_id(request)
         async with db_session_manager.session() as session:
-            await self.repo.create_notification(session, {'user_id': user_id, 'type': 'test', 'title': 'Test notification', 'body': 'This is a test notification.', 'payload_json': {'source': 'api'}, 'status': 'unread', 'read_at': None})
-            return MessageResponse(data=SimpleMessage(message='Test notification sent'))
+            item = await self.repo.create_notification(session, {'user_id': user_id, 'type': 'test', 'title': 'Test notification', 'body': 'This is a test notification.', 'payload_json': {'source': 'api'}, 'status': 'unread', 'read_at': None})
+            return self._action_result(action='notification.test', resource_type='notification', resource_id=item.id, message='Test notification sent', details={'type': 'test'})

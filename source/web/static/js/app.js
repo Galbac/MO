@@ -693,12 +693,15 @@ async function initAdminMaintenancePage() {
         }
     };
     const render = async () => {
-        const payload = await apiGet("/admin/maintenance");
+        const [payload, backupsPayload] = await Promise.all([apiGet("/admin/maintenance"), apiGet("/admin/maintenance/backups")]);
         const items = extractList(payload);
+        const backups = extractList(backupsPayload);
         setHtml(
             "admin-maintenance-body",
             items.map((item) => `<tr><td>${escapeHtml(item.code)}</td><td>${escapeHtml(item.exists ? "yes" : "no")}</td><td>${escapeHtml(item.updated_at || "-")}</td><td>${escapeHtml(item.path)}</td></tr>`).join(""),
         );
+        setHtml("admin-backups-list", backups.map((item) => `<div class="entity-card"><strong>${escapeHtml(item.filename)}</strong><div class="text-muted">${escapeHtml(item.created_at)}</div><div class="text-muted">${escapeHtml(item.size_bytes)} bytes</div><div class="text-muted">${escapeHtml(item.path)}</div></div>`).join(""));
+        showNode("admin-backups-empty", backups.length === 0, 'Архивы backup пока не созданы.');
         showNode("admin-maintenance-empty", items.every((item) => !item.exists), 'Maintenance-артефакты пока не созданы.');
     };
     document.querySelectorAll("[data-maintenance-run]").forEach((button) => {
@@ -950,6 +953,44 @@ async function initAdminIntegrationsPage() {
         } catch (error) {
             showState(false, error.message);
         }
+    });
+}
+
+async function initAdminLogsPage() {
+    const form = document.getElementById("admin-logs-filters");
+    const resetButton = document.getElementById("admin-logs-reset");
+    const render = async () => {
+        const params = new URLSearchParams();
+        const category = document.getElementById("admin-logs-category")?.value || "application";
+        const level = document.getElementById("admin-logs-level")?.value || "";
+        const limit = document.getElementById("admin-logs-limit")?.value?.trim() || "100";
+        params.set("category", category);
+        if (level) params.set("level", level);
+        if (limit) params.set("limit", limit);
+        try {
+            const payload = await apiGet(`/admin/logs?${params.toString()}`);
+            const items = extractList(payload);
+            setHtml("admin-logs-list", items.map((item) => `<div class="timeline-item"><div class="timeline-time">${escapeHtml(item.timestamp)} · ${escapeHtml(item.level)}</div><strong>${escapeHtml(item.message)}</strong><div class="text-muted">${escapeHtml(item.category)}</div><div class="text-muted">${escapeHtml(JSON.stringify(item.context || {}))}</div></div>`).join(""));
+            showNode("admin-logs-empty", items.length === 0, 'Логи по выбранным параметрам не найдены.');
+            showNode("admin-logs-error", false);
+        } catch (error) {
+            setHtml("admin-logs-list", "");
+            showNode("admin-logs-empty", false);
+            showNode("admin-logs-error", true, escapeHtml(error.message || String(error)));
+        }
+    };
+    await render();
+    form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await render();
+    });
+    resetButton?.addEventListener("click", async () => {
+        form?.reset();
+        const category = document.getElementById("admin-logs-category");
+        if (category) category.value = "application";
+        const limit = document.getElementById("admin-logs-limit");
+        if (limit) limit.value = "100";
+        await render();
     });
 }
 
@@ -1231,6 +1272,7 @@ async function initPageData() {
         case "admin-rankings": await initAdminRankingsPage(); break;
         case "admin-live-operations": await initAdminLiveOperationsPage(); break;
         case "admin-settings": await initAdminSettingsPage(); break;
+        case "admin-logs": await initAdminLogsPage(); break;
         default: break;
     }
 }

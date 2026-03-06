@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, Request
 
 from source.api.dependencies.auth import require_authenticated_user
-from source.schemas.pydantic.auth import MessageResponse
-from source.schemas.pydantic.common import SuccessResponse
+from source.schemas.pydantic.common import ActionResult, SuccessResponse
 from source.schemas.pydantic.notification import NotificationItem
 from source.schemas.pydantic.user import (
     FavoriteCreateRequest,
@@ -31,8 +30,8 @@ async def patch_me(request: Request, payload: UserUpdateRequest) -> SuccessRespo
     return await service.update_me(request, payload)
 
 
-@router.patch("/me/password", response_model=MessageResponse)
-async def patch_me_password(request: Request, payload: UserPasswordChangeRequest) -> MessageResponse:
+@router.patch("/me/password", response_model=SuccessResponse[ActionResult])
+async def patch_me_password(request: Request, payload: UserPasswordChangeRequest) -> SuccessResponse[ActionResult]:
     return await service.change_password(request, payload)
 
 
@@ -46,8 +45,8 @@ async def create_favorite(request: Request, payload: FavoriteCreateRequest) -> S
     return await engagement.create_favorite(request, payload)
 
 
-@router.delete("/me/favorites/{favorite_id}", response_model=MessageResponse)
-async def delete_favorite(request: Request, favorite_id: int) -> MessageResponse:
+@router.delete("/me/favorites/{favorite_id}", response_model=SuccessResponse[ActionResult])
+async def delete_favorite(request: Request, favorite_id: int) -> SuccessResponse[ActionResult]:
     return await engagement.delete_favorite(request, favorite_id)
 
 
@@ -66,8 +65,8 @@ async def patch_subscription(request: Request, subscription_id: int, payload: No
     return await engagement.update_subscription(request, subscription_id, payload)
 
 
-@router.delete("/me/subscriptions/{subscription_id}", response_model=MessageResponse)
-async def delete_subscription(request: Request, subscription_id: int) -> MessageResponse:
+@router.delete("/me/subscriptions/{subscription_id}", response_model=SuccessResponse[ActionResult])
+async def delete_subscription(request: Request, subscription_id: int) -> SuccessResponse[ActionResult]:
     return await engagement.delete_subscription(request, subscription_id)
 
 
@@ -81,6 +80,6 @@ async def patch_me_notification_read(request: Request, notification_id: int) -> 
     return await engagement.mark_notification_read(request, notification_id)
 
 
-@router.patch("/me/notifications/read-all", response_model=MessageResponse)
-async def patch_me_notifications_read_all(request: Request) -> MessageResponse:
+@router.patch("/me/notifications/read-all", response_model=SuccessResponse[ActionResult])
+async def patch_me_notifications_read_all(request: Request) -> SuccessResponse[ActionResult]:
     return await engagement.mark_all_notifications_read(request)

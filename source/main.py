@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from source.api.exception_handlers import register_exception_handlers
-from source.api.middleware import ApiRateLimitMiddleware, SecurityHeadersMiddleware
+from source.api.middleware import AccessLogMiddleware, ApiRateLimitMiddleware, SecurityHeadersMiddleware
 from source.api.protected_docs import register_protected_docs
 from source.api.routers.http import router as http_router
 from source.config.settings import settings
@@ -13,18 +13,24 @@ from source.db.bootstrap import seed_demo_data
 from source.db.session import db_session_manager
 from source.web.router import router as web_router
 from source.tasks.job_runner import process_due_jobs
+from source.services.log_service import LogService
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    logs = LogService()
+    logs.write('application', message='Application startup initiated')
     await db_session_manager.init_models()
     async with db_session_manager.session() as session:
         await seed_demo_data(session)
+    logs.write('application', message='Database initialized and demo data seeded')
     if settings.jobs.process_on_startup:
         await process_due_jobs()
+        logs.write('worker', message='Processed due jobs on startup')
     try:
         yield
     finally:
+        logs.write('application', message='Application shutdown completed')
         await db_session_manager.dispose()
 
 
@@ -45,6 +51,7 @@ def create_app() -> FastAPI:
         allow_methods=settings.middleware.allow_methods,
         allow_headers=settings.middleware.allow_headers,
     )
+    app.add_middleware(AccessLogMiddleware)
     app.add_middleware(ApiRateLimitMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
 

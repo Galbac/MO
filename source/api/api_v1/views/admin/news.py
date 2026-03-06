@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, Request
 
-from source.schemas.pydantic.auth import MessageResponse
+from source.schemas.pydantic.admin import AdminActionResult
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.news import NewsArticleCreateRequest, NewsArticleDetail, NewsArticleSummary, NewsCategoryItem, NewsStatusRequest, TagItem
 from source.services import AdminContentService, PortalQueryService
@@ -33,8 +33,8 @@ async def patch_admin_news(request: Request, news_id: int, payload: NewsArticleC
     return await service.update_admin_news(news_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.delete("/{news_id}", response_model=MessageResponse)
-async def delete_admin_news(request: Request, news_id: int) -> MessageResponse:
+@router.delete("/{news_id}", response_model=SuccessResponse[AdminActionResult])
+async def delete_admin_news(request: Request, news_id: int) -> SuccessResponse[AdminActionResult]:
     return await service.delete_admin_news(news_id, actor_id=getattr(request.state.current_user, 'id', None))
 
 
@@ -43,18 +43,18 @@ async def patch_admin_news_status(request: Request, news_id: int, payload: NewsS
     return await service.update_admin_news_status(news_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.post("/{news_id}/publish", response_model=MessageResponse)
-async def publish_admin_news(request: Request, news_id: int) -> MessageResponse:
+@router.post("/{news_id}/publish", response_model=SuccessResponse[AdminActionResult])
+async def publish_admin_news(request: Request, news_id: int) -> SuccessResponse[AdminActionResult]:
     return await service.publish_admin_news(news_id, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.post("/{news_id}/schedule", response_model=MessageResponse)
-async def schedule_admin_news(request: Request, news_id: int, payload: NewsStatusRequest) -> MessageResponse:
+@router.post("/{news_id}/schedule", response_model=SuccessResponse[AdminActionResult])
+async def schedule_admin_news(request: Request, news_id: int, payload: NewsStatusRequest) -> SuccessResponse[AdminActionResult]:
     return await service.schedule_admin_news(news_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.post("/{news_id}/cover", response_model=MessageResponse)
-async def upload_admin_news_cover(request: Request, news_id: int, payload: dict | None = None) -> MessageResponse:
+@router.post("/{news_id}/cover", response_model=SuccessResponse[AdminActionResult])
+async def upload_admin_news_cover(request: Request, news_id: int, payload: dict | None = None) -> SuccessResponse[AdminActionResult]:
     return await service.upload_admin_news_cover(news_id, payload or {}, actor_id=getattr(request.state.current_user, 'id', None))
 
 

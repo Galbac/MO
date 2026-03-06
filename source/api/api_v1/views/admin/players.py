@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 
-from source.schemas.pydantic.auth import MessageResponse
+from source.schemas.pydantic.admin import AdminActionResult, AdminBulkImportResult
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.player import PlayerDetail, PlayerSummary
 from source.services import AdminContentService
@@ -29,21 +29,21 @@ async def patch_admin_player(request: Request, player_id: int, payload: dict) ->
     return await service.update_admin_player(player_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.delete("/{player_id}", response_model=MessageResponse)
-async def delete_admin_player(request: Request, player_id: int) -> MessageResponse:
+@router.delete("/{player_id}", response_model=SuccessResponse[AdminActionResult])
+async def delete_admin_player(request: Request, player_id: int) -> SuccessResponse[AdminActionResult]:
     return await service.delete_admin_player(player_id, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.post("/import", response_model=MessageResponse)
-async def import_admin_players(request: Request, payload: dict | None = None) -> MessageResponse:
+@router.post("/import", response_model=SuccessResponse[AdminBulkImportResult])
+async def import_admin_players(request: Request, payload: dict | None = None) -> SuccessResponse[AdminBulkImportResult]:
     return await service.import_admin_players(payload or {}, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.post("/{player_id}/photo", response_model=MessageResponse)
-async def upload_admin_player_photo(request: Request, player_id: int, payload: dict | None = None) -> MessageResponse:
+@router.post("/{player_id}/photo", response_model=SuccessResponse[AdminActionResult])
+async def upload_admin_player_photo(request: Request, player_id: int, payload: dict | None = None) -> SuccessResponse[AdminActionResult]:
     return await service.upload_admin_player_photo(player_id, payload or {}, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.post("/{player_id}/recalculate-stats", response_model=MessageResponse)
-async def recalculate_admin_player_stats(request: Request, player_id: int) -> MessageResponse:
+@router.post("/{player_id}/recalculate-stats", response_model=SuccessResponse[AdminActionResult])
+async def recalculate_admin_player_stats(request: Request, player_id: int) -> SuccessResponse[AdminActionResult]:
     return await service.recalculate_admin_player_stats(player_id, actor_id=getattr(request.state.current_user, 'id', None))

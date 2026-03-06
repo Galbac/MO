@@ -470,3 +470,38 @@ async def test_admin_integrations_support_filters(async_client, admin_auth_heade
     )
     assert response.status_code == status.HTTP_200_OK
     assert any(item["provider"] == "live-provider" for item in response.json()["data"])
+
+
+async def test_admin_logs_runtime(async_client, admin_auth_headers) -> None:
+    await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/health/ready")
+    response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/logs",
+        params={"category": "access", "limit": 20},
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert isinstance(response.json()["data"], list)
+
+    app_logs = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/logs",
+        params={"category": "application", "limit": 20},
+        headers=admin_auth_headers,
+    )
+    assert app_logs.status_code == status.HTTP_200_OK
+
+
+async def test_admin_maintenance_backups_runtime(async_client, admin_auth_headers) -> None:
+    create_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/maintenance/run",
+        json={"job_type": "backup_runtime"},
+        headers=admin_auth_headers,
+    )
+    assert create_response.status_code == status.HTTP_200_OK
+    assert create_response.json()["data"]["job_type"] == "backup_runtime"
+
+    list_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/maintenance/backups",
+        headers=admin_auth_headers,
+    )
+    assert list_response.status_code == status.HTTP_200_OK
+    assert list_response.json()["data"]

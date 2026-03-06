@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, Request
 
 from source.api.dependencies.auth import require_authenticated_user
-from source.schemas.pydantic.auth import MessageResponse
-from source.schemas.pydantic.common import SuccessResponse
+from source.schemas.pydantic.common import ActionResult, SuccessResponse
 from source.schemas.pydantic.notification import NotificationItem, NotificationUnreadCount
 from source.services import UserEngagementService
 
@@ -25,11 +24,11 @@ async def patch_notification_read(request: Request, notification_id: int) -> Suc
     return await service.mark_notification_read(request, notification_id)
 
 
-@router.patch("/read-all", response_model=MessageResponse)
-async def patch_notifications_read_all(request: Request) -> MessageResponse:
+@router.patch("/read-all", response_model=SuccessResponse[ActionResult])
+async def patch_notifications_read_all(request: Request) -> SuccessResponse[ActionResult]:
     return await service.mark_all_notifications_read(request)
 
 
-@router.post("/test", response_model=MessageResponse)
-async def post_test_notification(request: Request) -> MessageResponse:
+@router.post("/test", response_model=SuccessResponse[ActionResult])
+async def post_test_notification(request: Request) -> SuccessResponse[ActionResult]:
     return await service.send_test_notification(request)

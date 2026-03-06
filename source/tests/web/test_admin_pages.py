@@ -235,3 +235,21 @@ async def test_admin_media_and_settings_pages_have_operational_states(async_clie
     assert 'id="admin-settings-error"' in settings.text
     assert 'id="admin-settings-summary"' in settings.text
     assert 'id="admin-settings-notes-preview"' in settings.text
+
+
+async def test_admin_logs_page_has_controls(async_client) -> None:
+    response = await async_client.get('/admin/logs')
+
+    assert response.status_code == status.HTTP_200_OK
+    assert 'id="admin-logs-filters"' in response.text
+    assert 'id="admin-logs-category"' in response.text
+    assert 'id="admin-logs-level"' in response.text
+    assert 'id="admin-logs-list"' in response.text
+
+
+async def test_admin_maintenance_page_has_backups_section(async_client) -> None:
+    response = await async_client.get('/admin/maintenance')
+
+    assert response.status_code == status.HTTP_200_OK
+    assert 'admin-backups-list' in response.text
+    assert 'data-maintenance-run="backup_runtime"' in response.text

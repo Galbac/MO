@@ -138,6 +138,11 @@ class MaintenanceSettings(BaseModel):
     backups_dir: str = "var/backups"
 
 
+class LoggingSettings(BaseModel):
+    dir: str = "var/logs"
+    access_enabled: bool = True
+
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -161,6 +166,7 @@ class Settings(BaseSettings):
     security: SecuritySettings = SecuritySettings()
     notifications: NotificationSettings = NotificationSettings()
     maintenance: MaintenanceSettings = MaintenanceSettings()
+    logging: LoggingSettings = LoggingSettings()
 
 
 settings = Settings()

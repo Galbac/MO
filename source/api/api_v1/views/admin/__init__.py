@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from source.api.api_v1.views.admin.audit import router as audit_router
 from source.api.api_v1.views.admin.integrations import router as integrations_router
 from source.api.api_v1.views.admin.jobs import router as jobs_router
+from source.api.api_v1.views.admin.logs import router as logs_router
 from source.api.api_v1.views.admin.matches import router as matches_router
 from source.api.api_v1.views.admin.maintenance import router as maintenance_router
 from source.api.api_v1.views.admin.media import router as media_router
@@ -29,5 +30,6 @@ router.include_router(rankings_router, dependencies=[Depends(require_roles('admi
 router.include_router(settings_router, dependencies=[Depends(require_roles('admin'))])
 router.include_router(integrations_router, dependencies=[Depends(require_roles('admin'))])
 router.include_router(jobs_router, dependencies=[Depends(require_roles('admin'))])
+router.include_router(logs_router, dependencies=[Depends(require_roles('admin'))])
 router.include_router(taxonomy_router, dependencies=[Depends(require_roles('admin', 'editor'))])
 router.include_router(audit_router, dependencies=[Depends(require_roles('admin'))])

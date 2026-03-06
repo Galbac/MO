@@ -1,17 +1,7 @@
 from fastapi import APIRouter, Request, status
 
-from source.schemas.pydantic.auth import (
-    AuthResponse,
-    ForgotPasswordRequest,
-    LoginRequest,
-    LogoutRequest,
-    MessageResponse,
-    RefreshTokenRequest,
-    RegisterRequest,
-    ResetPasswordRequest,
-    VerifyEmailRequest,
-)
-from source.schemas.pydantic.common import SuccessResponse
+from source.schemas.pydantic.auth import AuthResponse, ForgotPasswordRequest, LoginRequest, LogoutRequest, RefreshTokenRequest, RegisterRequest, ResetPasswordRequest, VerifyEmailRequest
+from source.schemas.pydantic.common import ActionResult, SuccessResponse
 from source.schemas.pydantic.user import UserProfile
 from source.services import AuthUserService
 
@@ -34,23 +24,23 @@ async def refresh(request: Request, payload: RefreshTokenRequest) -> AuthRespons
     return await service.refresh(request, payload)
 
 
-@router.post("/logout", response_model=MessageResponse)
-async def logout(request: Request, payload: LogoutRequest) -> MessageResponse:
+@router.post("/logout", response_model=SuccessResponse[ActionResult])
+async def logout(request: Request, payload: LogoutRequest) -> SuccessResponse[ActionResult]:
     return await service.logout(request, payload)
 
 
-@router.post("/forgot-password", response_model=MessageResponse)
-async def forgot_password(request: Request, payload: ForgotPasswordRequest) -> MessageResponse:
+@router.post("/forgot-password", response_model=SuccessResponse[ActionResult])
+async def forgot_password(request: Request, payload: ForgotPasswordRequest) -> SuccessResponse[ActionResult]:
     return await service.forgot_password(request, payload)
 
 
-@router.post("/reset-password", response_model=MessageResponse)
-async def reset_password(payload: ResetPasswordRequest) -> MessageResponse:
+@router.post("/reset-password", response_model=SuccessResponse[ActionResult])
+async def reset_password(payload: ResetPasswordRequest) -> SuccessResponse[ActionResult]:
     return await service.reset_password(payload)
 
 
-@router.post("/verify-email", response_model=MessageResponse)
-async def verify_email(payload: VerifyEmailRequest) -> MessageResponse:
+@router.post("/verify-email", response_model=SuccessResponse[ActionResult])
+async def verify_email(payload: VerifyEmailRequest) -> SuccessResponse[ActionResult]:
     return await service.verify_email(payload)
 
 

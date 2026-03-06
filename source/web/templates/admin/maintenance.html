@@ -19,10 +19,12 @@
                 <button class="btn btn-success" type="button" data-maintenance-run="generate_sitemap">Generate sitemap</button>
                 <button class="btn btn-outline-dark" type="button" data-maintenance-run="rebuild_search_index">Rebuild search index</button>
                 <button class="btn btn-outline-dark" type="button" data-maintenance-run="recalculate_player_stats">Recalculate player stats</button>
+                <button class="btn btn-outline-secondary" type="button" data-maintenance-run="backup_runtime">Backup runtime</button>
             </div>
             <div class="success-note d-none mt-3" id="admin-maintenance-feedback">Операция выполнена.</div>
             <div class="error-note d-none mt-3" id="admin-maintenance-error">Операция завершилась ошибкой.</div>
         </section>
+        <section class="content-card mb-4"><div class="section-title h5 mb-3">Runtime backups</div><div class="empty-state d-none mb-3" id="admin-backups-empty">Архивы backup пока не созданы.</div><div id="admin-backups-list"></div></section>
         <section class="empty-state d-none mb-4" id="admin-maintenance-empty">Maintenance-артефакты пока не созданы.</section><section class="table-shell"><table class="table table-clean" aria-label="Таблица maintenance артефактов"><thead><tr><th>Code</th><th>Exists</th><th>Updated</th><th>Path</th></tr></thead><tbody id="admin-maintenance-body"></tbody></table></section>
     </main>
 </div>

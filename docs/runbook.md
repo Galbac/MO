@@ -37,6 +37,11 @@
 - `import_rankings`: runs rankings import flow through the worker.
 - `sync_live`: runs provider live sync through the worker.
 
+## Logs
+- Admin logs view: `/admin/logs`.
+- Local log files: `var/logs/access.jsonl`, `var/logs/application.jsonl`, `var/logs/worker.jsonl`, `var/logs/integration.jsonl`.
+- Review access spikes, failed worker jobs and integration sync errors before manual recovery.
+
 ## Job queue operations
 - Admin queue view: `/admin/jobs`.
 - Admin maintenance view: `/admin/maintenance`.

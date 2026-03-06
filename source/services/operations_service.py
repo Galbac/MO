@@ -17,6 +17,7 @@ from source.db.session import db_session_manager
 from source.integrations import IntegrationSyncError, LiveScoreProviderClient, ProviderPayloadMapper, RankingsProviderClient
 from source.repositories import AdminSupportRepository, AuditRepository, MatchRepository
 from source.schemas.pydantic.admin import (
+    AdminActionResult,
     AdminIntegrationItem,
     AdminIntegrationLogItem,
     AdminIntegrationSyncResult,
@@ -27,6 +28,7 @@ from source.schemas.pydantic.admin import (
 from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.media import MediaFile
+from source.services.log_service import LogService
 
 
 class OperationsService:
@@ -39,6 +41,7 @@ class OperationsService:
         self.admin_support = AdminSupportRepository()
         self.matches = MatchRepository()
         self.mapper = ProviderPayloadMapper()
+        self.logs = LogService()
 
     def _ensure_storage(self) -> None:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
@@ -201,7 +204,7 @@ class OperationsService:
         await self._log_audit(action='admin.media.upload', entity_type='media', entity_id=media_id, after_json=record)
         return SuccessResponse(data=self._media_item(record))
 
-    async def delete_media(self, media_id: int) -> MessageResponse:
+    async def delete_media(self, media_id: int) -> SuccessResponse[AdminActionResult]:
         records = self._media_records()
         record = next((item for item in records if item['id'] == media_id), None)
         if record is None:
@@ -212,7 +215,16 @@ class OperationsService:
         if stored_path.exists():
             stored_path.unlink()
         await self._log_audit(action='media.delete', entity_type='media', entity_id=media_id, before_json=record)
-        return MessageResponse(data=SimpleMessage(message='Media deleted'))
+        return SuccessResponse(
+            data=AdminActionResult(
+                entity_type='media',
+                action='delete',
+                status='ok',
+                entity_id=media_id,
+                message='Media deleted',
+                details={'filename': record.get('filename'), 'url': record.get('url')},
+            )
+        )
 
     def _integration_records(self) -> dict[str, dict]:
         return self._read_json(self.integrations_file, {})
@@ -460,6 +472,7 @@ class OperationsService:
             records[provider] = updated
             self._save_integration_records(records)
             await self._log_audit(action='integration.sync.failed', entity_type='integration', entity_id=None, before_json=current, after_json=updated)
+            self.logs.write('integration', level='error', message=f'Provider sync failed: {exc}', context={'provider': provider, 'status': 'error'})
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
     async def get_integration_logs(self, provider: str) -> SuccessResponse[list[AdminIntegrationLogItem]]:

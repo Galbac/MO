@@ -25,6 +25,14 @@ class AdminIntegrationLogItem(BaseModel):
     message: str
 
 
+class AdminSystemLogItem(BaseModel):
+    timestamp: datetime
+    category: str
+    level: str
+    message: str
+    context: dict
+
+
 class AdminIntegrationUpdateResult(BaseModel):
     provider: str
     status: str
@@ -41,6 +49,26 @@ class AdminIntegrationSyncResult(BaseModel):
     message: str
     applied_count: int = 0
     logs_count: int = 0
+
+
+class AdminActionResult(BaseModel):
+    entity_type: str
+    action: str
+    status: str
+    entity_id: int | None = None
+    message: str | None = None
+    job_id: int | None = None
+    scheduled_at: datetime | None = None
+    details: dict = {}
+
+
+class AdminBulkImportResult(BaseModel):
+    entity_type: str
+    action: str
+    status: str
+    imported_count: int
+    entity_ids: list[int]
+    details: dict = {}
 
 
 class AdminJobItem(BaseModel):
@@ -83,6 +111,13 @@ class AdminMaintenanceRunResult(BaseModel):
     status: str
     result: dict | None = None
     error: str | None = None
+
+
+class AdminRuntimeBackupItem(BaseModel):
+    filename: str
+    path: str
+    size_bytes: int
+    created_at: datetime
 
 
 class AuditLogItem(BaseModel):

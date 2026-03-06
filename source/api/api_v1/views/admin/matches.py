@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, Request
 
-from source.schemas.pydantic.auth import MessageResponse
+from source.schemas.pydantic.admin import AdminActionResult
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.match import MatchDetail, MatchEventCreateRequest, MatchEventItem, MatchScoreUpdateRequest, MatchStatsUpdateRequest, MatchStatusUpdateRequest, MatchSummary
 from source.services import AdminContentService
@@ -45,8 +45,8 @@ async def patch_admin_match(request: Request, match_id: int, payload: dict) -> S
     return await service.update_admin_match(match_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.delete("/{match_id}", response_model=MessageResponse)
-async def delete_admin_match(request: Request, match_id: int) -> MessageResponse:
+@router.delete("/{match_id}", response_model=SuccessResponse[AdminActionResult])
+async def delete_admin_match(request: Request, match_id: int) -> SuccessResponse[AdminActionResult]:
     return await service.delete_admin_match(match_id, actor_id=getattr(request.state.current_user, 'id', None))
 
 
@@ -70,11 +70,11 @@ async def create_admin_match_event(request: Request, match_id: int, payload: Mat
     return await service.create_admin_match_event(match_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.post("/{match_id}/finalize", response_model=MessageResponse)
-async def finalize_admin_match(request: Request, match_id: int) -> MessageResponse:
+@router.post("/{match_id}/finalize", response_model=SuccessResponse[AdminActionResult])
+async def finalize_admin_match(request: Request, match_id: int) -> SuccessResponse[AdminActionResult]:
     return await service.finalize_admin_match(match_id, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.post("/{match_id}/reopen", response_model=MessageResponse)
-async def reopen_admin_match(request: Request, match_id: int) -> MessageResponse:
+@router.post("/{match_id}/reopen", response_model=SuccessResponse[AdminActionResult])
+async def reopen_admin_match(request: Request, match_id: int) -> SuccessResponse[AdminActionResult]:
     return await service.reopen_admin_match(match_id, actor_id=getattr(request.state.current_user, 'id', None))

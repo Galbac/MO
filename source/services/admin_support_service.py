@@ -12,11 +12,11 @@ from source.db.session import db_session_manager
 from source.integrations import ProviderPayloadMapper
 from source.repositories import AdminSupportRepository
 from source.schemas.pydantic.admin import (
+    AdminActionResult,
     AdminNotificationBroadcast,
     AdminNotificationDeliveryLogItem,
     AdminNotificationTemplate,
 )
-from source.schemas.pydantic.auth import MessageResponse, SimpleMessage
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.news import NewsCategoryItem, TagItem
 from source.schemas.pydantic.ranking import RankingImportJob, RankingImportResult, RankingRecalculationResult
@@ -68,6 +68,27 @@ class AdminSupportService:
                 stats[status_value] += 1
         stats['total'] = sum(stats.values())
         return stats
+
+    @staticmethod
+    def _action_result(
+        *,
+        entity_type: str,
+        action: str,
+        entity_id: int | None = None,
+        message: str | None = None,
+        status: str = 'ok',
+        details: dict[str, Any] | None = None,
+    ) -> SuccessResponse[AdminActionResult]:
+        return SuccessResponse(
+            data=AdminActionResult(
+                entity_type=entity_type,
+                action=action,
+                status=status,
+                entity_id=entity_id,
+                message=message,
+                details=details or {},
+            )
+        )
 
     async def get_settings(self) -> SuccessResponse[dict]:
         payload = self._read_json(self.settings_file)
@@ -157,7 +178,7 @@ class AdminSupportService:
                 break
         return SuccessResponse(data=filtered)
 
-    async def send_test_notification(self) -> MessageResponse:
+    async def send_test_notification(self) -> SuccessResponse[AdminActionResult]:
         async with db_session_manager.session() as session:
             user = await self.repo.get_first_active_user(session)
             if user is None:
@@ -173,66 +194,74 @@ class AdminSupportService:
                 'status': 'unread',
                 'read_at': None,
             }
-            await self.repo.create_notification(session, payload)
-            return MessageResponse(data=SimpleMessage(message='Test notification sent'))
+            created = await self.repo.create_notification(session, payload)
+            return self._action_result(
+                entity_type='notification',
+                action='test.send',
+                entity_id=created.id,
+                message='Test notification sent',
+                details={'user_id': user.id, 'notification_type': payload['type']},
+            )
 
     async def list_categories(self) -> SuccessResponse[list[NewsCategoryItem]]:
         async with db_session_manager.session() as session:
             items = await self.repo.list_categories(session)
             return SuccessResponse(data=[NewsCategoryItem(id=item.id, slug=item.slug, name=item.name) for item in items])
 
-    async def create_category(self, payload: dict[str, Any]) -> MessageResponse:
+    async def create_category(self, payload: dict[str, Any]) -> SuccessResponse[AdminActionResult]:
         async with db_session_manager.session() as session:
-            await self.repo.create_category(session, {'name': self._require(payload, 'name'), 'slug': self._require(payload, 'slug')})
+            item = await self.repo.create_category(session, {'name': self._require(payload, 'name'), 'slug': self._require(payload, 'slug')})
             self._invalidate_cache('news:', 'search:')
-            return MessageResponse(data=SimpleMessage(message='News category created'))
+            return self._action_result(entity_type='news_category', action='create', entity_id=item.id, message='News category created', details={'slug': item.slug, 'name': item.name})
 
-    async def update_category(self, category_id: int, payload: dict[str, Any]) -> MessageResponse:
+    async def update_category(self, category_id: int, payload: dict[str, Any]) -> SuccessResponse[AdminActionResult]:
         async with db_session_manager.session() as session:
             item = await self.repo.get_category(session, category_id)
             if item is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Category not found')
-            await self.repo.update_category(session, item, {'name': self._require(payload | {'name': payload.get('name', item.name)}, 'name'), 'slug': self._require(payload | {'slug': payload.get('slug', item.slug)}, 'slug')})
+            updated = await self.repo.update_category(session, item, {'name': self._require(payload | {'name': payload.get('name', item.name)}, 'name'), 'slug': self._require(payload | {'slug': payload.get('slug', item.slug)}, 'slug')})
             self._invalidate_cache('news:', 'search:')
-            return MessageResponse(data=SimpleMessage(message='News category updated'))
+            return self._action_result(entity_type='news_category', action='update', entity_id=category_id, message='News category updated', details={'slug': updated.slug, 'name': updated.name})
 
-    async def delete_category(self, category_id: int) -> MessageResponse:
+    async def delete_category(self, category_id: int) -> SuccessResponse[AdminActionResult]:
         async with db_session_manager.session() as session:
             item = await self.repo.get_category(session, category_id)
             if item is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Category not found')
+            details = {'slug': item.slug, 'name': item.name}
             await self.repo.delete_category(session, item)
             self._invalidate_cache('news:', 'search:')
-            return MessageResponse(data=SimpleMessage(message='News category deleted'))
+            return self._action_result(entity_type='news_category', action='delete', entity_id=category_id, message='News category deleted', details=details)
 
     async def list_tags(self) -> SuccessResponse[list[TagItem]]:
         async with db_session_manager.session() as session:
             items = await self.repo.list_tags(session)
             return SuccessResponse(data=[TagItem(id=item.id, slug=item.slug, name=item.name) for item in items])
 
-    async def create_tag(self, payload: dict[str, Any]) -> MessageResponse:
+    async def create_tag(self, payload: dict[str, Any]) -> SuccessResponse[AdminActionResult]:
         async with db_session_manager.session() as session:
-            await self.repo.create_tag(session, {'name': self._require(payload, 'name'), 'slug': self._require(payload, 'slug')})
+            item = await self.repo.create_tag(session, {'name': self._require(payload, 'name'), 'slug': self._require(payload, 'slug')})
             self._invalidate_cache('news:', 'search:')
-            return MessageResponse(data=SimpleMessage(message='Tag created'))
+            return self._action_result(entity_type='tag', action='create', entity_id=item.id, message='Tag created', details={'slug': item.slug, 'name': item.name})
 
-    async def update_tag(self, tag_id: int, payload: dict[str, Any]) -> MessageResponse:
+    async def update_tag(self, tag_id: int, payload: dict[str, Any]) -> SuccessResponse[AdminActionResult]:
         async with db_session_manager.session() as session:
             item = await self.repo.get_tag(session, tag_id)
             if item is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tag not found')
-            await self.repo.update_tag(session, item, {'name': self._require(payload | {'name': payload.get('name', item.name)}, 'name'), 'slug': self._require(payload | {'slug': payload.get('slug', item.slug)}, 'slug')})
+            updated = await self.repo.update_tag(session, item, {'name': self._require(payload | {'name': payload.get('name', item.name)}, 'name'), 'slug': self._require(payload | {'slug': payload.get('slug', item.slug)}, 'slug')})
             self._invalidate_cache('news:', 'search:')
-            return MessageResponse(data=SimpleMessage(message='Tag updated'))
+            return self._action_result(entity_type='tag', action='update', entity_id=tag_id, message='Tag updated', details={'slug': updated.slug, 'name': updated.name})
 
-    async def delete_tag(self, tag_id: int) -> MessageResponse:
+    async def delete_tag(self, tag_id: int) -> SuccessResponse[AdminActionResult]:
         async with db_session_manager.session() as session:
             item = await self.repo.get_tag(session, tag_id)
             if item is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tag not found')
+            details = {'slug': item.slug, 'name': item.name}
             await self.repo.delete_tag(session, item)
             self._invalidate_cache('news:', 'search:')
-            return MessageResponse(data=SimpleMessage(message='Tag deleted'))
+            return self._action_result(entity_type='tag', action='delete', entity_id=tag_id, message='Tag deleted', details=details)
 
     async def list_ranking_jobs(self) -> SuccessResponse[list[RankingImportJob]]:
         async with db_session_manager.session() as session:

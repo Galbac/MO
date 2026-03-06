@@ -13,9 +13,9 @@ from fastapi import HTTPException, Request, status
 from source.config.settings import settings
 from source.db.session import db_session_manager
 from source.repositories import AuditRepository, UserRepository
-from source.schemas.pydantic.admin import AdminUserItem
-from source.schemas.pydantic.auth import AuthResponse, ForgotPasswordRequest, LoginRequest, LogoutRequest, MessageResponse, RefreshTokenRequest, RegisterRequest, ResetPasswordRequest, SimpleMessage, VerifyEmailRequest
-from source.schemas.pydantic.common import SuccessResponse
+from source.schemas.pydantic.admin import AdminActionResult, AdminUserItem
+from source.schemas.pydantic.auth import AuthResponse, ForgotPasswordRequest, LoginRequest, LogoutRequest, RefreshTokenRequest, RegisterRequest, ResetPasswordRequest, VerifyEmailRequest
+from source.schemas.pydantic.common import ActionResult, SuccessResponse
 from source.schemas.pydantic.user import UserPasswordChangeRequest, UserProfile, UserTokenBundle, UserUpdateRequest
 from source.services.runtime_state_store import RuntimeStateStore
 from source.services.token_codec import token_codec
@@ -69,6 +69,27 @@ class AuthUserService:
         if isinstance(value, list):
             return [AuthUserService._json_ready(item) for item in value]
         return value
+
+    @staticmethod
+    def _action_result(
+        *,
+        action: str,
+        message: str | None = None,
+        status: str = 'ok',
+        resource_type: str | None = None,
+        resource_id: int | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> SuccessResponse[ActionResult]:
+        return SuccessResponse(
+            data=ActionResult(
+                action=action,
+                status=status,
+                message=message,
+                resource_type=resource_type,
+                resource_id=resource_id,
+                details=details or {},
+            )
+        )
 
     def _bundle(self, user) -> UserTokenBundle:
         access_token = token_codec.issue_access_token(user.id)
@@ -268,11 +289,12 @@ class AuthUserService:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='User is not active')
             return AuthResponse(data=self._bundle(user))
 
-    async def logout(self, request: Request | None, payload: LogoutRequest) -> MessageResponse:
+    async def logout(self, request: Request | None, payload: LogoutRequest) -> SuccessResponse[ActionResult]:
         self._consume_refresh_token(payload.refresh_token, revoke_only=True)
-        return MessageResponse(data=SimpleMessage(message='Logged out'))
+        return self._action_result(action='auth.logout', message='Logged out', resource_type='session')
 
-    async def forgot_password(self, request: Request | None, payload: ForgotPasswordRequest) -> MessageResponse:
+    async def forgot_password(self, request: Request | None, payload: ForgotPasswordRequest) -> SuccessResponse[ActionResult]:
+        issued = False
         async with db_session_manager.session() as session:
             user = await self.users.get_by_email(session, payload.email)
         if user is not None and user.status == 'active':
@@ -281,9 +303,15 @@ class AuthUserService:
                 purpose='password_reset',
                 ttl_minutes=settings.auth.password_reset_token_ttl_minutes,
             )
-        return MessageResponse(data=SimpleMessage(message='If the account exists, reset instructions were created'))
+            issued = True
+        return self._action_result(
+            action='auth.forgot_password',
+            message='If the account exists, reset instructions were created',
+            resource_type='user',
+            details={'email': payload.email, 'token_issued': issued},
+        )
 
-    async def reset_password(self, payload: ResetPasswordRequest) -> MessageResponse:
+    async def reset_password(self, payload: ResetPasswordRequest) -> SuccessResponse[ActionResult]:
         _check_password_strength(payload.new_password)
         if not payload.token.strip():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Token is required')
@@ -298,9 +326,9 @@ class AuthUserService:
             after = {'password_hash': updated.password_hash}
         self._revoke_user_refresh_tokens(user_id)
         await self._log_audit(action='auth.reset_password', entity_type='user', entity_id=user_id, before_json=before, after_json=after, user_id=user_id)
-        return MessageResponse(data=SimpleMessage(message='Password reset completed'))
+        return self._action_result(action='auth.reset_password', message='Password reset completed', resource_type='user', resource_id=user_id, details={'refresh_tokens_revoked': True})
 
-    async def verify_email(self, payload: VerifyEmailRequest) -> MessageResponse:
+    async def verify_email(self, payload: VerifyEmailRequest) -> SuccessResponse[ActionResult]:
         if not payload.token.strip():
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Token is required')
         token_payload = self._consume_action_token(payload.token, purpose='verify_email')
@@ -313,7 +341,7 @@ class AuthUserService:
             updated = await self.users.update(session, user, {'is_email_verified': True})
             after = {'is_email_verified': updated.is_email_verified}
         await self._log_audit(action='auth.verify_email', entity_type='user', entity_id=user_id, before_json=before, after_json=after, user_id=user_id)
-        return MessageResponse(data=SimpleMessage(message='Email verified'))
+        return self._action_result(action='auth.verify_email', message='Email verified', resource_type='user', resource_id=user_id, details={'is_email_verified': True})
 
     async def auth_me(self, request: Request) -> SuccessResponse[UserProfile]:
         return SuccessResponse(data=self._profile(await self._resolve_current_user(request)))
@@ -331,7 +359,7 @@ class AuthUserService:
         await self._log_audit(action='user.update_profile', entity_type='user', entity_id=updated.id, before_json=before, after_json=after, user_id=current.id)
         return SuccessResponse(data=self._profile(updated))
 
-    async def change_password(self, request: Request, payload: UserPasswordChangeRequest) -> MessageResponse:
+    async def change_password(self, request: Request, payload: UserPasswordChangeRequest) -> SuccessResponse[ActionResult]:
         _check_password_strength(payload.new_password)
         current = await self._resolve_current_user(request)
         async with db_session_manager.session() as session:
@@ -341,8 +369,9 @@ class AuthUserService:
             before = {'password_hash': managed.password_hash}
             await self.users.update(session, managed, {'password_hash': _hash_password(payload.new_password)})
             after = {'password_hash': managed.password_hash}
+        self._revoke_user_refresh_tokens(current.id)
         await self._log_audit(action='user.change_password', entity_type='user', entity_id=current.id, before_json=before, after_json=after, user_id=current.id)
-        return MessageResponse(data=SimpleMessage(message='Password changed and tokens revoked'))
+        return self._action_result(action='user.change_password', message='Password changed and tokens revoked', resource_type='user', resource_id=current.id, details={'refresh_tokens_revoked': True})
 
     async def list_admin_users(self, *, search: str | None = None, role: str | None = None, status: str | None = None) -> SuccessResponse[list[AdminUserItem]]:
         async with db_session_manager.session() as session:
@@ -381,7 +410,7 @@ class AuthUserService:
         if changed:
             self.store.write_namespace(self.refresh_namespace, refresh_store)
 
-    async def delete_admin_user(self, user_id: int, actor_id: int | None = None) -> MessageResponse:
+    async def delete_admin_user(self, user_id: int, actor_id: int | None = None) -> SuccessResponse[AdminActionResult]:
         async with db_session_manager.session() as session:
             user = await self.users.get(session, user_id)
             if user is None:
@@ -396,4 +425,13 @@ class AuthUserService:
             after = self._entity_dict(updated)
         self._revoke_user_refresh_tokens(user_id)
         await self._log_audit(action='admin.user.delete', entity_type='user', entity_id=user_id, before_json=before, after_json=after, user_id=actor_id)
-        return MessageResponse(data=SimpleMessage(message='User soft deleted'))
+        return SuccessResponse(
+            data=AdminActionResult(
+                entity_type='user',
+                action='delete',
+                status='ok',
+                entity_id=user_id,
+                message='User soft deleted',
+                details={'status': 'deleted', 'username': updated.username, 'email': updated.email},
+            )
+        )

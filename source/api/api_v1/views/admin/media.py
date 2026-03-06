@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status
 
-from source.schemas.pydantic.auth import MessageResponse
+from source.schemas.pydantic.admin import AdminActionResult
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.media import MediaFile
 from source.services import OperationsService
@@ -19,6 +19,6 @@ async def post_admin_media_upload(payload: dict) -> SuccessResponse[MediaFile]:
     return await service.create_media_record(payload)
 
 
-@router.delete("/{media_id}", response_model=MessageResponse)
-async def delete_admin_media(media_id: int) -> MessageResponse:
+@router.delete("/{media_id}", response_model=SuccessResponse[AdminActionResult])
+async def delete_admin_media(media_id: int) -> SuccessResponse[AdminActionResult]:
     return await service.delete_media(media_id)

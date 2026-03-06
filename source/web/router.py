@@ -395,6 +395,11 @@ async def admin_jobs_page(request: Request):
     return render(request, "admin/jobs.html", page_title="Админка - Очередь задач", page_name="admin-jobs", section="admin", robots="noindex,nofollow")
 
 
+@router.get("/admin/logs", include_in_schema=False)
+async def admin_logs_page(request: Request):
+    return render(request, "admin/logs.html", page_title="Админка - Логи", page_name="admin-logs", section="admin", robots="noindex,nofollow")
+
+
 @router.get("/admin/maintenance", include_in_schema=False)
 async def admin_maintenance_page(request: Request):
     return render(request, "admin/maintenance.html", page_title="Админка - Maintenance", page_name="admin-maintenance", section="admin", robots="noindex,nofollow")

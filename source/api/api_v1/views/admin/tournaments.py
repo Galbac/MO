@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 
-from source.schemas.pydantic.auth import MessageResponse
+from source.schemas.pydantic.admin import AdminActionResult
 from source.schemas.pydantic.common import SuccessResponse
 from source.schemas.pydantic.tournament import TournamentDetail, TournamentSummary
 from source.services import AdminContentService
@@ -29,16 +29,16 @@ async def patch_admin_tournament(request: Request, tournament_id: int, payload: 
     return await service.update_admin_tournament(tournament_id, payload, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.delete("/{tournament_id}", response_model=MessageResponse)
-async def delete_admin_tournament(request: Request, tournament_id: int) -> MessageResponse:
+@router.delete("/{tournament_id}", response_model=SuccessResponse[AdminActionResult])
+async def delete_admin_tournament(request: Request, tournament_id: int) -> SuccessResponse[AdminActionResult]:
     return await service.delete_admin_tournament(tournament_id, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.post("/{tournament_id}/draw/generate", response_model=MessageResponse)
-async def generate_admin_tournament_draw(request: Request, tournament_id: int) -> MessageResponse:
+@router.post("/{tournament_id}/draw/generate", response_model=SuccessResponse[AdminActionResult])
+async def generate_admin_tournament_draw(request: Request, tournament_id: int) -> SuccessResponse[AdminActionResult]:
     return await service.generate_admin_tournament_draw(tournament_id, actor_id=getattr(request.state.current_user, 'id', None))
 
 
-@router.post("/{tournament_id}/publish", response_model=MessageResponse)
-async def publish_admin_tournament(request: Request, tournament_id: int) -> MessageResponse:
+@router.post("/{tournament_id}/publish", response_model=SuccessResponse[AdminActionResult])
+async def publish_admin_tournament(request: Request, tournament_id: int) -> SuccessResponse[AdminActionResult]:
     return await service.publish_admin_tournament(tournament_id, actor_id=getattr(request.state.current_user, 'id', None))
