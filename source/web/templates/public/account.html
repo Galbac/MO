@@ -1,7 +1,7 @@
 {% extends "public/base.html" %}
 {% block content %}
 <section class="page-section hero-card">
-    <div class="section-kicker">User cabinet</div>
+    <div class="section-kicker">Личный кабинет</div>
     <h1 class="hero-title mt-3" id="account-name">Личный кабинет</h1>
     <p class="section-lead mt-3 mb-0">Управление профилем, избранным, подписками и персональными уведомлениями.</p>
 </section>
@@ -10,7 +10,7 @@
 
 <section class="page-section page-grid two">
     <section class="content-card">
-        <div class="section-kicker">Profile settings</div>
+        <div class="section-kicker">Настройки профиля</div>
         <h2 class="section-title mt-2 mb-3">Профиль</h2>
         <form data-api-path="/users/me" data-api-method="PATCH">
             <div class="d-grid gap-3">
@@ -25,13 +25,13 @@
     </section>
     <div class="d-grid gap-4">
         <section class="content-card">
-            <div class="section-kicker">Favorites</div>
+            <div class="section-kicker">Избранное</div>
             <h2 class="section-title mt-2 mb-3">Избранное</h2>
             <div class="state-card d-none mb-3" id="account-favorites-empty">Избранное пока пустое.</div>
             <div class="cards-grid" id="account-favorites"></div>
         </section>
         <section class="content-card">
-            <div class="section-kicker">Subscriptions</div>
+            <div class="section-kicker">Подписки</div>
             <h2 class="section-title mt-2 mb-3">Подписки</h2>
             <div class="state-card d-none mb-3" id="account-subscriptions-empty">Подписок пока нет.</div>
             <div class="cards-grid" id="account-subscriptions"></div>
@@ -41,7 +41,7 @@
 
 <section class="page-section page-grid two">
     <section class="content-card">
-        <div class="section-kicker">Security</div>
+        <div class="section-kicker">Безопасность</div>
         <h2 class="section-title mt-2 mb-3">Пароль и сессии</h2>
         <form data-api-path="/users/me/password" data-api-method="PATCH">
             <div class="d-grid gap-3">
@@ -53,25 +53,25 @@
             </div>
         </form>
         <div class="d-flex gap-2 mt-4">
-            <button class="btn btn-ghost-dark" data-auth-refresh type="button">Refresh token</button>
-            <button class="btn btn-ghost-dark" data-api-action data-api-method="POST" data-api-path="/auth/logout" data-target-feedback="account-auth-feedback" type="button">Logout</button>
+            <button class="btn btn-ghost-dark" data-auth-refresh type="button">Обновить сессию</button>
+            <button class="btn btn-ghost-dark" data-api-action data-api-method="POST" data-api-path="/auth/logout" data-target-feedback="account-auth-feedback" type="button">Выйти</button>
         </div>
-        <div class="alert alert-success d-none mt-3 mb-0" id="account-auth-feedback">Auth action выполнен.</div>
+        <div class="alert alert-success d-none mt-3 mb-0" id="account-auth-feedback">Действие выполнено.</div>
     </section>
     <section class="content-card">
-        <div class="section-kicker">Auth toolkit</div>
-        <h2 class="section-title mt-2 mb-3">Регистрация и recovery</h2>
+        <div class="section-kicker">Контур авторизации</div>
+        <h2 class="section-title mt-2 mb-3">Регистрация и восстановление</h2>
         <div class="toolbar__tabs mb-3" data-tab-group="account-auth">
-            <button class="toolbar__tab is-active" data-tab-target="account-auth-register">Register</button>
-            <button class="toolbar__tab" data-tab-target="account-auth-recover">Recover</button>
-            <button class="toolbar__tab" data-tab-target="account-auth-verify">Verify</button>
+            <button class="toolbar__tab is-active" data-tab-target="account-auth-register">Регистрация</button>
+            <button class="toolbar__tab" data-tab-target="account-auth-recover">Восстановление</button>
+            <button class="toolbar__tab" data-tab-target="account-auth-verify">Подтверждение</button>
         </div>
         <div id="account-auth-register" data-tab-panel="account-auth">
             <form data-api-path="/auth/register" data-api-method="POST">
                 <div class="d-grid gap-3">
-                    <input class="form-control" name="email" placeholder="Email">
-                    <input class="form-control" name="username" placeholder="Username">
-                    <input class="form-control" name="password" type="password" placeholder="Password">
+                    <input class="form-control" name="email" placeholder="Электронная почта">
+                    <input class="form-control" name="username" placeholder="Имя пользователя">
+                    <input class="form-control" name="password" type="password" placeholder="Пароль">
                     <label class="form-check d-flex align-items-start gap-2">
                         <input class="form-check-input mt-1" type="checkbox" name="privacy_consent" required>
                         <span>Согласен(на) на обработку персональных данных.</span>
@@ -93,7 +93,7 @@
             </form>
             <form class="mt-3" data-api-path="/auth/reset-password" data-api-method="POST">
                 <div class="d-grid gap-3">
-                    <input class="form-control" name="token" placeholder="Reset token">
+                    <input class="form-control" name="token" placeholder="Токен сброса">
                     <input class="form-control" name="password" type="password" placeholder="Новый пароль">
                     <button class="btn btn-primary" type="submit">Сбросить пароль</button>
                     <div class="alert alert-success d-none mb-0" data-form-feedback>Пароль сброшен.</div>
@@ -104,9 +104,9 @@
         <div id="account-auth-verify" class="d-none" data-tab-panel="account-auth">
             <form data-api-path="/auth/verify-email" data-api-method="POST">
                 <div class="d-grid gap-3">
-                    <input class="form-control" name="token" placeholder="Verification token">
-                    <button class="btn btn-primary" type="submit">Подтвердить email</button>
-                    <div class="alert alert-success d-none mb-0" data-form-feedback>Email подтвержден.</div>
+                    <input class="form-control" name="token" placeholder="Токен подтверждения">
+                    <button class="btn btn-primary" type="submit">Подтвердить почту</button>
+                    <div class="alert alert-success d-none mb-0" data-form-feedback>Почта подтверждена.</div>
                     <div class="alert alert-danger d-none mb-0" data-form-error>Ошибка подтверждения.</div>
                 </div>
             </form>
@@ -115,8 +115,8 @@
 </section>
 
 <section class="page-section content-card">
-    <div class="section-kicker">Personal notifications</div>
-    <h2 class="section-title mt-2 mb-3">User notifications API</h2>
+    <div class="section-kicker">Персональные уведомления</div>
+    <h2 class="section-title mt-2 mb-3">Уведомления пользователя</h2>
     <div class="d-flex gap-2 mb-3">
         <button class="btn btn-ghost-dark" type="button" id="account-user-notifications-load">Загрузить мои уведомления</button>
         <button class="btn btn-ghost-dark" type="button" id="account-user-notifications-read-all">Прочитать все</button>

@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 
+from source.config.settings import settings
 from source.schemas.pydantic.admin import (
     AdminIntegrationItem,
     AdminNotificationBroadcast,
@@ -79,12 +80,12 @@ class PortalInteractor:
     def _user(self) -> UserProfile:
         return UserProfile(
             id=1,
-            email="user@example.com",
+            email=settings.demo.user_email,
             username="demo_user",
             role="user",
             status="active",
-            first_name="Demo",
-            last_name="User",
+            first_name="Демо",
+            last_name="Пользователь",
             avatar_url="/media/avatars/demo.png",
             locale="ru",
             timezone="Europe/Moscow",
@@ -106,7 +107,7 @@ class PortalInteractor:
                 current_rank=1,
                 current_points=9850,
                 photo_url="/media/players/djokovic.jpg",
-                biography="24-time Grand Slam champion.",
+                biography="24-кратный чемпион турниров Большого шлема.",
                 hand="right",
                 backhand="two-handed",
                 status="active",
@@ -127,8 +128,8 @@ class PortalInteractor:
                 ],
                 titles=[TitleItem(tournament_name="Australian Open", season_year=2026, surface="hard", category="grand_slam")],
                 seo=SeoMeta(
-                    title="Novak Djokovic profile",
-                    description="Statistics, ranking history and latest matches of Novak Djokovic.",
+                    title="Профиль Новака Джоковича",
+                    description="Статистика, динамика рейтинга и последние матчи Новака Джоковича.",
                     canonical_url="/players/novak-djokovic",
                 ),
             ),
@@ -143,7 +144,7 @@ class PortalInteractor:
                 current_rank=2,
                 current_points=8710,
                 photo_url="/media/players/sinner.jpg",
-                biography="Aggressive baseline player.",
+                biography="Агрессивный игрок задней линии.",
                 hand="right",
                 backhand="two-handed",
                 status="active",
@@ -164,8 +165,8 @@ class PortalInteractor:
                 ],
                 titles=[TitleItem(tournament_name="Rotterdam Open", season_year=2026, surface="hard", category="atp_500")],
                 seo=SeoMeta(
-                    title="Jannik Sinner profile",
-                    description="Statistics, ranking history and latest matches of Jannik Sinner.",
+                    title="Профиль Янника Синнера",
+                    description="Статистика, динамика рейтинга и последние матчи Янника Синнера.",
                     canonical_url="/players/jannik-sinner",
                 ),
             ),
@@ -188,12 +189,12 @@ class PortalInteractor:
                 country_code="AU",
                 prize_money="$86,500,000",
                 points_winner=2000,
-                description="Grand Slam tournament in Melbourne Park.",
+                description="Турнир Большого шлема в Мельбурн Парке.",
                 champions=[ChampionItem(season_year=2026, player_name="Novak Djokovic")],
                 draw=[DrawMatchItem(round_code="F", player1_name="Novak Djokovic", player2_name="Jannik Sinner", score_summary="6-4 3-6 7-5 6-3")],
                 participants=[player.model_dump() for player in self._players()],
                 current_matches=[],
-                seo={"title": "Australian Open 2026", "description": "Draw, results, participants and champions."},
+                seo={"title": "Australian Open 2026", "description": "Сетка, результаты, участники и чемпионы."},
             ),
         ]
 
@@ -309,30 +310,30 @@ class PortalInteractor:
             NewsArticleDetail(
                 id=1,
                 slug="ao-final-preview",
-                title="AO final preview",
-                subtitle="Djokovic faces Sinner",
-                lead="Detailed preview of the Australian Open final.",
+                title="Превью финала AO",
+                subtitle="Джокович против Синнера",
+                lead="Подробный разбор финала Australian Open.",
                 cover_image_url="/media/news/ao-final.jpg",
                 status="published",
                 published_at="2026-01-25T09:00:00Z",
                 category=category,
                 tags=tags,
-                content_html="<p>Article</p>",
-                seo_title="AO final preview",
-                seo_description="Preview of the 2026 Australian Open final.",
+                content_html="<p>Редакционный материал о финале Australian Open.</p>",
+                seo_title="Превью финала AO",
+                seo_description="Превью финала Australian Open 2026 года.",
             ),
             NewsArticleDetail(
                 id=2,
                 slug="rankings-shake-up",
-                title="Rankings shake-up after Melbourne",
-                lead="ATP top 10 changes after the Slam.",
+                title="Перестановки в рейтинге после Мельбурна",
+                lead="Изменения в первой десятке ATP после мэйджора.",
                 status="published",
                 published_at="2026-01-27T09:00:00Z",
                 category=self._categories()[1],
                 tags=[tags[0]],
-                content_html="<p>Ranking recap</p>",
-                seo_title="ATP rankings update",
-                seo_description="Post-slam ATP movements.",
+                content_html="<p>Итоги изменений в рейтинге ATP после мэйджора.</p>",
+                seo_title="Обновление рейтинга ATP",
+                seo_description="Изменения в рейтинге ATP после турнира Большого шлема.",
             ),
         ]
 
@@ -347,16 +348,16 @@ class PortalInteractor:
             NotificationItem(
                 id=1,
                 type="match_start",
-                title="Match starts soon",
-                body="Djokovic vs Sinner starts in 15 minutes",
+                title="Матч скоро начнется",
+                body="Джокович против Синнера начнется через 15 минут",
                 payload_json={"match_id": 1},
                 created_at=self._now,
             ),
             NotificationItem(
                 id=2,
                 type="news",
-                title="New article published",
-                body="AO final preview is live",
+                title="Опубликован новый материал",
+                body="Превью финала AO уже доступно",
                 payload_json={"slug": "ao-final-preview"},
                 created_at=self._now,
             ),
@@ -385,7 +386,7 @@ class PortalInteractor:
         return [
             AdminUserItem(
                 id=1,
-                email="admin@example.com",
+                email=settings.demo.admin_email,
                 username="admin",
                 role="admin",
                 status="active",
@@ -393,7 +394,7 @@ class PortalInteractor:
             ),
             AdminUserItem(
                 id=2,
-                email="editor@example.com",
+                email=settings.demo.editor_email,
                 username="editor",
                 role="editor",
                 status="active",
@@ -1002,14 +1003,14 @@ class PortalInteractor:
             data=[
                 AdminNotificationBroadcast(
                     id=1,
-                    title="Indian Wells match start alerts",
+                    title="Оповещения о старте матча Indian Wells",
                     status="sent",
                     sent_count=500,
                     created_at=self._now,
                 ),
                 AdminNotificationBroadcast(
                     id=2,
-                    title="ATP ranking movement digest",
+                    title="Дайджест изменений рейтинга ATP",
                     status="queued",
                     sent_count=120,
                     created_at=self._now,
@@ -1018,7 +1019,7 @@ class PortalInteractor:
         )
 
     def send_admin_test_notification(self) -> MessageResponse:
-        return MessageResponse(data=SimpleMessage(message="Admin test notification queued"))
+        return MessageResponse(data=SimpleMessage(message="Тестовое уведомление администратора поставлено в очередь"))
 
 
     def get_audit_log(self, log_id: int) -> SuccessResponse[AuditLogItem]:
@@ -1026,7 +1027,7 @@ class PortalInteractor:
 
 
     def get_admin_settings(self) -> SuccessResponse[dict]:
-        return SuccessResponse(data={"seo_title": "Tennis Portal", "support_email": "support@example.com", "provider_notes": "live_score_provider=enabled"})
+        return SuccessResponse(data={"seo_title": settings.names.title, "support_email": settings.contacts.support_email, "provider_notes": "live_score_provider=enabled"})
 
     def update_admin_settings(self, payload: dict) -> SuccessResponse[dict]:
         current = self.get_admin_settings().data or {}

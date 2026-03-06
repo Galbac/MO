@@ -32,8 +32,8 @@ def _seed_hash_password(password: str) -> str:
     return f"{base64.b64encode(salt).decode()}${base64.b64encode(digest).decode()}"
 
 
-async def seed_demo_data(session: AsyncSession) -> None:
-    if not settings.db.seed_demo_data:
+async def seed_demo_data(session: AsyncSession, *, force: bool = False) -> None:
+    if not force and not settings.db.seed_demo_data:
         return
 
     existing = await session.scalar(select(Player.id).limit(1))
@@ -44,47 +44,55 @@ async def seed_demo_data(session: AsyncSession) -> None:
 
     admin = User(
         id=1,
-        email="admin@example.com",
+        email=settings.demo.admin_email,
         username="admin",
-        password_hash=_seed_hash_password("AdminPass123"),
+        password_hash=_seed_hash_password(settings.demo.admin_password),
         role="admin",
         status="active",
-        first_name="Portal",
-        last_name="Admin",
+        first_name="Главный",
+        last_name="Администратор",
         is_email_verified=True,
+        privacy_consent=True,
+        privacy_consent_at=now,
     )
     user = User(
         id=2,
-        email="user@example.com",
+        email=settings.demo.user_email,
         username="demo_user",
-        password_hash=_seed_hash_password("UserPass123"),
+        password_hash=_seed_hash_password(settings.demo.user_password),
         role="user",
         status="active",
-        first_name="Demo",
-        last_name="User",
+        first_name="Демо",
+        last_name="Пользователь",
         is_email_verified=True,
+        privacy_consent=True,
+        privacy_consent_at=now,
     )
     editor = User(
         id=3,
-        email="editor@example.com",
+        email=settings.demo.editor_email,
         username="editor",
-        password_hash=_seed_hash_password("EditorPass123"),
+        password_hash=_seed_hash_password(settings.demo.editor_password),
         role="editor",
         status="active",
-        first_name="News",
-        last_name="Editor",
+        first_name="Спортивный",
+        last_name="Редактор",
         is_email_verified=True,
+        privacy_consent=True,
+        privacy_consent_at=now,
     )
     operator = User(
         id=4,
-        email="operator@example.com",
+        email=settings.demo.operator_email,
         username="operator",
-        password_hash=_seed_hash_password("OperatorPass123"),
+        password_hash=_seed_hash_password(settings.demo.operator_password),
         role="operator",
         status="active",
-        first_name="Live",
-        last_name="Operator",
+        first_name="Лайв",
+        last_name="Оператор",
         is_email_verified=True,
+        privacy_consent=True,
+        privacy_consent_at=now,
     )
 
     players = [
@@ -101,7 +109,7 @@ async def seed_demo_data(session: AsyncSession) -> None:
             weight_kg=77,
             hand="right",
             backhand="two-handed",
-            biography="24-time Grand Slam champion.",
+            biography="24-кратный чемпион турниров Большого шлема.",
             photo_url="/media/players/djokovic.jpg",
             status="active",
             current_rank=1,
@@ -120,7 +128,7 @@ async def seed_demo_data(session: AsyncSession) -> None:
             weight_kg=77,
             hand="right",
             backhand="two-handed",
-            biography="Aggressive baseliner and major champion contender.",
+            biography="Агрессивный игрок задней линии и претендент на крупнейшие титулы.",
             photo_url="/media/players/sinner.jpg",
             status="active",
             current_rank=2,
@@ -139,7 +147,7 @@ async def seed_demo_data(session: AsyncSession) -> None:
             weight_kg=83,
             hand="right",
             backhand="two-handed",
-            biography="Former world No. 1 with elite hard-court results.",
+            biography="Бывшая первая ракетка мира с элитными результатами на харде.",
             photo_url="/media/players/medvedev.jpg",
             status="active",
             current_rank=4,
@@ -158,7 +166,7 @@ async def seed_demo_data(session: AsyncSession) -> None:
             weight_kg=75,
             hand="right",
             backhand="two-handed",
-            biography="Top-10 regular with heavy forehand.",
+            biography="Стабильный игрок топ-10 с мощным форхендом.",
             photo_url="/media/players/rublev.jpg",
             status="active",
             current_rank=6,
@@ -177,7 +185,7 @@ async def seed_demo_data(session: AsyncSession) -> None:
             weight_kg=65,
             hand="right",
             backhand="two-handed",
-            biography="Multiple-time major champion and WTA leader.",
+            biography="Многократная чемпионка мэйджоров и лидер WTA.",
             photo_url="/media/players/swiatek.jpg",
             status="active",
             current_rank=1,
@@ -196,7 +204,7 @@ async def seed_demo_data(session: AsyncSession) -> None:
             weight_kg=80,
             hand="right",
             backhand="two-handed",
-            biography="Power baseline game and regular contender at majors.",
+            biography="Мощная игра на задней линии и постоянная претендентка на главные титулы.",
             photo_url="/media/players/sabalenka.jpg",
             status="active",
             current_rank=2,
@@ -222,7 +230,7 @@ async def seed_demo_data(session: AsyncSession) -> None:
             end_date=date(2026, 1, 26),
             status="finished",
             logo_url="/media/tournaments/ao.png",
-            description="First Grand Slam of the season.",
+            description="Первый турнир Большого шлема в сезоне.",
         ),
         Tournament(
             id=2,
@@ -241,7 +249,7 @@ async def seed_demo_data(session: AsyncSession) -> None:
             end_date=date(2026, 3, 16),
             status="live",
             logo_url="/media/tournaments/iw.png",
-            description="Premier hard-court event in California.",
+            description="Крупнейший хардовый турнир в Калифорнии.",
         ),
     ]
 
@@ -302,15 +310,15 @@ async def seed_demo_data(session: AsyncSession) -> None:
         RankingSnapshot(id=5, ranking_type="atp", ranking_date="2026-03-02", player_id=4, rank_position=6, points=5120, movement=-1),
         RankingSnapshot(id=6, ranking_type="wta", ranking_date="2026-03-02", player_id=5, rank_position=1, points=10420, movement=0),
         RankingSnapshot(id=7, ranking_type="wta", ranking_date="2026-03-02", player_id=6, rank_position=2, points=9030, movement=1),
-        NewsCategory(id=1, slug="analysis", name="Analysis"),
+        NewsCategory(id=1, slug="analysis", name="Аналитика"),
         Tag(id=1, slug="djokovic", name="Djokovic"),
         Tag(id=2, slug="indian-wells", name="Indian Wells"),
-        NewsArticle(id=1, slug="djokovic-wins-ao-2026", title="Djokovic wins Australian Open 2026", subtitle="Veteran outlasts Sinner in four sets", lead="Djokovic claimed another major title after a high-level final.", content_html="<p>Novak Djokovic defeated Jannik Sinner in four sets to lift the Australian Open trophy.</p>", cover_image_url="/media/news/djokovic-ao.jpg", author_id=1, category_id=1, status="published", seo_title="Djokovic wins AO 2026", seo_description="Grand Slam final recap and key tactical points.", published_at=now),
-        NewsArticle(id=2, slug="medvedev-rublev-live-updates", title="Medvedev vs Rublev live updates", subtitle="Indian Wells semifinal in progress", lead="Momentum swings continue in California.", content_html="<p>Follow the semifinal live with score changes and match stats.</p>", cover_image_url="/media/news/live-iw.jpg", author_id=1, category_id=1, status="published", seo_title="Indian Wells semifinal live", seo_description="Live score and tactical context from Medvedev vs Rublev.", published_at=now),
+        NewsArticle(id=1, slug="djokovic-wins-ao-2026", title="Джокович выигрывает Australian Open 2026", subtitle="Ветеран дожимает Синнера в четырех сетах", lead="Новак Джокович берет еще один мэйджор после матча высочайшего уровня.", content_html="<p>Новак Джокович победил Янника Синнера в четырех сетах и вновь поднял над головой трофей Australian Open.</p>", cover_image_url="/media/news/djokovic-ao.jpg", author_id=1, category_id=1, status="published", seo_title="Джокович выигрывает AO 2026", seo_description="Разбор финала Большого шлема и ключевых тактических моментов.", published_at=now),
+        NewsArticle(id=2, slug="medvedev-rublev-live-updates", title="Медведев против Рублева: лайв-обновления", subtitle="Полуфинал Indian Wells в разгаре", lead="Инициатива в матче постоянно переходит от одного игрока к другому.", content_html="<p>Следите за полуфиналом в режиме реального времени: изменения счета, ключевые розыгрыши и статистика по ходу встречи.</p>", cover_image_url="/media/news/live-iw.jpg", author_id=1, category_id=1, status="published", seo_title="Лайв полуфинала Indian Wells", seo_description="Счет, темп матча и тактический контекст встречи Медведева и Рублева.", published_at=now),
         FavoriteEntity(id=1, user_id=2, entity_type="player", entity_id=1),
         FavoriteEntity(id=2, user_id=2, entity_type="tournament", entity_id=1),
         NotificationSubscription(id=1, user_id=2, entity_type="player", entity_id=1, notification_types=["match_start", "ranking_change"], channels=["web", "email"], is_active=True),
-        Notification(id=1, user_id=2, type="match_start", title="Djokovic match starts soon", body="Australian Open final starts in 15 minutes.", payload_json={"entity_type": "match", "entity_id": 1}, status="unread", read_at=None),
-        Notification(id=2, user_id=2, type="news", title="New feature story published", body="Read the latest Australian Open final analysis.", payload_json={"entity_type": "news", "entity_id": 1}, status="read", read_at=now),
+        Notification(id=1, user_id=2, type="match_start", title="Матч Джоковича скоро начнется", body="Финал Australian Open начнется через 15 минут.", payload_json={"entity_type": "match", "entity_id": 1}, status="unread", read_at=None),
+        Notification(id=2, user_id=2, type="news", title="Опубликован новый большой материал", body="Прочитайте свежий разбор финала Australian Open.", payload_json={"entity_type": "news", "entity_id": 1}, status="read", read_at=now),
     ])
     await session.commit()

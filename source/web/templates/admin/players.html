@@ -2,7 +2,7 @@
 {% block content %}
 <section class="admin-page-header content-card d-flex justify-content-between align-items-center gap-3 flex-wrap">
     <div>
-        <div class="section-kicker">Players admin</div>
+        <div class="section-kicker">Управление игроками</div>
         <h1 class="section-title mt-2">Игроки и импорт базы</h1>
     </div>
     <a href="/admin/players/new" class="btn btn-lime">Новый игрок</a>
@@ -11,14 +11,14 @@
 <section class="page-section content-card">
     <form id="admin-players-filters" class="admin-form-grid">
         <input class="form-control span-6" id="admin-players-search" placeholder="Поиск по игрокам">
-        <input class="form-control span-3" id="admin-players-country" placeholder="Country code">
-        <select class="form-select span-3" id="admin-players-hand"><option value="">Hand</option><option value="right">Right</option><option value="left">Left</option></select>
-        <select class="form-select span-3" id="admin-players-status"><option value="">Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        <input class="form-control span-3" id="admin-players-country" placeholder="Код страны">
+        <select class="form-select span-3" id="admin-players-hand"><option value="">Рука</option><option value="right">Правая</option><option value="left">Левая</option></select>
+        <select class="form-select span-3" id="admin-players-status"><option value="">Статус</option><option value="active">Активен</option><option value="inactive">Неактивен</option></select>
     </form>
 </section>
 
 <section class="page-section content-card">
-    <div class="section-kicker">Bulk import</div>
+    <div class="section-kicker">Массовый импорт</div>
     <h2 class="section-title mt-2 mb-3">Импорт игроков</h2>
     <form id="admin-player-import-form">
         <div class="d-grid gap-3">

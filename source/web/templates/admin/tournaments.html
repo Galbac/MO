@@ -2,19 +2,19 @@
 {% block content %}
 <section class="admin-page-header content-card d-flex justify-content-between align-items-center gap-3 flex-wrap">
     <div>
-        <div class="section-kicker">Tournaments admin</div>
-        <h1 class="section-title mt-2">Турниры, публикация и draw-операции</h1>
+        <div class="section-kicker">Управление турнирами</div>
+        <h1 class="section-title mt-2">Турниры, публикация и операции с сеткой</h1>
     </div>
     <a href="/admin/tournaments/new" class="btn btn-lime">Создать турнир</a>
 </section>
 
 <section class="page-section content-card">
     <form id="admin-tournaments-filters" class="admin-form-grid">
-        <input class="form-control span-6" id="admin-tournaments-search" placeholder="Search">
-        <input class="form-control span-3" id="admin-tournaments-category" placeholder="Category">
-        <select class="form-select span-3" id="admin-tournaments-surface"><option value="">Surface</option><option value="hard">Hard</option><option value="clay">Clay</option><option value="grass">Grass</option></select>
-        <select class="form-select span-3" id="admin-tournaments-status"><option value="">Status</option><option value="scheduled">Scheduled</option><option value="published">Published</option><option value="live">Live</option></select>
-        <input class="form-control span-3" id="admin-tournaments-season" placeholder="Season year">
+        <input class="form-control span-6" id="admin-tournaments-search" placeholder="Поиск">
+        <input class="form-control span-3" id="admin-tournaments-category" placeholder="Категория">
+        <select class="form-select span-3" id="admin-tournaments-surface"><option value="">Покрытие</option><option value="hard">Хард</option><option value="clay">Грунт</option><option value="grass">Трава</option></select>
+        <select class="form-select span-3" id="admin-tournaments-status"><option value="">Статус</option><option value="scheduled">Запланирован</option><option value="published">Опубликован</option><option value="live">Идет</option></select>
+        <input class="form-control span-3" id="admin-tournaments-season" placeholder="Сезон">
     </form>
 </section>
 

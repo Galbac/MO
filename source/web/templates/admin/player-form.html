@@ -1,20 +1,20 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header hero-card">
-    <div class="section-kicker">Player form</div>
+    <div class="section-kicker">Форма игрока</div>
     <h1 class="hero-title mt-3">Создание и редактирование карточки игрока</h1>
 </section>
 
 <section class="page-section content-card">
-    <div class="admin-note mb-4" id="admin-player-form-meta">Create mode</div>
+    <div class="admin-note mb-4" id="admin-player-form-meta">Режим создания</div>
     <form data-api-path="/admin/players" data-api-method="POST">
         <div class="admin-form-grid">
             <input class="form-control span-6" name="full_name" placeholder="Полное имя">
-            <input class="form-control span-6" name="slug" placeholder="Slug">
-            <input class="form-control span-4" name="country_code" placeholder="Country code">
-            <select class="form-select span-4" name="hand"><option value="right">Right</option><option value="left">Left</option></select>
-            <input class="form-control span-4" name="current_rank" placeholder="Current rank">
-            <input class="form-control span-12" name="photo_url" placeholder="Photo URL">
+            <input class="form-control span-6" name="slug" placeholder="Слаг">
+            <input class="form-control span-4" name="country_code" placeholder="Код страны">
+            <select class="form-select span-4" name="hand"><option value="right">Правая</option><option value="left">Левая</option></select>
+            <input class="form-control span-4" name="current_rank" placeholder="Текущий рейтинг">
+            <input class="form-control span-12" name="photo_url" placeholder="URL фотографии">
             <textarea class="form-control span-12" rows="6" name="biography" placeholder="Биография"></textarea>
         </div>
         <div class="d-flex gap-2 mt-4">
@@ -24,13 +24,13 @@
         </div>
     </form>
     <div class="admin-form-grid mt-4">
-        <input class="form-control span-8" id="admin-player-photo-url" placeholder="Новый photo URL">
+        <input class="form-control span-8" id="admin-player-photo-url" placeholder="Новый URL фотографии">
         <button class="btn btn-ghost-dark span-4" id="admin-player-photo-save" type="button">Сохранить фото</button>
     </div>
     <div class="d-flex gap-2 mt-3">
         <button class="btn btn-ghost-dark" id="admin-player-load-detail" type="button">Загрузить детали</button>
         <button class="btn btn-ghost-dark" id="admin-player-update" type="button">Обновить игрока</button>
-        <button class="btn btn-ghost-dark" id="admin-player-recalc" type="button">Пересчитать stats</button>
+        <button class="btn btn-ghost-dark" id="admin-player-recalc" type="button">Пересчитать статистику</button>
         <button class="btn btn-outline-danger" id="admin-player-delete" type="button">Удалить</button>
     </div>
 </section>

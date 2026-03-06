@@ -1,18 +1,18 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header hero-card">
-    <div class="section-kicker">Integrations</div>
-    <h1 class="hero-title mt-3">Провайдеры данных, endpoint-конфигурация и ручной sync.</h1>
+    <div class="section-kicker">Интеграции</div>
+    <h1 class="hero-title mt-3">Провайдеры данных, настройка точек подключения и ручная синхронизация.</h1>
 </section>
 
 <section class="page-section admin-grid two">
     <section class="content-card">
-        <div class="section-kicker">Summary</div>
+        <div class="section-kicker">Сводка</div>
         <h2 class="section-title mt-2 mb-3">Состояние интеграций</h2>
         <div id="admin-integrations-summary"></div>
     </section>
     <section class="content-card">
-        <div class="section-kicker">Provider detail</div>
+        <div class="section-kicker">Детали провайдера</div>
         <h2 class="section-title mt-2 mb-3">Детали провайдера</h2>
         <div id="admin-integrations-detail"></div>
     </section>
@@ -20,17 +20,17 @@
 
 <section class="page-section content-card">
     <form id="admin-integrations-filters" class="admin-form-grid mb-4">
-        <input class="form-control span-6" id="admin-integrations-provider" placeholder="Provider">
-        <select class="form-select span-6" id="admin-integrations-status"><option value="">Все статусы</option><option value="configured">configured</option><option value="ok">ok</option><option value="error">error</option></select>
+        <input class="form-control span-6" id="admin-integrations-provider" placeholder="Провайдер">
+        <select class="form-select span-6" id="admin-integrations-status"><option value="">Все статусы</option><option value="configured">Настроен</option><option value="ok">Работает</option><option value="error">Ошибка</option></select>
     </form>
     <form id="admin-integrations-update-form" class="admin-form-grid">
-        <input class="form-control span-4" id="admin-integrations-target" name="provider" placeholder="Provider">
-        <input class="form-control span-8" id="admin-integrations-endpoint" name="endpoint" placeholder="Endpoint URL">
+        <input class="form-control span-4" id="admin-integrations-target" name="provider" placeholder="Провайдер">
+        <input class="form-control span-8" id="admin-integrations-endpoint" name="endpoint" placeholder="URL точки подключения">
     </form>
     <div class="d-flex gap-2 mt-4">
         <button class="btn btn-primary" id="admin-integrations-save" type="button">Сохранить</button>
-        <button class="btn btn-ghost-dark" id="admin-integrations-sync" type="button">Sync</button>
-        <button class="btn btn-ghost-dark" id="admin-integrations-load-logs" type="button">Logs</button>
+        <button class="btn btn-ghost-dark" id="admin-integrations-sync" type="button">Синхронизировать</button>
+        <button class="btn btn-ghost-dark" id="admin-integrations-load-logs" type="button">Логи</button>
     </div>
     <div class="alert alert-success d-none mt-3 mb-0" id="admin-integrations-feedback"></div>
     <div class="alert alert-danger d-none mt-3 mb-0" id="admin-integrations-error"></div>
@@ -46,7 +46,7 @@
 </section>
 
 <section class="page-section content-card">
-    <div class="section-kicker">Logs</div>
+    <div class="section-kicker">Логи</div>
     <h2 class="section-title mt-2 mb-3">Логи интеграции</h2>
     <div id="admin-integrations-logs"></div>
 </section>

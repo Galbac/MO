@@ -107,7 +107,11 @@ class AdminSupportService:
         )
 
     async def get_settings(self) -> SuccessResponse[dict]:
-        payload = self._read_json(self.settings_file)
+        payload = self._read_json(self.settings_file) or {
+            'seo_title': settings.names.title,
+            'support_email': settings.contacts.support_email,
+            'provider_notes': 'live_score_provider=enabled',
+        }
         updated_at = None
         file_exists = self.settings_file.exists()
         if file_exists:
@@ -134,7 +138,11 @@ class AdminSupportService:
             for key, value in payload.items()
             if str(key).strip() and value not in (None, '')
         }
-        current = self._read_json(self.settings_file) or {}
+        current = self._read_json(self.settings_file) or {
+            'seo_title': settings.names.title,
+            'support_email': settings.contacts.support_email,
+            'provider_notes': 'live_score_provider=enabled',
+        }
         merged = current | sanitized
         self._write_json(self.settings_file, merged)
         self._invalidate_cache('news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:')

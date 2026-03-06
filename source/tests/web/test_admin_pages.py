@@ -14,7 +14,7 @@ async def test_admin_notifications_page_renders_html(async_client) -> None:
 
     assert response.status_code == status.HTTP_200_OK
     assert "text/html" in response.headers["content-type"]
-    assert "Шаблоны" in response.text
+    assert "шаблонами" in response.text
 
 
 async def test_admin_live_operations_page_has_dynamic_match_selector(async_client) -> None:
@@ -87,9 +87,9 @@ async def test_admin_maintenance_page_renders_html(async_client) -> None:
     response = await async_client.get('/admin/maintenance')
 
     assert response.status_code == status.HTTP_200_OK
-    assert 'Maintenance' in response.text
+    assert 'Обслуживание' in response.text
     assert 'data-maintenance-run="generate_sitemap"' in response.text
-    assert 'aria-label="Таблица maintenance артефактов"' in response.text
+    assert 'aria-label="Таблица артефактов обслуживания"' in response.text
 
 
 
@@ -266,7 +266,7 @@ async def test_admin_maintenance_page_has_backups_section(async_client) -> None:
     assert response.status_code == status.HTTP_200_OK
     assert 'admin-backups-list' in response.text
     assert 'data-maintenance-run="backup_runtime"' in response.text
-    assert 'восстановить приложение из уже сохраненного backup' in response.text
+    assert 'восстановить приложение из уже сохраненной резервной копии' in response.text
 
 
 async def test_admin_jobs_page_has_detail_panel(async_client) -> None:

@@ -1,6 +1,6 @@
 import os
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +11,39 @@ def _default_postgres_url() -> str:
     user = os.getenv('POSTGRES_USER', 'postgres')
     password = os.getenv('POSTGRES_PASSWORD', 'postgres')
     return f'postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}'
+
+
+def _default_site_domain() -> str:
+    return os.getenv('FASTAPI_CFG__SITE__DOMAIN', 'makhachkalaopen.ru')
+
+
+def _default_site_scheme() -> str:
+    return os.getenv('FASTAPI_CFG__SITE__SCHEME', 'https')
+
+
+def _default_site_base_url() -> str:
+    value = os.getenv('FASTAPI_CFG__SITE__BASE_URL', '').strip().rstrip('/')
+    if value:
+        return value
+    return f'{_default_site_scheme()}://{_default_site_domain()}'
+
+
+def _default_cors_origins() -> list[str]:
+    raw = os.getenv('FASTAPI_CFG__MIDDLEWARE__CORS_ORIGINS', '').strip()
+    if raw:
+        return [item.strip() for item in raw.split(',') if item.strip()]
+    base_url = _default_site_base_url()
+    return [
+        base_url,
+        'http://localhost',
+        'http://127.0.0.1',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+    ]
+
+
+def _default_domain_email(local_part: str) -> str:
+    return f'{local_part}@{_default_site_domain()}'
 
 
 
@@ -35,8 +68,33 @@ class ApiPrefix(BaseModel):
     v1: ApiV1Prefix = ApiV1Prefix()
 
 
+class SiteSettings(BaseModel):
+    domain: str = Field(default_factory=_default_site_domain)
+    scheme: str = Field(default_factory=_default_site_scheme)
+    base_url: str = Field(default_factory=_default_site_base_url)
+    editorial_name: str = "Редакция Makhachkala Open"
+    tagline: str = "Премиальный теннисный портал"
+    admin_title: str = "Центр управления Makhachkala Open"
+
+
+class ContactSettings(BaseModel):
+    support_email: str = Field(default_factory=lambda: _default_domain_email('support'))
+    noreply_email: str = Field(default_factory=lambda: _default_domain_email('noreply'))
+
+
+class DemoAccountsSettings(BaseModel):
+    admin_email: str = Field(default_factory=lambda: _default_domain_email('admin'))
+    user_email: str = Field(default_factory=lambda: _default_domain_email('user'))
+    editor_email: str = Field(default_factory=lambda: _default_domain_email('editor'))
+    operator_email: str = Field(default_factory=lambda: _default_domain_email('operator'))
+    admin_password: str = "AdminPass123"
+    user_password: str = "UserPass123"
+    editor_password: str = "EditorPass123"
+    operator_password: str = "OperatorPass123"
+
+
 class MiddlewareSettings(BaseModel):
-    cors_origins: list[str] = ["http://localhost", "http://localhost:3000"]
+    cors_origins: list[str] = Field(default_factory=_default_cors_origins)
     allow_methods: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     allow_headers: list[str] = ["Authorization", "Content-Type"]
 
@@ -154,6 +212,9 @@ class Settings(BaseSettings):
     )
     run: RunConfig = RunConfig()
     names: ProjectName = ProjectName()
+    site: SiteSettings = SiteSettings()
+    contacts: ContactSettings = ContactSettings()
+    demo: DemoAccountsSettings = DemoAccountsSettings()
     api: ApiPrefix = ApiPrefix()
     middleware: MiddlewareSettings = MiddlewareSettings()
     auth: AuthSettings = AuthSettings()

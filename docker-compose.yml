@@ -1,22 +1,50 @@
+x-app-environment: &app-environment
+  FASTAPI_CFG__RUN__PRODUCTION: ${FASTAPI_CFG__RUN__PRODUCTION}
+  FASTAPI_CFG__DB__URL: ${DOCKER_DATABASE_URL}
+  FASTAPI_CFG__DB__AUTO_CREATE: ${FASTAPI_CFG__DB__AUTO_CREATE}
+  FASTAPI_CFG__DB__SEED_DEMO_DATA: ${FASTAPI_CFG__DB__SEED_DEMO_DATA}
+  FASTAPI_CFG__REDIS__ENABLED: ${FASTAPI_CFG__REDIS__ENABLED}
+  FASTAPI_CFG__REDIS__URL: ${DOCKER_REDIS_URL}
+  FASTAPI_CFG__DOCS__USERNAME: ${FASTAPI_CFG__DOCS__USERNAME}
+  FASTAPI_CFG__DOCS__PASSWORD: ${FASTAPI_CFG__DOCS__PASSWORD}
+  FASTAPI_CFG__AUTH__SECRET_KEY: ${FASTAPI_CFG__AUTH__SECRET_KEY}
+  FASTAPI_CFG__SITE__DOMAIN: ${FASTAPI_CFG__SITE__DOMAIN}
+  FASTAPI_CFG__SITE__SCHEME: ${FASTAPI_CFG__SITE__SCHEME}
+  FASTAPI_CFG__SITE__BASE_URL: ${FASTAPI_CFG__SITE__BASE_URL}
+  FASTAPI_CFG__CONTACTS__SUPPORT_EMAIL: ${FASTAPI_CFG__CONTACTS__SUPPORT_EMAIL}
+  FASTAPI_CFG__CONTACTS__NOREPLY_EMAIL: ${FASTAPI_CFG__CONTACTS__NOREPLY_EMAIL}
+  FASTAPI_CFG__DEMO__ADMIN_EMAIL: ${FASTAPI_CFG__DEMO__ADMIN_EMAIL}
+  FASTAPI_CFG__DEMO__USER_EMAIL: ${FASTAPI_CFG__DEMO__USER_EMAIL}
+  FASTAPI_CFG__DEMO__EDITOR_EMAIL: ${FASTAPI_CFG__DEMO__EDITOR_EMAIL}
+  FASTAPI_CFG__DEMO__OPERATOR_EMAIL: ${FASTAPI_CFG__DEMO__OPERATOR_EMAIL}
+  FASTAPI_CFG__DEMO__ADMIN_PASSWORD: ${FASTAPI_CFG__DEMO__ADMIN_PASSWORD}
+  FASTAPI_CFG__DEMO__USER_PASSWORD: ${FASTAPI_CFG__DEMO__USER_PASSWORD}
+  FASTAPI_CFG__DEMO__EDITOR_PASSWORD: ${FASTAPI_CFG__DEMO__EDITOR_PASSWORD}
+  FASTAPI_CFG__DEMO__OPERATOR_PASSWORD: ${FASTAPI_CFG__DEMO__OPERATOR_PASSWORD}
+
 services:
   postgres:
     image: postgres:16
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB: tennis_portal
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d tennis_portal"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 20
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:5432"
 
   redis:
     image: redis:7
+    env_file:
+      - .env
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
@@ -26,20 +54,31 @@ services:
       timeout: 5s
       retries: 20
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:6379"
+
+  adminer:
+    image: adminer:4
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha-dark
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${ADMINER_PORT}:8080"
 
   migrate:
     build:
       context: .
       dockerfile: docker/Dockerfile
     command: alembic upgrade head
+    env_file:
+      - .env
     environment:
-      FASTAPI_CFG__RUN__PRODUCTION: "true"
-      FASTAPI_CFG__DB__URL: postgresql+asyncpg://postgres:postgres@postgres:5432/tennis_portal
-      FASTAPI_CFG__DB__AUTO_CREATE: "false"
-      FASTAPI_CFG__DB__SEED_DEMO_DATA: "false"
-      FASTAPI_CFG__REDIS__ENABLED: "true"
-      FASTAPI_CFG__REDIS__URL: redis://redis:6379/0
+      <<: *app-environment
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,15 +90,10 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     command: uvicorn source.main:create_app --factory --host 0.0.0.0 --port 8000
+    env_file:
+      - .env
     environment:
-      FASTAPI_CFG__RUN__PRODUCTION: "true"
-      FASTAPI_CFG__DB__URL: postgresql+asyncpg://postgres:postgres@postgres:5432/tennis_portal
-      FASTAPI_CFG__DB__AUTO_CREATE: "false"
-      FASTAPI_CFG__DB__SEED_DEMO_DATA: "false"
-      FASTAPI_CFG__REDIS__ENABLED: "true"
-      FASTAPI_CFG__REDIS__URL: redis://redis:6379/0
-      FASTAPI_CFG__DOCS__USERNAME: admin
-      FASTAPI_CFG__DOCS__PASSWORD: admin
+      <<: *app-environment
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,13 +109,10 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     command: python -m source.tasks.worker
+    env_file:
+      - .env
     environment:
-      FASTAPI_CFG__RUN__PRODUCTION: "true"
-      FASTAPI_CFG__DB__URL: postgresql+asyncpg://postgres:postgres@postgres:5432/tennis_portal
-      FASTAPI_CFG__DB__AUTO_CREATE: "false"
-      FASTAPI_CFG__DB__SEED_DEMO_DATA: "false"
-      FASTAPI_CFG__REDIS__ENABLED: "true"
-      FASTAPI_CFG__REDIS__URL: redis://redis:6379/0
+      <<: *app-environment
       FASTAPI_CFG__JOBS__PROCESS_ON_STARTUP: "false"
     depends_on:
       postgres:
@@ -93,16 +124,50 @@ services:
 
   nginx:
     image: nginx:1.27-alpine
+    restart: unless-stopped
+    env_file:
+      - .env
     depends_on:
       api:
         condition: service_started
     volumes:
-      - ./docker/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./docker/nginx/default.http.conf.template:/etc/nginx/templates/default.http.conf.template:ro
+      - ./docker/nginx/default.https.conf.template:/etc/nginx/templates/default.https.conf.template:ro
+      - ./docker/nginx/entrypoint.sh:/entrypoint.sh:ro
+      - certbot_www:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
     environment:
       NGINX_ENTRYPOINT_QUIET_LOGS: "1"
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME}
+      ENABLE_SSL: ${ENABLE_SSL}
+      SSL_CERT_PATH: /etc/letsencrypt/live/${FASTAPI_CFG__SITE__DOMAIN}/fullchain.pem
+      SSL_KEY_PATH: /etc/letsencrypt/live/${FASTAPI_CFG__SITE__DOMAIN}/privkey.pem
+      NGINX_RELOAD_INTERVAL_SECONDS: ${NGINX_RELOAD_INTERVAL_SECONDS}
+    command: ["/bin/sh", "/entrypoint.sh"]
     ports:
-      - "8080:80"
+      - "${HTTP_PORT}:80"
+      - "${HTTPS_PORT}:443"
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - certbot_www:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        trap exit TERM
+        while :; do
+          certbot renew --webroot -w /var/www/certbot --quiet
+          sleep 12h
+        done
 
 volumes:
   postgres_data:
   redis_data:
+  certbot_www:
+  letsencrypt:

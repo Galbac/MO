@@ -63,7 +63,7 @@ def prepared_test_db() -> str:
 
     async def _seed() -> None:
         async with db_session_manager.session() as session:
-            await seed_demo_data(session)
+            await seed_demo_data(session, force=True)
 
     asyncio.run(_seed())
     try:

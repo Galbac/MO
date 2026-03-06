@@ -2,7 +2,7 @@
 {% block content %}
 <section class="admin-page-header content-card d-flex justify-content-between align-items-center gap-3 flex-wrap">
     <div>
-        <div class="section-kicker">Matches admin</div>
+        <div class="section-kicker">Управление матчами</div>
         <h1 class="section-title mt-2">Матчи и live-статусы</h1>
     </div>
     <a href="/admin/matches/new" class="btn btn-lime">Новый матч</a>
@@ -11,23 +11,23 @@
 <section class="page-section content-card">
     <form id="admin-matches-filters" class="admin-form-grid">
         <input class="form-control span-8" id="admin-matches-search" placeholder="Поиск по игрокам или турниру">
-        <select class="form-select span-4" id="admin-matches-status"><option value="">Все статусы</option><option value="scheduled">Scheduled</option><option value="live">Live</option><option value="finished">Finished</option></select>
-        <input class="form-control span-4" id="admin-matches-tournament" placeholder="Tournament">
-        <input class="form-control span-4" id="admin-matches-player" placeholder="Player">
-        <input class="form-control span-4" id="admin-matches-round" placeholder="Round">
-        <input class="form-control span-4" id="admin-matches-date-from" placeholder="Date from">
-        <input class="form-control span-4" id="admin-matches-date-to" placeholder="Date to">
+        <select class="form-select span-4" id="admin-matches-status"><option value="">Все статусы</option><option value="scheduled">Запланирован</option><option value="live">Идет</option><option value="finished">Завершен</option></select>
+        <input class="form-control span-4" id="admin-matches-tournament" placeholder="Турнир">
+        <input class="form-control span-4" id="admin-matches-player" placeholder="Игрок">
+        <input class="form-control span-4" id="admin-matches-round" placeholder="Раунд">
+        <input class="form-control span-4" id="admin-matches-date-from" placeholder="Дата от">
+        <input class="form-control span-4" id="admin-matches-date-to" placeholder="Дата до">
     </form>
 </section>
 
 <section class="page-section content-card">
-    <div class="section-kicker">Quick create</div>
+    <div class="section-kicker">Быстрое создание</div>
     <h2 class="section-title mt-2 mb-3">Создать матч</h2>
     <div class="admin-form-grid">
-        <input class="form-control span-6" id="admin-match-create-player1" placeholder="Player 1">
-        <input class="form-control span-6" id="admin-match-create-player2" placeholder="Player 2">
-        <input class="form-control span-6" id="admin-match-create-tournament" placeholder="Tournament">
-        <input class="form-control span-3" id="admin-match-create-round" placeholder="Round">
+        <input class="form-control span-6" id="admin-match-create-player1" placeholder="Игрок 1">
+        <input class="form-control span-6" id="admin-match-create-player2" placeholder="Игрок 2">
+        <input class="form-control span-6" id="admin-match-create-tournament" placeholder="Турнир">
+        <input class="form-control span-3" id="admin-match-create-round" placeholder="Раунд">
         <input class="form-control span-3" id="admin-match-create-status" placeholder="scheduled">
     </div>
     <div class="d-flex gap-2 mt-4">

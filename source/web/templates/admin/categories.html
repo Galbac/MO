@@ -1,7 +1,7 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header content-card">
-    <div class="section-kicker">Taxonomy</div>
+    <div class="section-kicker">Таксономия</div>
     <h1 class="section-title mt-2">Категории новостей</h1>
 </section>
 
@@ -9,7 +9,7 @@
     <form data-api-path="/admin/news-categories" data-api-method="POST">
         <div class="admin-form-grid">
             <input class="form-control span-6" name="name" placeholder="Название категории">
-            <input class="form-control span-6" name="slug" placeholder="Slug">
+            <input class="form-control span-6" name="slug" placeholder="Слаг">
         </div>
         <div class="d-flex gap-2 mt-4">
             <button class="btn btn-primary" type="submit">Создать категорию</button>
@@ -21,9 +21,9 @@
 
 <section class="page-section content-card">
     <div class="admin-form-grid mb-4">
-        <input class="form-control span-4" id="admin-category-id" placeholder="Category ID">
-        <input class="form-control span-4" id="admin-category-name" placeholder="New name">
-        <input class="form-control span-4" id="admin-category-slug" placeholder="New slug">
+        <input class="form-control span-4" id="admin-category-id" placeholder="ID категории">
+        <input class="form-control span-4" id="admin-category-name" placeholder="Новое название">
+        <input class="form-control span-4" id="admin-category-slug" placeholder="Новый слаг">
     </div>
     <div class="d-flex gap-2 mb-4">
         <button class="btn btn-ghost-dark" id="admin-category-update" type="button">Обновить</button>

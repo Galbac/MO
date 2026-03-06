@@ -3,8 +3,8 @@
 <section class="page-section scoreboard-card">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
-            <div class="section-kicker">Live center</div>
-            <h1 class="hero-title mt-3 mb-0">Прямая спортивная подача: счет, события и live pulse в одном экране.</h1>
+            <div class="section-kicker">Лайв-центр</div>
+            <h1 class="hero-title mt-3 mb-0">Прямая спортивная подача: счет, события и пульс матча в одном экране.</h1>
         </div>
         <div class="glass-card rounded-4 p-3">
             <div class="section-kicker">WebSocket</div>
@@ -18,32 +18,32 @@
     <section class="content-card">
         <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
             <div>
-                <div class="section-kicker">Matches</div>
+                <div class="section-kicker">Матчи</div>
                 <h2 class="section-title mt-2">Матчи в лайве</h2>
             </div>
-            <span class="badge-live">Live</span>
+            <span class="badge-live">Лайв</span>
         </div>
         <div class="alert alert-danger d-none" id="live-matches-error"></div>
-        <div class="state-card d-none" id="live-matches-empty">Сейчас нет активных live-матчей.</div>
+        <div class="state-card d-none" id="live-matches-empty">Сейчас нет активных лайв-матчей.</div>
         <div class="cards-grid" id="live-matches-list"></div>
     </section>
     <section class="timeline-card surface-dark">
         <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
             <div>
-                <div class="section-kicker">Feed</div>
+                <div class="section-kicker">Лента</div>
                 <h2 class="section-title mt-2">Лента событий</h2>
             </div>
-            <span class="badge-live">Real-time</span>
+            <span class="badge-live">Реальное время</span>
         </div>
         <div class="alert alert-danger d-none" id="live-feed-error"></div>
-        <div class="state-card d-none" id="live-feed-empty">События live-ленты пока не поступали.</div>
+        <div class="state-card d-none" id="live-feed-empty">События лайв-ленты пока не поступали.</div>
         <div class="timeline-list" id="live-feed-list"></div>
     </section>
 </section>
 
 <section class="page-section content-card">
-    <div class="section-kicker">Selected live match</div>
-    <h2 class="section-title mt-2 mb-3">Детали live /live/{match_id}</h2>
+    <div class="section-kicker">Выбранный лайв-матч</div>
+    <h2 class="section-title mt-2 mb-3">Детальная карточка /live/{match_id}</h2>
     <div id="live-match-detail"></div>
 </section>
 {% endblock %}

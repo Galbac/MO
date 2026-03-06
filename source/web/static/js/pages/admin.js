@@ -1,6 +1,6 @@
 import { api } from "/static/js/core/api.js";
 import { createLiveSocket } from "/static/js/core/websocket.js";
-import { debounce, entityId, escapeHtml, extractData, extractList, pageName, qs, queryParam, setHtml, setText, show } from "/static/js/core/utils.js";
+import { debounce, entityId, escapeHtml, extractData, extractList, pageName, qs, queryParam, setHtml, setText, show, statusLabel } from "/static/js/core/utils.js";
 import { matchCard, timelineItem } from "/static/js/components/renderers.js";
 import { showToast } from "/static/js/core/ui.js";
 
@@ -20,7 +20,7 @@ async function initDashboard() {
     setText("admin-integrations-count", extractList(integrations).length);
     setText("admin-jobs-count", "24");
     setHtml("admin-audit-list", extractList(audit).map(timelineItem).join("") || '<div class="state-card">Нет действий.</div>');
-    setHtml("admin-integrations-list", extractList(integrations).map((item) => `<div class="notification-item"><strong>${escapeHtml(item.provider)}</strong><div class="text-muted small">${escapeHtml(item.status || "configured")}</div></div>`).join("") || '<div class="state-card">Интеграции еще не настроены.</div>');
+    setHtml("admin-integrations-list", extractList(integrations).map((item) => `<div class="notification-item"><strong>${escapeHtml(item.provider)}</strong><div class="text-muted small">${escapeHtml(statusLabel(item.status || "configured"))}</div></div>`).join("") || '<div class="state-card">Интеграции еще не настроены.</div>');
 }
 
 async function initUsers() {
@@ -39,9 +39,9 @@ async function initUsers() {
                             <td>${escapeHtml(user.id)}</td>
                             <td>${escapeHtml(user.email || "-")}</td>
                             <td>${escapeHtml(user.username || "-")}</td>
-                            <td>${escapeHtml(user.role || "-")}</td>
-                            <td>${escapeHtml(user.status || "-")}</td>
-                            <td><div class="admin-table-actions">${actionButton("Open", `/admin/users/${user.id}`, "primary")}</div></td>
+                            <td>${escapeHtml(statusLabel(user.role || "-"))}</td>
+                            <td>${escapeHtml(statusLabel(user.status || "-"))}</td>
+                            <td><div class="admin-table-actions">${actionButton("Открыть", `/admin/users/${user.id}`, "primary")}</div></td>
                         </tr>`,
                 )
                 .join(""),
@@ -62,7 +62,7 @@ async function initUserDetail() {
         api.admin.audit.list({ user_id: id }).catch(() => ({ data: [] })),
     ]);
     const user = extractData(userPayload);
-    setText("admin-user-title", user.username || user.email || `User #${id}`);
+    setText("admin-user-title", user.username || user.email || `Пользователь #${id}`);
     setHtml("admin-user-history", extractList(auditPayload).map(timelineItem).join("") || '<div class="state-card">История отсутствует.</div>');
     qs("#admin-user-set-role")?.addEventListener("click", async () => {
         await api.admin.users.setRole(id, { role: qs("#admin-user-role-control")?.value });
@@ -95,8 +95,8 @@ async function initAdminPlayers() {
                             <td>${escapeHtml(player.full_name || "-")}</td>
                             <td>${escapeHtml(player.country_code || "-")}</td>
                             <td>${escapeHtml(player.current_rank || "-")}</td>
-                            <td>${escapeHtml(player.status || "active")}</td>
-                            <td><div class="admin-table-actions">${actionButton("Edit", `/admin/players/new?player=${player.id}`, "primary")}</div></td>
+                            <td>${escapeHtml(statusLabel(player.status || "active"))}</td>
+                            <td><div class="admin-table-actions">${actionButton("Изменить", `/admin/players/new?player=${player.id}`, "primary")}</div></td>
                         </tr>`,
                 )
                 .join(""),
@@ -138,10 +138,10 @@ async function initAdminTournaments() {
                     (item) => `
                         <tr>
                             <td>${escapeHtml(item.name)}</td>
-                            <td>${escapeHtml(item.category || "-")}</td>
-                            <td>${escapeHtml(item.surface || "-")}</td>
-                            <td>${escapeHtml(item.status || "-")}</td>
-                            <td><div class="admin-table-actions">${actionButton("Edit", `/admin/tournaments/new?tournament=${item.id}`, "primary")}</div></td>
+                            <td>${escapeHtml(statusLabel(item.category || "-"))}</td>
+                            <td>${escapeHtml(statusLabel(item.surface || "-"))}</td>
+                            <td>${escapeHtml(statusLabel(item.status || "-"))}</td>
+                            <td><div class="admin-table-actions">${actionButton("Изменить", `/admin/tournaments/new?tournament=${item.id}`, "primary")}</div></td>
                         </tr>`,
                 )
                 .join(""),
@@ -163,11 +163,11 @@ async function initAdminMatches() {
                 .map(
                     (match) => `
                         <tr>
-                            <td>${escapeHtml(match.player1_name)} vs ${escapeHtml(match.player2_name)}</td>
+                            <td>${escapeHtml(match.player1_name)} против ${escapeHtml(match.player2_name)}</td>
                             <td>${escapeHtml(match.tournament_name || "-")}</td>
-                            <td>${escapeHtml(match.status || "-")}</td>
+                            <td>${escapeHtml(statusLabel(match.status || "-"))}</td>
                             <td>${escapeHtml(match.round_code || "-")}</td>
-                            <td><div class="admin-table-actions">${actionButton("Detail", `/admin/matches/${match.id}`, "primary")}</div></td>
+                            <td><div class="admin-table-actions">${actionButton("Подробнее", `/admin/matches/${match.id}`, "primary")}</div></td>
                         </tr>`,
                 )
                 .join(""),
@@ -194,7 +194,7 @@ async function initAdminMatchDetail() {
     const render = async () => {
         const [detailPayload, timelinePayload] = await Promise.all([api.admin.matches.detail(id), api.matches.timeline(id)]);
         const detail = extractData(detailPayload);
-        setText("admin-match-title", `${detail.player1_name || ""} vs ${detail.player2_name || ""}`);
+        setText("admin-match-title", `${detail.player1_name || ""} против ${detail.player2_name || ""}`);
         setHtml("admin-match-preview-card", matchCard({ ...detail, slug: detail.slug || "#" }));
         setHtml("admin-match-events", extractList(timelinePayload).map(timelineItem).join("") || '<div class="state-card">Событий пока нет.</div>');
     };
@@ -208,13 +208,13 @@ async function initAdminMatchDetail() {
     qs("#admin-match-score-save")?.addEventListener("click", async () => {
         const raw = qs("#admin-match-score-input")?.value || "{}";
         await api.admin.matches.setScore(id, JSON.parse(raw));
-        showToast("Score обновлен", "success");
+        showToast("Счет обновлен", "success");
         render();
     });
     qs("#admin-match-stats-save")?.addEventListener("click", async () => {
         const raw = qs("#admin-match-stats-input")?.value || "{}";
         await api.admin.matches.setStats(id, JSON.parse(raw));
-        showToast("Stats обновлены", "success");
+        showToast("Статистика обновлена", "success");
         render();
     });
     qs("#admin-match-finalize")?.addEventListener("click", async () => {
@@ -238,8 +238,8 @@ async function initLiveOperations() {
     const render = async () => {
         const payload = await api.live.list();
         const matches = extractList(payload);
-        setHtml("admin-live-matches", matches.map(matchCard).join("") || '<div class="state-card">Нет live-матчей.</div>');
-        setHtml("admin-live-match-id", `<option value="">Выберите матч</option>${matches.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.player1_name)} vs ${escapeHtml(item.player2_name)}</option>`).join("")}`);
+        setHtml("admin-live-matches", matches.map(matchCard).join("") || '<div class="state-card">Нет лайв-матчей.</div>');
+        setHtml("admin-live-match-id", `<option value="">Выберите матч</option>${matches.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.player1_name)} против ${escapeHtml(item.player2_name)}</option>`).join("")}`);
     };
     await render();
     qs("#admin-live-event-form")?.addEventListener("submit", async (event) => {
@@ -268,7 +268,7 @@ async function initRankingsImport() {
     setHtml(
         "admin-ranking-jobs",
         extractList(payload)
-            .map((job) => `<tr><td>${escapeHtml(job.id)}</td><td>${escapeHtml(job.job_type || "ranking_import")}</td><td>${escapeHtml(job.status || "-")}</td><td>${escapeHtml(job.imported_rows || "-")}</td><td>${escapeHtml(job.total_rows || "-")}</td></tr>`)
+            .map((job) => `<tr><td>${escapeHtml(job.id)}</td><td>${escapeHtml(statusLabel(job.job_type || "ranking_import"))}</td><td>${escapeHtml(statusLabel(job.status || "-"))}</td><td>${escapeHtml(job.imported_rows || "-")}</td><td>${escapeHtml(job.total_rows || "-")}</td></tr>`)
             .join(""),
     );
 }
@@ -278,7 +278,7 @@ async function initAdminNews() {
     setHtml(
         "admin-news-body",
         extractList(payload)
-            .map((item) => `<tr><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.status || "-")}</td><td>${escapeHtml(item.category?.name || "-")}</td><td>${escapeHtml(item.published_at || "-")}</td><td><div class="admin-table-actions">${actionButton("Edit", `/admin/news/new?news=${item.id}`, "primary")}</div></td></tr>`)
+            .map((item) => `<tr><td>${escapeHtml(item.title)}</td><td>${escapeHtml(statusLabel(item.status || "-"))}</td><td>${escapeHtml(item.category?.name || "-")}</td><td>${escapeHtml(item.published_at || "-")}</td><td><div class="admin-table-actions">${actionButton("Изменить", `/admin/news/new?news=${item.id}`, "primary")}</div></td></tr>`)
             .join(""),
     );
 }
@@ -309,21 +309,21 @@ async function initTaxonomy(type) {
 }
 
 async function initMedia() {
-    setHtml("admin-media-grid", '<div class="state-card">Введите media id, чтобы загрузить или удалить ассет.</div>');
+    setHtml("admin-media-grid", '<div class="state-card">Введите идентификатор медиафайла, чтобы загрузить или удалить ассет.</div>');
     qs("#admin-media-load")?.addEventListener("click", async () => {
         try {
             const payload = await api.media.detail(qs("#admin-media-id")?.value);
             setHtml("admin-media-grid", `<pre class="mb-0 small">${escapeHtml(JSON.stringify(extractData(payload), null, 2))}</pre>`);
         } catch (error) {
-            show("admin-media-error", true, error.message || "Не удалось загрузить media.");
+            show("admin-media-error", true, error.message || "Не удалось загрузить медиафайл.");
         }
     });
     qs("#admin-media-delete")?.addEventListener("click", async () => {
         try {
             await api.media.delete(qs("#admin-media-id")?.value);
-            showToast("Media удалено", "success");
+            showToast("Медиафайл удален", "success");
         } catch (error) {
-            show("admin-media-error", true, error.message || "Не удалось удалить media.");
+            show("admin-media-error", true, error.message || "Не удалось удалить медиафайл.");
         }
     });
 }
@@ -344,13 +344,13 @@ async function initIntegrations() {
     const payload = await api.admin.integrations.list().catch(() => ({ data: [] }));
     const items = extractList(payload);
     setHtml("admin-integrations-summary", `<div class="admin-note">Подключено провайдеров: <strong>${items.length}</strong></div>`);
-    setHtml("admin-integrations-body", items.map((item) => `<tr><td>${escapeHtml(item.provider)}</td><td>${escapeHtml(item.status || "-")}</td><td>${escapeHtml(item.last_synced_at || "-")}</td><td>${escapeHtml(item.last_error || "-")}</td></tr>`).join(""));
-    setHtml("admin-integrations-detail", items[0] ? `<div class="admin-note"><strong>${escapeHtml(items[0].provider)}</strong><div class="text-muted mt-2">${escapeHtml(items[0].endpoint || "Endpoint not configured")}</div></div>` : '<div class="state-card">Нет данных.</div>');
+    setHtml("admin-integrations-body", items.map((item) => `<tr><td>${escapeHtml(item.provider)}</td><td>${escapeHtml(statusLabel(item.status || "-"))}</td><td>${escapeHtml(item.last_synced_at || "-")}</td><td>${escapeHtml(item.last_error || "-")}</td></tr>`).join(""));
+    setHtml("admin-integrations-detail", items[0] ? `<div class="admin-note"><strong>${escapeHtml(items[0].provider)}</strong><div class="text-muted mt-2">${escapeHtml(items[0].endpoint || "Точка подключения не настроена")}</div></div>` : '<div class="state-card">Нет данных.</div>');
     qs("#admin-integrations-save")?.addEventListener("click", async () => {
         const provider = qs("#admin-integrations-target")?.value.trim();
         const endpoint = qs("#admin-integrations-endpoint")?.value.trim();
         if (!provider) {
-            show("admin-integrations-error", true, "Укажите provider.");
+            show("admin-integrations-error", true, "Укажите провайдера.");
             return;
         }
         try {
@@ -365,9 +365,9 @@ async function initIntegrations() {
         if (!provider) return;
         try {
             await api.admin.integrations.sync(provider);
-            show("admin-integrations-feedback", true, `Sync запущен для ${provider}.`);
+            show("admin-integrations-feedback", true, `Синхронизация запущена для ${provider}.`);
         } catch (error) {
-            show("admin-integrations-error", true, error.message || "Sync завершился ошибкой.");
+            show("admin-integrations-error", true, error.message || "Синхронизация завершилась ошибкой.");
         }
     });
     qs("#admin-integrations-load-logs")?.addEventListener("click", async () => {
@@ -400,7 +400,7 @@ async function initSettings() {
         const settings = extractData(payload);
         setHtml("admin-settings-summary", `<div class="admin-note"><strong>${escapeHtml(settings.seo_title || "Makhachkala Open")}</strong><div class="text-muted mt-2">${escapeHtml(settings.support_email || "")}</div></div>`);
         setHtml("admin-settings-notes-preview", `<div class="admin-note">${escapeHtml(settings.provider_notes || "Системные заметки отсутствуют.")}</div>`);
-        setHtml("admin-settings-storage", `<div class="admin-note">Runtime store active. API ready for ` + escapeHtml("PATCH /admin/settings") + `.</div>`);
+        setHtml("admin-settings-storage", `<div class="admin-note">Хранилище runtime активно. API готово к вызову ` + escapeHtml("PATCH /admin/settings") + `.</div>`);
     } catch (error) {
         show("admin-settings-error", true, error.message || "Ошибка загрузки настроек.");
     }
@@ -411,10 +411,10 @@ async function initAdminPlayerForm() {
     if (!id) return;
     const detailPayload = await api.admin.players.detail(id).catch(() => ({ data: {} }));
     const player = extractData(detailPayload);
-    setText("admin-player-form-meta", `Edit mode • player #${id}`);
+    setText("admin-player-form-meta", `Режим редактирования • игрок #${id}`);
     qs("#admin-player-load-detail")?.addEventListener("click", async () => {
         const payload = await api.admin.players.detail(id);
-        setText("admin-player-form-meta", `Loaded • ${extractData(payload).full_name || `player #${id}`}`);
+        setText("admin-player-form-meta", `Загружено • ${extractData(payload).full_name || `игрок #${id}`}`);
     });
     qs("#admin-player-update")?.addEventListener("click", async () => {
         await api.admin.players.update(id, {
@@ -447,10 +447,10 @@ async function initAdminTournamentForm() {
     if (!id) return;
     const detailPayload = await api.admin.tournaments.detail(id).catch(() => ({ data: {} }));
     const tournament = extractData(detailPayload);
-    setText("admin-tournament-form-meta", `Edit mode • tournament #${id}`);
+    setText("admin-tournament-form-meta", `Режим редактирования • турнир #${id}`);
     qs("#admin-tournament-load-detail")?.addEventListener("click", async () => {
         const payload = await api.admin.tournaments.detail(id);
-        setText("admin-tournament-form-meta", `Loaded • ${extractData(payload).name || `tournament #${id}`}`);
+        setText("admin-tournament-form-meta", `Загружено • ${extractData(payload).name || `турнир #${id}`}`);
     });
     qs("#admin-tournament-update")?.addEventListener("click", async () => {
         await api.admin.tournaments.update(id, {
@@ -467,7 +467,7 @@ async function initAdminTournamentForm() {
     });
     qs("#admin-tournament-generate-draw")?.addEventListener("click", async () => {
         await api.admin.tournaments.generateDraw(id);
-        showToast("Draw сгенерирован", "success");
+        showToast("Сетка сгенерирована", "success");
     });
     qs("#admin-tournament-publish")?.addEventListener("click", async () => {
         await api.admin.tournaments.publish(id);
@@ -484,10 +484,10 @@ async function initAdminNewsForm() {
     if (!id) return;
     const detailPayload = await api.admin.news.detail(id).catch(() => ({ data: {} }));
     const article = extractData(detailPayload);
-    setText("admin-news-form-meta", `Edit mode • news #${id}`);
+    setText("admin-news-form-meta", `Режим редактирования • новость #${id}`);
     qs("#admin-news-load-detail")?.addEventListener("click", async () => {
         const payload = await api.admin.news.detail(id);
-        setText("admin-news-form-meta", `Loaded • ${extractData(payload).title || `news #${id}`}`);
+        setText("admin-news-form-meta", `Загружено • ${extractData(payload).title || `новость #${id}`}`);
     });
     qs("#admin-news-update")?.addEventListener("click", async () => {
         await api.admin.news.update(id, {

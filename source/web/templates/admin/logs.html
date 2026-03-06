@@ -1,13 +1,13 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header content-card">
-    <div class="section-kicker">Logs</div>
-    <h1 class="section-title mt-2">Системные логи и runtime telemetry</h1>
+    <div class="section-kicker">Логи</div>
+    <h1 class="section-title mt-2">Системные логи и телеметрия runtime</h1>
 </section>
 
 <section class="page-section content-card">
     <form id="admin-logs-filters" class="admin-form-grid">
-        <select class="form-select span-6" id="admin-logs-category"><option>all</option></select>
+        <select class="form-select span-6" id="admin-logs-category"><option>все</option></select>
         <select class="form-select span-6" id="admin-logs-level"><option>info</option><option>error</option></select>
     </form>
     <div class="admin-note mt-4" id="admin-logs-summary">Экран логов подготовлен как отдельная аналитическая поверхность.</div>

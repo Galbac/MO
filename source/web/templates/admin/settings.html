@@ -1,37 +1,37 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header hero-card">
-    <div class="section-kicker">Settings</div>
-    <h1 class="hero-title mt-3">SEO, бренд, support settings и служебные заметки.</h1>
+    <div class="section-kicker">Настройки</div>
+    <h1 class="hero-title mt-3">SEO, бренд, контакты поддержки и служебные заметки.</h1>
 </section>
 
 <div class="alert alert-danger d-none page-section" id="admin-settings-error"></div>
 
 <section class="page-section admin-grid two">
     <section class="content-card">
-        <div class="section-kicker">Summary</div>
+        <div class="section-kicker">Сводка</div>
         <h2 class="section-title mt-2 mb-3">Текущие настройки</h2>
         <div id="admin-settings-summary"></div>
     </section>
     <section class="content-card">
-        <div class="section-kicker">Notes</div>
+        <div class="section-kicker">Заметки</div>
         <h2 class="section-title mt-2 mb-3">Операционные заметки</h2>
         <div id="admin-settings-notes-preview"></div>
     </section>
 </section>
 
 <section class="page-section content-card">
-    <div class="section-kicker">Storage</div>
-    <h2 class="section-title mt-2 mb-3">Runtime store</h2>
+    <div class="section-kicker">Хранилище</div>
+    <h2 class="section-title mt-2 mb-3">Файл runtime-настроек</h2>
     <div id="admin-settings-storage"></div>
 </section>
 
 <section class="page-section content-card">
     <form data-api-path="/admin/settings" data-api-method="PATCH">
         <div class="admin-form-grid">
-            <input class="form-control span-6" name="seo_title" placeholder="SEO title">
-            <input class="form-control span-6" name="support_email" placeholder="Support email">
-            <textarea class="form-control span-12" rows="5" name="provider_notes" placeholder="Provider notes"></textarea>
+            <input class="form-control span-6" name="seo_title" placeholder="SEO-заголовок">
+            <input class="form-control span-6" name="support_email" placeholder="Почта поддержки">
+            <textarea class="form-control span-12" rows="5" name="provider_notes" placeholder="Служебные заметки для команды"></textarea>
         </div>
         <div class="d-flex gap-2 mt-4">
             <button class="btn btn-primary" type="submit">Сохранить настройки</button>

@@ -113,8 +113,8 @@ async function initPlayerDetail() {
         "player-badges",
         [
             detail.country_code && `<span class="badge-soft">${escapeHtml(detail.country_code)}</span>`,
-            detail.current_rank && `<span class="badge-soft">Rank #${escapeHtml(detail.current_rank)}</span>`,
-            detail.current_points && `<span class="badge-soft">${escapeHtml(detail.current_points)} pts</span>`,
+            detail.current_rank && `<span class="badge-soft">Рейтинг №${escapeHtml(detail.current_rank)}</span>`,
+            detail.current_points && `<span class="badge-soft">${escapeHtml(detail.current_points)} очков</span>`,
             detail.hand && `<span class="badge-soft">${escapeHtml(detail.hand)}</span>`,
         ]
             .filter(Boolean)
@@ -144,8 +144,8 @@ async function initPlayerDetail() {
             { label: "Матчи", value: stats.matches_played || stats.total_matches || "-" },
             { label: "Победы", value: stats.wins || "-" },
             { label: "Поражения", value: stats.losses || "-" },
-            { label: "Aces", value: stats.aces || "-" },
-            { label: "Break saved", value: stats.break_points_saved_pct || "-" },
+            { label: "Эйсы", value: stats.aces || "-" },
+            { label: "Спасенные брейк-пойнты", value: stats.break_points_saved_pct || "-" },
             { label: "Текущая серия", value: stats.current_streak || "-" },
         ]
             .map((item) => `<div class="metric-card"><div class="entity-card__eyebrow">${escapeHtml(item.label)}</div><div class="metric-value">${escapeHtml(item.value)}</div></div>`)
@@ -154,7 +154,7 @@ async function initPlayerDetail() {
     setHtml("player-upcoming", upcoming.length ? upcoming.slice(0, 2).map(matchCard).join("") : '<div class="state-card">Нет ближайших матчей.</div>');
     setHtml("player-recent-matches", extractList(matchesPayload).slice(0, 5).map(matchCard).join("") || '<div class="state-card">Нет матчей.</div>');
     setHtml("player-ranking-history", extractList(rankingPayload).map(rankingRow).join(""));
-    setHtml("player-titles", extractList(titlesPayload).map((item) => `<div class="entity-card"><div class="entity-card__eyebrow">${escapeHtml(item.category || "Title")}</div><h3 class="entity-card__title">${escapeHtml(item.tournament_name || "-")}</h3><div class="entity-card__meta">${escapeHtml(item.surface || "")} • ${escapeHtml(item.season_year || "")}</div></div>`).join("") || '<div class="state-card">Титулов пока нет.</div>');
+    setHtml("player-titles", extractList(titlesPayload).map((item) => `<div class="entity-card"><div class="entity-card__eyebrow">${escapeHtml(item.category || "Титул")}</div><h3 class="entity-card__title">${escapeHtml(item.tournament_name || "-")}</h3><div class="entity-card__meta">${escapeHtml(item.surface || "")} • ${escapeHtml(item.season_year || "")}</div></div>`).join("") || '<div class="state-card">Титулов пока нет.</div>');
     setHtml("player-news", extractList(newsPayload).slice(0, 3).map(newsCard).join("") || '<div class="state-card">Нет связанных новостей.</div>');
 }
 
@@ -189,7 +189,7 @@ async function initTournamentDetail() {
         api.tournaments.news(tournamentId),
     ]);
     const detail = extractData(detailPayload);
-    setText("tournament-name", detail.name || "Tournament");
+    setText("tournament-name", detail.name || "Турнир");
     setText("tournament-summary", detail.description || "Календарь, draw, игроки и чемпионы турнира.");
     setHtml(
         "tournament-badges",
@@ -260,17 +260,17 @@ async function initMatchDetail() {
         setHtml(
             "match-stats",
             [
-                statPair("Aces", stats.player1_aces, stats.player2_aces),
-                statPair("1st serve %", stats.player1_first_serve_pct, stats.player2_first_serve_pct),
-                statPair("Break points won", stats.player1_break_points_won, stats.player2_break_points_won),
-                statPair("Winners", stats.player1_winners, stats.player2_winners),
+                statPair("Эйсы", stats.player1_aces, stats.player2_aces),
+                statPair("Первый мяч, %", stats.player1_first_serve_pct, stats.player2_first_serve_pct),
+                statPair("Выигранные брейк-пойнты", stats.player1_break_points_won, stats.player2_break_points_won),
+                statPair("Активно выигранные мячи", stats.player1_winners, stats.player2_winners),
             ].join(""),
         );
         setHtml("match-timeline", extractList(timelinePayload).map(timelineItem).join("") || '<div class="state-card">События еще не поступили.</div>');
         setHtml("match-preview", `<div class="text-muted">${escapeHtml((preview.notes || []).join(" ") || preview.summary || "Редакционный превью-блок будет доступен ближе к старту матча.")}</div>`);
         setHtml("match-score-service", `<pre class="mb-0 small">${escapeHtml(JSON.stringify(extractData(scorePayload), null, 2))}</pre>`);
         setHtml("match-h2h", `<div class="metric-value">${escapeHtml(h2h.player1_wins || 0)}:${escapeHtml(h2h.player2_wins || 0)}</div><div class="text-muted">Личных встреч: ${escapeHtml(h2h.total_matches || 0)}</div>`);
-        setHtml("match-points", extractList(pointPayload).slice(0, 10).map(timelineItem).join("") || '<div class="state-card">Point-by-point подключится во время матча.</div>');
+        setHtml("match-points", extractList(pointPayload).slice(0, 10).map(timelineItem).join("") || '<div class="state-card">Пошаговая лента розыгрышей подключится во время матча.</div>');
         setHtml("match-news", (detail.related_news || []).map(newsCard).join("") || '<div class="state-card">Связанных новостей пока нет.</div>');
         setHtml("match-form", (detail.recent_matches || []).map(matchCard).join("") || '<div class="state-card">Последние матчи игроков еще не загружены.</div>');
     };
@@ -306,7 +306,7 @@ async function initLiveCenter() {
                 const detailPayload = await api.live.detail(firstMatch.id).catch(() => ({ data: firstMatch }));
                 setHtml("live-match-detail", matchCard({ ...extractData(detailPayload), slug: firstMatch.slug || "#" }));
             } else {
-                setHtml("live-match-detail", '<div class="state-card">Выберите live-матч, чтобы увидеть detail API.</div>');
+                setHtml("live-match-detail", '<div class="state-card">Выберите лайв-матч, чтобы увидеть детальную карточку.</div>');
             }
             setText("live-sync-status", `Обновлено ${formatDate(new Date())}`);
         } catch (error) {
@@ -332,8 +332,8 @@ async function initRankings() {
         const wta = (fullList.length ? fullList : list).filter((item) => String(item.tour || item.ranking_type || "").toUpperCase().includes("WTA"));
         setHtml("rankings-atp-body", atp.map(rankingRow).join(""));
         setHtml("rankings-wta-body", (wta.length ? wta : atp).map(rankingRow).join(""));
-        setText("rankings-date", extractData(payload).ranking_date || "Current");
-        setHtml("rankings-race-list", extractList(racePayload).slice(0, 5).map((item) => `<div class="entity-card"><div class="entity-card__eyebrow">${escapeHtml(item.ranking_type || "Race")}</div><h3 class="entity-card__title">${escapeHtml(item.player_name || item.full_name || "-")}</h3><div class="entity-card__meta">${escapeHtml(item.points || "-")} pts</div></div>`).join("") || '<div class="state-card">Race data недоступны.</div>');
+        setText("rankings-date", extractData(payload).ranking_date || "Текущий срез");
+        setHtml("rankings-race-list", extractList(racePayload).slice(0, 5).map((item) => `<div class="entity-card"><div class="entity-card__eyebrow">${escapeHtml(item.ranking_type || "Гонка")}</div><h3 class="entity-card__title">${escapeHtml(item.player_name || item.full_name || "-")}</h3><div class="entity-card__meta">${escapeHtml(item.points || "-")} очков</div></div>`).join("") || '<div class="state-card">Данные гонки сезона недоступны.</div>');
         const players = extractList(playersPayload);
         setHtml("rankings-player-select", `<option value="">Выберите игрока</option>${players.slice(0, 40).map((player) => `<option value="${escapeHtml(player.id)}">${escapeHtml(player.full_name)}</option>`).join("")}`);
         qs("#rankings-player-select")?.addEventListener("change", async () => {
@@ -344,7 +344,7 @@ async function initRankings() {
                 api.rankings.history("current", { player_id: playerId }).catch(() => ({ data: [] })),
             ]);
             const player = extractData(playerPayload);
-            setHtml("rankings-player-card", `<div class="entity-card"><div class="entity-card__eyebrow">Player ranking</div><h3 class="entity-card__title">${escapeHtml(player.player_name || player.full_name || "Player")}</h3><div class="entity-card__meta">Rank ${escapeHtml(player.rank_position || player.rank || "-")} • ${escapeHtml(player.points || "-")} pts</div></div>`);
+            setHtml("rankings-player-card", `<div class="entity-card"><div class="entity-card__eyebrow">Рейтинг игрока</div><h3 class="entity-card__title">${escapeHtml(player.player_name || player.full_name || "Игрок")}</h3><div class="entity-card__meta">Позиция ${escapeHtml(player.rank_position || player.rank || "-")} • ${escapeHtml(player.points || "-")} очков</div></div>`);
             setHtml("rankings-history-body", extractList(historyPayload).map(rankingRow).join(""));
         });
     } catch (error) {
@@ -412,7 +412,7 @@ async function initNewsDetail() {
     const article = extractData(payload);
     setText("news-title", article.title || "Новость");
     setText("news-lead", article.lead || article.subtitle || "Редакционный материал.");
-    setHtml("news-meta", `<span class="badge-soft">${escapeHtml(article.category?.name || article.status || "News")}</span><span class="badge-soft">${escapeHtml(formatDate(article.published_at))}</span>`);
+    setHtml("news-meta", `<span class="badge-soft">${escapeHtml(article.category?.name || article.status || "Новость")}</span><span class="badge-soft">${escapeHtml(formatDate(article.published_at))}</span>`);
     setHtml("news-content", article.content_html || `<p>${escapeHtml(article.content || article.body || "")}</p>`);
     const related = await api.news.related({ slug }).catch(() => ({ data: [] }));
     setHtml("news-related", extractList(related).map(newsCard).join("") || '<div class="state-card">Похожих материалов пока нет.</div>');
@@ -447,7 +447,7 @@ async function initAccount() {
         show("account-favorites-empty", favorites.length === 0);
         show("account-subscriptions-empty", subs.length === 0);
         setHtml("account-favorites", favorites.map((item) => `<div class="notification-item"><strong>${escapeHtml(item.title || item.entity_type)}</strong><button class="btn btn-sm btn-outline-danger mt-2" data-favorite-remove="${escapeHtml(item.id || item.favorite_id || "")}">Удалить</button></div>`).join("") || "");
-        setHtml("account-subscriptions", subs.map((item) => `<div class="notification-item"><strong>${escapeHtml(item.entity_type)}</strong><div class="text-muted small">${escapeHtml(item.channel || "web")}</div><div class="d-flex gap-2 mt-2"><button class="btn btn-sm btn-ghost-dark" data-subscription-update="${escapeHtml(item.id || "")}">Update</button><button class="btn btn-sm btn-outline-danger" data-subscription-remove="${escapeHtml(item.id || "")}">Remove</button></div></div>`).join("") || "");
+        setHtml("account-subscriptions", subs.map((item) => `<div class="notification-item"><strong>${escapeHtml(item.entity_type)}</strong><div class="text-muted small">${escapeHtml(item.channel || "web")}</div><div class="d-flex gap-2 mt-2"><button class="btn btn-sm btn-ghost-dark" data-subscription-update="${escapeHtml(item.id || "")}">Изменить</button><button class="btn btn-sm btn-outline-danger" data-subscription-remove="${escapeHtml(item.id || "")}">Удалить</button></div></div>`).join("") || "");
         document.querySelectorAll("[data-favorite-remove]").forEach((button) => button.addEventListener("click", async () => {
             await api.users.removeFavorite(button.dataset.favoriteRemove);
             initAccount();
@@ -463,7 +463,7 @@ async function initAccount() {
         qs("#account-user-notifications-load")?.addEventListener("click", async () => {
             const notificationsPayload = await api.users.notifications();
             const items = extractList(notificationsPayload);
-            setHtml("account-user-notifications", items.map((item) => `<div class="notification-item"><strong>${escapeHtml(item.title || item.type || "Notification")}</strong><div class="text-muted small mt-1">${escapeHtml(item.body || "")}</div><button class="btn btn-sm btn-ghost-dark mt-2" data-user-notification-read="${escapeHtml(item.id)}">Read</button></div>`).join("") || '<div class="state-card">Уведомлений нет.</div>');
+            setHtml("account-user-notifications", items.map((item) => `<div class="notification-item"><strong>${escapeHtml(item.title || item.type || "Уведомление")}</strong><div class="text-muted small mt-1">${escapeHtml(item.body || "")}</div><button class="btn btn-sm btn-ghost-dark mt-2" data-user-notification-read="${escapeHtml(item.id)}">Прочитано</button></div>`).join("") || '<div class="state-card">Уведомлений нет.</div>');
             document.querySelectorAll("[data-user-notification-read]").forEach((button) => button.addEventListener("click", async () => {
                 await api.users.readNotification(button.dataset.userNotificationRead);
                 qs("#account-user-notifications-load")?.click();
@@ -475,7 +475,7 @@ async function initAccount() {
         });
         qs("[data-auth-refresh]")?.addEventListener("click", async () => {
             await api.auth.refresh({});
-            show("account-auth-feedback", true, "Refresh token выполнен.");
+            show("account-auth-feedback", true, "Сессия успешно обновлена.");
         });
     } catch (error) {
         show("account-error", true, error.message || "Не удалось загрузить аккаунт.");

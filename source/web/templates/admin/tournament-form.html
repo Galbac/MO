@@ -1,21 +1,21 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header hero-card">
-    <div class="section-kicker">Tournament form</div>
+    <div class="section-kicker">Форма турнира</div>
     <h1 class="hero-title mt-3">Форма турнира и метаданных</h1>
 </section>
 
 <section class="page-section content-card">
-    <div class="admin-note mb-4" id="admin-tournament-form-meta">Create mode</div>
+    <div class="admin-note mb-4" id="admin-tournament-form-meta">Режим создания</div>
     <form data-api-path="/admin/tournaments" data-api-method="POST">
         <div class="admin-form-grid">
             <input class="form-control span-6" name="name" placeholder="Название">
-            <input class="form-control span-6" name="slug" placeholder="Slug">
-            <select class="form-select span-4" name="category"><option value="grand_slam">Grand Slam</option><option value="masters_1000">Masters 1000</option></select>
-            <select class="form-select span-4" name="surface"><option value="hard">Hard</option><option value="clay">Clay</option><option value="grass">Grass</option></select>
-            <input class="form-control span-4" name="season_year" placeholder="Season year">
-            <input class="form-control span-6" name="city" placeholder="City">
-            <input class="form-control span-6" name="country_code" placeholder="Country code">
+            <input class="form-control span-6" name="slug" placeholder="Слаг">
+            <select class="form-select span-4" name="category"><option value="grand_slam">Большой шлем</option><option value="masters_1000">Мастерс 1000</option></select>
+            <select class="form-select span-4" name="surface"><option value="hard">Хард</option><option value="clay">Грунт</option><option value="grass">Трава</option></select>
+            <input class="form-control span-4" name="season_year" placeholder="Сезон">
+            <input class="form-control span-6" name="city" placeholder="Город">
+            <input class="form-control span-6" name="country_code" placeholder="Код страны">
             <textarea class="form-control span-12" rows="5" name="description" placeholder="Описание"></textarea>
         </div>
         <div class="d-flex gap-2 mt-4">
@@ -27,8 +27,8 @@
     <div class="d-flex gap-2 mt-4">
         <button class="btn btn-ghost-dark" id="admin-tournament-load-detail" type="button">Загрузить детали</button>
         <button class="btn btn-ghost-dark" id="admin-tournament-update" type="button">Обновить турнир</button>
-        <button class="btn btn-ghost-dark" id="admin-tournament-generate-draw" type="button">Generate draw</button>
-        <button class="btn btn-ghost-dark" id="admin-tournament-publish" type="button">Publish</button>
+        <button class="btn btn-ghost-dark" id="admin-tournament-generate-draw" type="button">Сгенерировать сетку</button>
+        <button class="btn btn-ghost-dark" id="admin-tournament-publish" type="button">Опубликовать</button>
         <button class="btn btn-outline-danger" id="admin-tournament-delete" type="button">Удалить</button>
     </div>
 </section>

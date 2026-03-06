@@ -1,21 +1,21 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header content-card">
-    <div class="section-kicker">Maintenance</div>
-    <h1 class="section-title mt-2">Служебные операции и rebuild-процессы</h1>
+    <div class="section-kicker">Обслуживание</div>
+    <h1 class="section-title mt-2">Служебные операции и процессы пересборки</h1>
 </section>
 
 <section class="page-section content-card">
-    <div class="state-card d-none mb-4" id="admin-maintenance-empty">Артефакты maintenance пока не сформированы.</div>
-    <div class="admin-note" data-maintenance-run="generate_sitemap">Maintenance: rebuild sitemap и refresh search index.</div>
-    <div class="admin-note mt-3" data-maintenance-run="backup_runtime">Можно восстановить приложение из уже сохраненного backup.</div>
+    <div class="state-card d-none mb-4" id="admin-maintenance-empty">Артефакты обслуживания пока не сформированы.</div>
+    <div class="admin-note" data-maintenance-run="generate_sitemap">Пересобрать sitemap и обновить поисковый индекс.</div>
+    <div class="admin-note mt-3" data-maintenance-run="backup_runtime">Можно восстановить приложение из уже сохраненной резервной копии.</div>
 </section>
 
 <section class="page-section table-card">
     <div class="table-responsive">
-        <table class="table table-clean" aria-label="Таблица maintenance артефактов">
+        <table class="table table-clean" aria-label="Таблица артефактов обслуживания">
             <thead><tr><th>Артефакт</th><th>Статус</th></tr></thead>
-            <tbody id="admin-backups-list"><tr><td>runtime backup</td><td>ready</td></tr></tbody>
+            <tbody id="admin-backups-list"><tr><td>резервная копия runtime</td><td>готово</td></tr></tbody>
         </table>
     </div>
 </section>

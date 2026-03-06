@@ -1,7 +1,7 @@
 {% extends "public/base.html" %}
 {% block content %}
 <section class="page-section hero-card">
-    <div class="section-kicker">Rankings</div>
+    <div class="section-kicker">Рейтинги</div>
     <h1 class="hero-title mt-3">ATP и WTA таблицы с движением позиций, race-контекстом и читаемой спортивной типографикой.</h1>
 </section>
 
@@ -10,13 +10,13 @@
         <button class="toolbar__tab is-active" data-tab-target="tab-atp">ATP</button>
         <button class="toolbar__tab" data-tab-target="tab-wta">WTA</button>
     </div>
-    <span class="badge-soft" id="rankings-date">Current</span>
+    <span class="badge-soft" id="rankings-date">Текущий срез</span>
 </section>
 
 <section class="page-section table-card" id="tab-atp" data-tab-panel="rankings">
     <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
         <div>
-            <div class="section-kicker">Main table</div>
+            <div class="section-kicker">Основная таблица</div>
             <h2 class="section-title mt-2">Рейтинг ATP</h2>
         </div>
     </div>
@@ -33,7 +33,7 @@
 </section>
 
 <section class="page-section table-card d-none" id="tab-wta" data-tab-panel="rankings">
-    <div class="section-kicker">Main table</div>
+    <div class="section-kicker">Основная таблица</div>
     <h2 class="section-title mt-2 mb-3">Рейтинг WTA</h2>
     <div class="table-responsive">
         <table class="table table-clean">
@@ -47,12 +47,12 @@
 
 <section class="page-section page-grid two">
     <section class="content-card">
-        <div class="section-kicker">Race</div>
-        <h2 class="section-title mt-2 mb-3">Ranking race</h2>
+        <div class="section-kicker">Гонка</div>
+        <h2 class="section-title mt-2 mb-3">Гонка сезона</h2>
         <div class="cards-grid" id="rankings-race-list"></div>
     </section>
     <section class="content-card">
-        <div class="section-kicker">Player lookup</div>
+        <div class="section-kicker">Поиск игрока</div>
         <h2 class="section-title mt-2 mb-3">История и профиль рейтинга игрока</h2>
         <select class="form-select mb-3" id="rankings-player-select"></select>
         <div class="cards-grid" id="rankings-player-card"></div>

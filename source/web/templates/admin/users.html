@@ -1,15 +1,15 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header content-card">
-    <div class="section-kicker">Users management</div>
+    <div class="section-kicker">Управление пользователями</div>
     <h1 class="section-title mt-2">Список пользователей, роли и статусы доступа</h1>
 </section>
 
 <section class="page-section content-card">
     <form id="admin-users-filters" class="admin-form-grid">
-        <input class="form-control span-6" id="admin-users-search" placeholder="Поиск по email или username">
-        <select class="form-select span-3" id="admin-users-role"><option value="">Все роли</option><option value="admin">Admin</option><option value="editor">Editor</option><option value="operator">Operator</option></select>
-        <select class="form-select span-3" id="admin-users-status"><option value="">Все статусы</option><option value="active">Active</option><option value="blocked">Blocked</option></select>
+        <input class="form-control span-6" id="admin-users-search" placeholder="Поиск по электронной почте или имени пользователя">
+        <select class="form-select span-3" id="admin-users-role"><option value="">Все роли</option><option value="admin">Администратор</option><option value="editor">Редактор</option><option value="operator">Оператор</option></select>
+        <select class="form-select span-3" id="admin-users-status"><option value="">Все статусы</option><option value="active">Активен</option><option value="blocked">Заблокирован</option></select>
     </form>
 </section>
 

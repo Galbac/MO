@@ -1,18 +1,18 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header hero-card">
-    <div class="section-kicker">Live operations</div>
-    <h1 class="hero-title mt-3">Ручное управление live-центром, событиями и score updates.</h1>
+    <div class="section-kicker">Лайв-операции</div>
+    <h1 class="hero-title mt-3">Ручное управление лайв-центром, событиями и обновлениями счета.</h1>
 </section>
 
 <section class="page-section admin-grid two">
     <section class="content-card">
-        <div class="section-kicker">Live queue</div>
+        <div class="section-kicker">Очередь лайва</div>
         <h2 class="section-title mt-2 mb-3">Активные матчи</h2>
         <div class="cards-grid" id="admin-live-matches"></div>
     </section>
     <section class="content-card">
-        <div class="section-kicker">Push event</div>
+        <div class="section-kicker">Отправка события</div>
         <h2 class="section-title mt-2 mb-3">Быстрое событие</h2>
         <form id="admin-live-event-form" data-api-method="POST">
             <div class="d-grid gap-3">

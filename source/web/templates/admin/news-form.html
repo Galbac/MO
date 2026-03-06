@@ -1,22 +1,22 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header hero-card">
-    <div class="section-kicker">News form</div>
+    <div class="section-kicker">Форма новости</div>
     <h1 class="hero-title mt-3">Создание новости, статуса публикации и редакционных тегов.</h1>
 </section>
 
 <section class="page-section content-card">
-    <div class="admin-note mb-4" id="admin-news-form-meta">Create mode</div>
+    <div class="admin-note mb-4" id="admin-news-form-meta">Режим создания</div>
     <form data-api-path="/admin/news" data-api-method="POST">
         <div class="admin-form-grid">
             <input class="form-control span-8" name="title" placeholder="Заголовок">
-            <input class="form-control span-4" name="slug" placeholder="Slug">
+            <input class="form-control span-4" name="slug" placeholder="Слаг">
             <input class="form-control span-6" name="subtitle" placeholder="Подзаголовок">
-            <input class="form-control span-6" name="seo_title" placeholder="SEO title">
-            <textarea class="form-control span-12" rows="4" name="lead" placeholder="Lead"></textarea>
+            <input class="form-control span-6" name="seo_title" placeholder="SEO-заголовок">
+            <textarea class="form-control span-12" rows="4" name="lead" placeholder="Лид"></textarea>
             <textarea class="form-control span-12" rows="10" name="content" placeholder="Основной текст"></textarea>
-            <input class="form-control span-6" name="cover_image_url" placeholder="Cover URL">
-            <input class="form-control span-6" name="tag_ids" placeholder="Tag IDs через запятую">
+            <input class="form-control span-6" name="cover_image_url" placeholder="URL обложки">
+            <input class="form-control span-6" name="tag_ids" placeholder="ID тегов через запятую">
         </div>
         <div class="d-flex gap-2 mt-4">
             <button class="btn btn-primary" type="submit">Сохранить новость</button>
@@ -25,19 +25,19 @@
         </div>
     </form>
     <div class="admin-form-grid mt-4">
-        <select class="form-select span-4" id="admin-news-status-control"><option value="draft">Draft</option><option value="published">Published</option><option value="scheduled">Scheduled</option></select>
-        <input class="form-control span-4" id="admin-news-cover-url" placeholder="Cover URL">
-        <input class="form-control span-4" id="admin-news-tags-input" placeholder="Tag IDs">
-        <input class="form-control span-6" id="admin-news-schedule-at" placeholder="Schedule at">
+        <select class="form-select span-4" id="admin-news-status-control"><option value="draft">Черновик</option><option value="published">Опубликована</option><option value="scheduled">Запланирована</option></select>
+        <input class="form-control span-4" id="admin-news-cover-url" placeholder="URL обложки">
+        <input class="form-control span-4" id="admin-news-tags-input" placeholder="ID тегов">
+        <input class="form-control span-6" id="admin-news-schedule-at" placeholder="Дата публикации">
     </div>
     <div class="d-flex gap-2 mt-3 flex-wrap">
         <button class="btn btn-ghost-dark" id="admin-news-load-detail" type="button">Загрузить детали</button>
         <button class="btn btn-ghost-dark" id="admin-news-update" type="button">Обновить</button>
-        <button class="btn btn-ghost-dark" id="admin-news-set-status" type="button">Set status</button>
-        <button class="btn btn-ghost-dark" id="admin-news-publish" type="button">Publish</button>
-        <button class="btn btn-ghost-dark" id="admin-news-schedule" type="button">Schedule</button>
-        <button class="btn btn-ghost-dark" id="admin-news-cover" type="button">Cover</button>
-        <button class="btn btn-ghost-dark" id="admin-news-tags-save" type="button">Tags</button>
+        <button class="btn btn-ghost-dark" id="admin-news-set-status" type="button">Установить статус</button>
+        <button class="btn btn-ghost-dark" id="admin-news-publish" type="button">Опубликовать</button>
+        <button class="btn btn-ghost-dark" id="admin-news-schedule" type="button">Запланировать</button>
+        <button class="btn btn-ghost-dark" id="admin-news-cover" type="button">Обложка</button>
+        <button class="btn btn-ghost-dark" id="admin-news-tags-save" type="button">Теги</button>
         <button class="btn btn-outline-danger" id="admin-news-delete" type="button">Удалить</button>
     </div>
 </section>

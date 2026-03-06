@@ -489,7 +489,7 @@ class AuthUserService:
             tombstone = f'deleted-{user.id}'
             updated = await self.users.update(session, user, {
                 'status': 'deleted',
-                'email': f'{tombstone}@example.com',
+                'email': f'{tombstone}@{settings.site.domain}',
                 'username': tombstone,
             })
             after = self._entity_dict(updated)

@@ -1,38 +1,38 @@
 {% extends "public/base.html" %}
 {% block content %}
 <section class="page-section hero-card">
-    <div class="section-kicker">Tournament profile</div>
+    <div class="section-kicker">Профиль турнира</div>
     <h1 class="hero-title mt-3" id="tournament-name">Загрузка турнира...</h1>
-    <p class="section-lead mt-3" id="tournament-summary">Подгружаем описание, draw, champions и связанные новости.</p>
+    <p class="section-lead mt-3" id="tournament-summary">Подгружаем описание, сетку, чемпионов и связанные новости.</p>
     <div class="d-flex flex-wrap gap-2 mt-3" id="tournament-badges"></div>
 </section>
 
 <section class="page-section page-grid two">
     <div class="d-grid gap-4">
         <section class="content-card">
-            <div class="section-kicker">Draw</div>
+            <div class="section-kicker">Сетка</div>
             <h2 class="section-title mt-2 mb-3">Сетка и ключевые матчи</h2>
             <div class="cards-grid cards-2" id="tournament-draw"></div>
         </section>
         <section class="content-card">
-            <div class="section-kicker">Matches</div>
+            <div class="section-kicker">Матчи</div>
             <h2 class="section-title mt-2 mb-3">Матчи турнира</h2>
             <div class="cards-grid" id="tournament-matches"></div>
         </section>
     </div>
     <div class="d-grid gap-4">
         <section class="content-card">
-            <div class="section-kicker">Players</div>
+            <div class="section-kicker">Игроки</div>
             <h2 class="section-title mt-2 mb-3">Участники</h2>
             <div class="cards-grid" id="tournament-players"></div>
         </section>
         <section class="content-card">
-            <div class="section-kicker">Champions</div>
+            <div class="section-kicker">Чемпионы</div>
             <h2 class="section-title mt-2 mb-3">История чемпионов</h2>
             <div class="cards-grid" id="tournament-champions"></div>
         </section>
         <section class="content-card">
-            <div class="section-kicker">Related stories</div>
+            <div class="section-kicker">Материалы турнира</div>
             <h2 class="section-title mt-2 mb-3">Новости турнира</h2>
             <div class="cards-grid" id="tournament-news"></div>
         </section>

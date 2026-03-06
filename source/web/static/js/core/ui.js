@@ -101,10 +101,10 @@ function initTicker() {
     const node = qs("[data-live-ticker]");
     if (!node) return;
     const labels = [
-        "Live feed synced",
-        "Court updates incoming",
-        "Point-by-point ready",
-        "Scoreboard online",
+        "Лайв-лента синхронизирована",
+        "Обновления с корта поступают",
+        "Пошаговая лента готова",
+        "Табло подключено",
     ];
     let index = 0;
     window.setInterval(() => {

@@ -1,8 +1,8 @@
 {% extends "public/base.html" %}
 {% block content %}
 <section class="page-section hero-card">
-    <div class="section-kicker">Global search</div>
-    <h1 class="hero-title mt-3">Поиск по игрокам, турнирам, матчам и новостям с быстрыми suggestion-выпадашками.</h1>
+    <div class="section-kicker">Глобальный поиск</div>
+    <h1 class="hero-title mt-3">Поиск по игрокам, турнирам, матчам и новостям с быстрыми подсказками.</h1>
     <div class="mt-4" data-search-shell>
         <input class="form-control form-control-lg" id="search-query" data-search-input placeholder="Начните искать игрока, турнир, матч или новость" aria-label="Глобальный поиск">
         <div class="dropdown-menu w-100 p-2 search-overlay-list d-none" data-search-suggestions></div>
@@ -24,13 +24,13 @@
 </section>
 
 <section class="page-section content-card d-none" id="search-players" data-tab-panel="search">
-    <div class="section-kicker">Players</div>
+    <div class="section-kicker">Игроки</div>
     <h2 class="section-title mt-2 mb-3">Игроки</h2>
     <div class="cards-grid cards-2" id="search-player-results"></div>
 </section>
 
 <section class="page-section content-card d-none" id="search-news" data-tab-panel="search">
-    <div class="section-kicker">News</div>
+    <div class="section-kicker">Новости</div>
     <h2 class="section-title mt-2 mb-3">Новости</h2>
     <div class="cards-grid cards-2" id="search-news-results"></div>
 </section>

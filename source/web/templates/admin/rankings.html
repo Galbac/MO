@@ -1,13 +1,13 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header hero-card">
-    <div class="section-kicker">Rankings import</div>
+    <div class="section-kicker">Импорт рейтингов</div>
     <h1 class="hero-title mt-3">Импорт рейтингов и пересчет movement-метрик.</h1>
 </section>
 
 <section class="page-section admin-grid two">
     <section class="content-card">
-        <div class="section-kicker">Import job</div>
+        <div class="section-kicker">Задача импорта</div>
         <h2 class="section-title mt-2 mb-3">Запуск импорта</h2>
         <form data-api-path="/admin/rankings/import" data-api-method="POST">
             <div class="d-grid gap-3">
@@ -19,7 +19,7 @@
         </form>
     </section>
     <section class="content-card">
-        <div class="section-kicker">Recalculate</div>
+        <div class="section-kicker">Пересчет</div>
         <h2 class="section-title mt-2 mb-3">Пересчитать движения</h2>
         <button class="btn btn-ghost-dark" data-api-action data-api-method="POST" data-api-path="/admin/rankings/recalculate-movements" data-target-feedback="rankings-recalc-feedback">Запустить пересчет</button>
         <div class="alert alert-success d-none mt-3 mb-0" id="rankings-recalc-feedback">Пересчет поставлен в очередь.</div>
@@ -27,7 +27,7 @@
 </section>
 
 <section class="page-section table-card">
-    <div class="section-kicker">Import jobs</div>
+    <div class="section-kicker">История импортов</div>
     <h2 class="section-title mt-2 mb-3">История задач</h2>
     <div class="table-responsive">
         <table class="table table-clean">

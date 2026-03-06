@@ -64,7 +64,7 @@ export function initials(name = "") {
 }
 
 export function formatDate(value, options = {}) {
-    if (!value) return "TBD";
+    if (!value) return "Будет объявлено";
     try {
         return new Intl.DateTimeFormat("ru-RU", {
             day: "2-digit",
@@ -79,9 +79,53 @@ export function formatDate(value, options = {}) {
 }
 
 export function statusLabel(value) {
-    return String(value ?? "")
-        .replaceAll("_", " ")
-        .replace(/\b\w/g, (char) => char.toUpperCase());
+    const raw = String(value ?? "").trim().toLowerCase().replaceAll("_", " ");
+    const labels = {
+        active: "Активен",
+        blocked: "Заблокирован",
+        published: "Опубликован",
+        draft: "Черновик",
+        scheduled: "Запланирован",
+        finished: "Завершен",
+        live: "Идет",
+        review: "На проверке",
+        configured: "Настроен",
+        error: "Ошибка",
+        ok: "Работает",
+        admin: "Администратор",
+        editor: "Редактор",
+        operator: "Оператор",
+        user: "Пользователь",
+        player: "Игрок",
+        tournament: "Турнир",
+        match: "Матч",
+        news: "Новость",
+        ranking: "Рейтинг",
+        ranking_import: "Импорт рейтинга",
+        right: "Правая",
+        left: "Левая",
+        'right handed': "Правая рука",
+        'left handed': "Левая рука",
+        'two handed': "Двуручный",
+        'two-handed': "Двуручный",
+        'one handed': "Одноручный",
+        'one-handed': "Одноручный",
+        hard: "Хард",
+        clay: "Грунт",
+        grass: "Трава",
+        indoor: "В помещении",
+        outdoor: "На открытом воздухе",
+        'grand slam': "Большой шлем",
+        grand_slam: "Большой шлем",
+        masters_1000: "Мастерс 1000",
+        atp_500: "ATP 500",
+        atp_250: "ATP 250",
+        wta_1000: "WTA 1000",
+        wta_500: "WTA 500",
+        wta_250: "WTA 250",
+        main: "Основная сетка",
+    };
+    return labels[raw] || raw.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export function slugFromPath() {

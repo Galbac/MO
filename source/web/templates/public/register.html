@@ -3,29 +3,29 @@
 <section class="page-section hero-card">
     <div class="row g-4 align-items-center">
         <div class="col-lg-6">
-            <div class="section-kicker">Registration first</div>
-            <h1 class="hero-title mt-3">Начните с регистрации, затем переходите в live-портал.</h1>
-            <p class="section-lead mt-3 mb-0">Первая открывающая страница теперь ведет в onboarding: создание аккаунта, согласие на обработку персональных данных и быстрый доступ в спортивный продукт после регистрации.</p>
+            <div class="section-kicker">Регистрация прежде всего</div>
+            <h1 class="hero-title mt-3">Начните с регистрации, затем переходите в лайв-портал.</h1>
+            <p class="section-lead mt-3 mb-0">Первая открывающая страница теперь ведет в онбординг: создание аккаунта, согласие на обработку персональных данных и быстрый доступ в спортивный продукт после регистрации.</p>
             <div class="content-card mt-4">
-                <div class="section-kicker">Data collection notice</div>
+                <div class="section-kicker">Уведомление о данных</div>
                 <h2 class="section-title mt-2 mb-3">Согласие на обработку данных</h2>
                 <p class="text-muted mb-0">Мы собираем email, username, технические данные сессии, настройки локали и часового пояса, а также события, связанные с вашими подписками и уведомлениями. Продолжая регистрацию, пользователь явно подтверждает согласие на обработку этих данных для работы портала.</p>
             </div>
         </div>
         <div class="col-lg-6">
             <section class="content-card">
-                <div class="section-kicker">Create account</div>
+                <div class="section-kicker">Создание аккаунта</div>
                 <h2 class="section-title mt-2 mb-4">Регистрация</h2>
                 <form data-api-path="/auth/register" data-api-method="POST">
                     <div class="d-grid gap-3">
-                        <input class="form-control form-control-lg" name="email" type="email" placeholder="Email" required>
-                        <input class="form-control form-control-lg" name="username" placeholder="Username" required>
+                        <input class="form-control form-control-lg" name="email" type="email" placeholder="Электронная почта" required>
+                        <input class="form-control form-control-lg" name="username" placeholder="Имя пользователя" required>
                         <input class="form-control form-control-lg" name="password" type="password" placeholder="Пароль" required>
-                        <input class="form-control" name="locale" placeholder="Locale" value="ru">
-                        <input class="form-control" name="timezone" placeholder="Timezone" value="Europe/Moscow">
+                        <input class="form-control" name="locale" placeholder="Локаль" value="ru">
+                        <input class="form-control" name="timezone" placeholder="Часовой пояс" value="Europe/Moscow">
                         <label class="form-check d-flex align-items-start gap-2">
                             <input class="form-check-input mt-1" type="checkbox" name="privacy_consent" required>
-                            <span>Я согласен(на) на обработку персональных данных и ознакомлен(а) с тем, что данные собираются для работы аккаунта, уведомлений и live-сервиса.</span>
+                            <span>Я согласен(на) на обработку персональных данных и ознакомлен(а) с тем, что данные собираются для работы аккаунта, уведомлений и лайв-сервиса.</span>
                         </label>
                         <button class="btn btn-lime btn-lg" type="submit">Создать аккаунт</button>
                         <div class="alert alert-success d-none mb-0" data-form-feedback>Регистрация выполнена. Теперь можно открыть портал.</div>
@@ -34,7 +34,7 @@
                 </form>
                 <div class="d-flex gap-2 mt-4">
                     <a href="/portal" class="btn btn-ghost-dark">Перейти к порталу</a>
-                    <a href="/admin/login" class="btn btn-ghost-dark">Admin login</a>
+                    <a href="/admin/login" class="btn btn-ghost-dark">Вход в админку</a>
                 </div>
             </section>
         </div>

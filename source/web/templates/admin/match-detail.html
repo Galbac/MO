@@ -1,22 +1,22 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header hero-card">
-    <div class="section-kicker">Match operations</div>
+    <div class="section-kicker">Операции с матчем</div>
     <h1 class="hero-title mt-3" id="admin-match-title">Загрузка матча...</h1>
 </section>
 
 <section class="page-section admin-grid two">
     <section class="content-card">
-        <div class="section-kicker">Preview card</div>
+        <div class="section-kicker">Карточка обзора</div>
         <h2 class="section-title mt-2 mb-3">Операционная карточка</h2>
         <div id="admin-match-preview-card"></div>
     </section>
     <section class="content-card">
-        <div class="section-kicker">Score / status</div>
+        <div class="section-kicker">Счет и статус</div>
         <h2 class="section-title mt-2 mb-3">Быстрые действия</h2>
         <form data-api-path="/admin/matches/{{ entity_id }}/status" data-api-method="PATCH">
             <div class="d-grid gap-3">
-                <select class="form-select" name="status"><option value="scheduled">Scheduled</option><option value="live">Live</option><option value="finished">Finished</option></select>
+                <select class="form-select" name="status"><option value="scheduled">Запланирован</option><option value="live">Идет</option><option value="finished">Завершен</option></select>
                 <button class="btn btn-primary" type="submit">Обновить статус</button>
                 <div class="alert alert-success d-none mb-0" data-form-feedback>Статус обновлен.</div>
                 <div class="alert alert-danger d-none mb-0" data-form-error>Ошибка обновления.</div>
@@ -28,18 +28,18 @@
             <input class="form-control span-12" id="admin-match-update-input" placeholder='{"court_name":"Center Court"}'>
         </div>
         <div class="d-flex gap-2 mt-3 flex-wrap">
-            <button class="btn btn-ghost-dark" id="admin-match-update" type="button">Обновить match</button>
-            <button class="btn btn-ghost-dark" id="admin-match-score-save" type="button">Сохранить score</button>
-            <button class="btn btn-ghost-dark" id="admin-match-stats-save" type="button">Сохранить stats</button>
-            <button class="btn btn-ghost-dark" id="admin-match-finalize" type="button">Finalize</button>
-            <button class="btn btn-ghost-dark" id="admin-match-reopen" type="button">Reopen</button>
+            <button class="btn btn-ghost-dark" id="admin-match-update" type="button">Обновить матч</button>
+            <button class="btn btn-ghost-dark" id="admin-match-score-save" type="button">Сохранить счет</button>
+            <button class="btn btn-ghost-dark" id="admin-match-stats-save" type="button">Сохранить статистику</button>
+            <button class="btn btn-ghost-dark" id="admin-match-finalize" type="button">Завершить</button>
+            <button class="btn btn-ghost-dark" id="admin-match-reopen" type="button">Открыть заново</button>
             <button class="btn btn-outline-danger" id="admin-match-delete" type="button">Удалить</button>
         </div>
     </section>
 </section>
 
 <section class="page-section timeline-card">
-    <div class="section-kicker">Events</div>
+    <div class="section-kicker">События</div>
     <h2 class="section-title mt-2 mb-3">Лайв-события матча</h2>
     <div class="timeline-list" id="admin-match-events"></div>
 </section>

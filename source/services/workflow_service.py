@@ -438,7 +438,7 @@ class WorkflowService:
                     subscription=subscription,
                     notification_type='news',
                     title=article.title,
-                    body=article.lead or article.subtitle or 'New article published.',
+                    body=article.lead or article.subtitle or 'Опубликован новый материал.',
                     payload_json={'entity_type': 'news', 'entity_id': article.id, 'slug': article.slug},
                     entity_type='news',
                     entity_id=article.id,
@@ -461,8 +461,9 @@ class WorkflowService:
                     notification_type='ranking_change',
                 )
                 direction = 'up' if int(row['movement']) > 0 else 'down'
-                title = f'Ranking update: {player.full_name}'
-                body = f'{player.full_name} moved {direction} by {abs(int(row["movement"]))} place(s) in {ranking_type.upper()} rankings.'
+                title = f'Обновление рейтинга: {player.full_name}'
+                direction_label = 'вверх' if direction == 'up' else 'вниз'
+                body = f'{player.full_name} сместился {direction_label} на {abs(int(row["movement"]))} поз. в рейтинге {ranking_type.upper()}.'
                 for subscription in subscriptions:
                     subscription_user = await self.users.get(session, subscription.user_id)
                     if subscription_user is None:

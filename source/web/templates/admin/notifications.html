@@ -1,22 +1,22 @@
 {% extends "admin/base.html" %}
 {% block content %}
 <section class="admin-page-header content-card">
-    <div class="section-kicker">Notifications</div>
-    <h1 class="section-title mt-2">Управление сервисными уведомлениями и Шаблоны</h1>
+    <div class="section-kicker">Уведомления</div>
+    <h1 class="section-title mt-2">Управление сервисными уведомлениями и шаблонами</h1>
 </section>
 
 <section class="page-section content-card">
     <form id="admin-delivery-log-filters" class="admin-form-grid">
-        <select class="form-select span-4" id="admin-delivery-log-type"><option>all</option></select>
+        <select class="form-select span-4" id="admin-delivery-log-type"><option>все</option></select>
         <select class="form-select span-4" id="admin-delivery-log-channel"><option>web</option></select>
-        <select class="form-select span-4" id="admin-delivery-log-status"><option>all</option></select>
+        <select class="form-select span-4" id="admin-delivery-log-status"><option>все</option></select>
     </form>
-    <div class="admin-note mt-4" id="admin-notifications-summary">Delivery log и шаблоны доступны для контроля.</div>
+    <div class="admin-note mt-4" id="admin-notifications-summary">Журнал доставки и шаблоны доступны для контроля.</div>
     <div class="admin-form-grid mt-4">
-        <input class="form-control span-8" id="admin-notification-test-title" placeholder="Test title">
+        <input class="form-control span-8" id="admin-notification-test-title" placeholder="Заголовок тестового уведомления">
         <input class="form-control span-4" id="admin-notification-test-channel" placeholder="web">
     </div>
-    <button class="btn btn-primary mt-3" id="admin-notification-test-send" type="button">Отправить test notification</button>
+    <button class="btn btn-primary mt-3" id="admin-notification-test-send" type="button">Отправить тестовое уведомление</button>
     <div class="timeline-list mt-4" id="admin-delivery-log"></div>
     <div class="timeline-list mt-4" id="admin-notifications-list"></div>
 </section>

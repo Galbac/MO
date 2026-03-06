@@ -1,29 +1,29 @@
 {% extends "public/base.html" %}
 {% block content %}
 <section class="page-section hero-card">
-    <div class="section-kicker">Match center</div>
-    <h1 class="hero-title mt-3">Матчи, результаты и расписание в спортивном UI, ориентированном на быстрый просмотр счета.</h1>
-    <p class="section-lead mt-3 mb-0">Список матчей готов к фильтрации по live, scheduled и finished статусам с переходом в глубокую карточку матча.</p>
+    <div class="section-kicker">Центр матчей</div>
+    <h1 class="hero-title mt-3">Матчи, результаты и расписание в спортивном интерфейсе, ориентированном на быстрый просмотр счета.</h1>
+    <p class="section-lead mt-3 mb-0">Список матчей готов к фильтрации по статусам "идет", "запланирован" и "завершен" с переходом в глубокую карточку матча.</p>
 </section>
 
 <section class="page-section toolbar">
     <div class="toolbar__group">
         <select class="form-select" id="matches-status" aria-label="Фильтр по статусу матча">
             <option value="">Все статусы</option>
-            <option value="live">Live</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="finished">Finished</option>
+            <option value="live">Идет</option>
+            <option value="scheduled">Запланирован</option>
+            <option value="finished">Завершен</option>
         </select>
     </div>
-    <a href="/live" class="btn btn-lime">Открыть Live Center</a>
+    <a href="/live" class="btn btn-lime">Открыть лайв-центр</a>
 </section>
 
 <section class="page-section">
     <div class="content-card mb-4">
         <div class="toolbar__tabs" data-tab-group="match-lists">
-            <button class="toolbar__tab is-active" data-tab-target="match-list-all">All</button>
-            <button class="toolbar__tab" data-tab-target="match-list-upcoming">Upcoming</button>
-            <button class="toolbar__tab" data-tab-target="match-list-results">Results</button>
+            <button class="toolbar__tab is-active" data-tab-target="match-list-all">Все</button>
+            <button class="toolbar__tab" data-tab-target="match-list-upcoming">Скоро</button>
+            <button class="toolbar__tab" data-tab-target="match-list-results">Результаты</button>
         </div>
     </div>
     <div id="match-list-all" data-tab-panel="match-lists">
@@ -34,12 +34,12 @@
     </div>
     </div>
     <div class="content-card d-none mt-4" id="match-list-upcoming" data-tab-panel="match-lists">
-        <div class="section-kicker">Upcoming API</div>
+        <div class="section-kicker">Предстоящие матчи</div>
         <h2 class="section-title mt-2 mb-3">Предстоящие матчи</h2>
         <div class="cards-grid cards-2" id="matches-upcoming-list"></div>
     </div>
     <div class="content-card d-none mt-4" id="match-list-results" data-tab-panel="match-lists">
-        <div class="section-kicker">Results API</div>
+        <div class="section-kicker">Результаты API</div>
         <h2 class="section-title mt-2 mb-3">Результаты</h2>
         <div class="cards-grid cards-2" id="matches-results-list"></div>
     </div>

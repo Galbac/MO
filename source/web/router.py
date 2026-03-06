@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse, Response
 from fastapi.templating import Jinja2Templates
 
+from source.config.settings import settings
 from source.services import PortalQueryService
 
 router = APIRouter()
@@ -19,7 +20,14 @@ def _absolute_url(request: Request, value: str | None) -> str:
         return ""
     if value.startswith("http://") or value.startswith("https://"):
         return value
-    return f"{request.base_url}{value.lstrip('/')}"
+    return f"{_site_base_url(request)}/{value.lstrip('/')}"
+
+
+def _site_base_url(request: Request) -> str:
+    configured = settings.site.base_url.rstrip('/')
+    if configured:
+        return configured
+    return str(request.base_url).rstrip('/')
 
 
 def _seo_defaults(
@@ -30,7 +38,9 @@ def _seo_defaults(
     *,
     og_type: str = "website",
 ) -> dict[str, object]:
-    canonical_url = str(request.url)
+    canonical_url = f"{_site_base_url(request)}{request.url.path}"
+    if request.url.query:
+        canonical_url = f"{canonical_url}?{request.url.query}"
     description_value = description or page_title
     return {
         "canonical_url": canonical_url,
@@ -172,8 +182,8 @@ async def _news_context(request: Request, slug: str) -> dict[str, object]:
             "description": description,
             "datePublished": article.published_at,
             "image": _absolute_url(request, article.cover_image_url),
-            "url": str(request.url),
-            "author": {"@type": "Person", "name": "Makhachkala Open Editorial"},
+            "url": f"{_site_base_url(request)}{request.url.path}",
+            "author": {"@type": "Person", "name": settings.site.editorial_name},
         },
         "entity_slug": slug,
     }
@@ -181,13 +191,13 @@ async def _news_context(request: Request, slug: str) -> dict[str, object]:
 
 @router.get("/robots.txt", include_in_schema=False)
 async def robots_txt(request: Request) -> PlainTextResponse:
-    sitemap_url = f"{request.base_url}sitemap.xml"
+    sitemap_url = f"{_site_base_url(request)}/sitemap.xml"
     return PlainTextResponse(f"User-agent: *\nAllow: /\nSitemap: {sitemap_url}\n")
 
 
 @router.get("/sitemap.xml", include_in_schema=False)
 async def sitemap_xml(request: Request) -> Response:
-    base_url = str(request.base_url).rstrip("/")
+    base_url = _site_base_url(request)
     static_paths = ["/portal", "/players", "/tournaments", "/matches", "/live", "/rankings", "/news", "/search", "/h2h"]
     dynamic_paths: list[str] = []
 
@@ -218,7 +228,7 @@ async def register_page(request: Request):
 
 @router.get("/portal", include_in_schema=False)
 async def portal_page(request: Request):
-    return render(request, "public/index.html", page_title="Makhachkala Open", page_name="home", section="public", description="Лайв-счета, рейтинги, новости, игроки и турниры Makhachkala Open.", schema_json={"@context": "https://schema.org", "@type": "WebSite", "name": "Makhachkala Open", "url": str(request.base_url).rstrip("/")})
+    return render(request, "public/index.html", page_title=settings.names.title, page_name="home", section="public", description="Лайв-счета, рейтинги, новости, игроки и турниры Makhachkala Open.", schema_json={"@context": "https://schema.org", "@type": "WebSite", "name": settings.names.title, "url": _site_base_url(request)})
 
 
 @router.get("/players", include_in_schema=False)
