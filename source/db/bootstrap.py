@@ -36,8 +36,13 @@ async def seed_demo_data(session: AsyncSession, *, force: bool = False) -> None:
     if not force and not settings.db.seed_demo_data:
         return
 
-    existing = await session.scalar(select(Player.id).limit(1))
-    if existing is not None:
+    existing_markers = (
+        await session.scalar(select(User.id).limit(1)),
+        await session.scalar(select(Player.id).limit(1)),
+        await session.scalar(select(Tournament.id).limit(1)),
+        await session.scalar(select(Match.id).limit(1)),
+    )
+    if any(marker is not None for marker in existing_markers):
         return
 
     now = datetime(2026, 3, 6, 12, 0, tzinfo=UTC)
