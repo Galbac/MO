@@ -101,12 +101,24 @@ class MatchRepository:
         return await session.scalar(stmt)
 
     async def upsert_stats(self, session: AsyncSession, match_id: int, payload: dict) -> MatchStats:
+        allowed_keys = {
+            'player1_aces',
+            'player2_aces',
+            'player1_double_faults',
+            'player2_double_faults',
+            'player1_first_serve_pct',
+            'player2_first_serve_pct',
+            'player1_break_points_saved',
+            'player2_break_points_saved',
+            'duration_minutes',
+        }
+        normalized_payload = {key: value for key, value in payload.items() if key in allowed_keys}
         stats = await self.get_stats(session, match_id)
         if stats is None:
-            stats = MatchStats(match_id=match_id, **payload)
+            stats = MatchStats(match_id=match_id, **normalized_payload)
             session.add(stats)
         else:
-            for key, value in payload.items():
+            for key, value in normalized_payload.items():
                 setattr(stats, key, value)
         await session.commit()
         await session.refresh(stats)

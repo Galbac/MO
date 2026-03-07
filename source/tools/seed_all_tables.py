@@ -43,9 +43,85 @@ async def _ids(session, model) -> list[int]:
 
 
 async def _ensure_users(session) -> None:
+    now = datetime.now(tz=UTC)
+    core_accounts = [
+        {
+            "email": "admin@makhachkalaopen.ru",
+            "username": "admin",
+            "password": "AdminPass123",
+            "role": "admin",
+            "first_name": "Главный",
+            "last_name": "Администратор",
+        },
+        {
+            "email": "user@makhachkalaopen.ru",
+            "username": "demo_user",
+            "password": "UserPass123",
+            "role": "user",
+            "first_name": "Демо",
+            "last_name": "Пользователь",
+        },
+        {
+            "email": "editor@makhachkalaopen.ru",
+            "username": "editor",
+            "password": "EditorPass123",
+            "role": "editor",
+            "first_name": "Спортивный",
+            "last_name": "Редактор",
+        },
+        {
+            "email": "operator@makhachkalaopen.ru",
+            "username": "operator",
+            "password": "OperatorPass123",
+            "role": "operator",
+            "first_name": "Лайв",
+            "last_name": "Оператор",
+        },
+    ]
+
+    next_id = await _next_id(session, User)
+    for account in core_accounts:
+        user = await session.scalar(select(User).where(User.username == account["username"]))
+        if user is None:
+            user = await session.scalar(select(User).where(User.email == account["email"]))
+        if user is None:
+            session.add(
+                User(
+                    id=next_id,
+                    email=account["email"],
+                    username=account["username"],
+                    password_hash=_seed_hash_password(account["password"]),
+                    role=account["role"],
+                    status="active",
+                    first_name=account["first_name"],
+                    last_name=account["last_name"],
+                    locale="ru",
+                    timezone="Europe/Moscow",
+                    is_email_verified=True,
+                    privacy_consent=True,
+                    privacy_consent_at=now,
+                )
+            )
+            next_id += 1
+            continue
+
+        user.email = account["email"]
+        user.username = account["username"]
+        user.password_hash = _seed_hash_password(account["password"])
+        user.role = account["role"]
+        user.status = "active"
+        user.first_name = account["first_name"]
+        user.last_name = account["last_name"]
+        user.locale = "ru"
+        user.timezone = "Europe/Moscow"
+        user.is_email_verified = True
+        user.privacy_consent = True
+        user.privacy_consent_at = user.privacy_consent_at or now
+
+    await session.flush()
+
     count = await _count(session, User)
     next_id = await _next_id(session, User)
-    now = datetime.now(tz=UTC)
     roles = ["user", "editor", "operator", "user", "user", "editor"]
     for index in range(count + 1, TARGET_ROWS + 1):
         session.add(

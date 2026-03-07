@@ -154,7 +154,7 @@ async def test_admin_rankings_recalculate_movements_and_player_notifications(asy
 
     history_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/notifications", headers=admin_auth_headers)
     assert history_response.status_code == status.HTTP_200_OK
-    assert any(item['title'] == 'Ranking update: Novak Djokovic' for item in history_response.json()['data'])
+    assert any(item['title'] == 'Обновление рейтинга: Novak Djokovic' for item in history_response.json()['data'])
 
 
 async def test_admin_rankings_import_clears_players_missing_from_latest_snapshot(async_client, admin_auth_headers) -> None:

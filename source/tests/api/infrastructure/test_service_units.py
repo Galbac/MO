@@ -717,7 +717,7 @@ async def test_auth_user_service_error_branches(prepared_test_db: str, async_cli
     service = AuthUserService()
 
     with pytest.raises(HTTPException):
-        await service.register(None, RegisterRequest(email='admin@example.com', username='new_user', password='StrongPass123', privacy_consent=True))
+        await service.register(None, RegisterRequest(email='admin@makhachkalaopen.ru', username='new_user', password='StrongPass123', privacy_consent=True))
 
     with pytest.raises(HTTPException):
         await service.register(None, RegisterRequest(email='new@example.com', username='admin', password='StrongPass123', privacy_consent=True))

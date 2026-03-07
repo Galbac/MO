@@ -119,6 +119,16 @@ class PublicDataService:
                                 movement=int(item['movement']),
                             )
                         )
+                    elif all(hasattr(item, attr) for attr in ('ranking_type', 'ranking_date', 'rank_position', 'points', 'movement')):
+                        normalized.append(
+                            PlayerRankingRecord(
+                                ranking_type=str(item.ranking_type),
+                                ranking_date=str(item.ranking_date),
+                                position=int(item.rank_position),
+                                points=int(item.points),
+                                movement=int(item.movement),
+                            )
+                        )
                     else:
                         return SuccessResponse(data=query_history.data)
                 if normalized:

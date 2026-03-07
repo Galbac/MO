@@ -16,6 +16,11 @@ async def get_tournaments(page: int = 1, per_page: int = 20) -> PaginatedRespons
     return await service.list_tournaments(page, per_page)
 
 
+@router.get("/calendar", response_model=SuccessResponse[list[TournamentSummary]])
+async def get_tournament_calendar() -> SuccessResponse[list[TournamentSummary]]:
+    return await service.get_tournament_calendar()
+
+
 @router.get("/{tournament_id}", response_model=SuccessResponse[TournamentDetail])
 async def get_tournament(tournament_id: int) -> SuccessResponse[TournamentDetail]:
     return await service.get_tournament(tournament_id)
@@ -44,8 +49,3 @@ async def get_tournament_champions(tournament_id: int) -> SuccessResponse[list[C
 @router.get("/{tournament_id}/news", response_model=SuccessResponse[list[NewsArticleSummary]])
 async def get_tournament_news(tournament_id: int) -> SuccessResponse[list[NewsArticleSummary]]:
     return await service.get_tournament_news(tournament_id)
-
-
-@router.get("/calendar", response_model=SuccessResponse[list[TournamentSummary]])
-async def get_tournament_calendar() -> SuccessResponse[list[TournamentSummary]]:
-    return await service.get_tournament_calendar()

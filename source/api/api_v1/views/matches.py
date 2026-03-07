@@ -14,6 +14,16 @@ async def get_matches(page: int = 1, per_page: int = 20, status: str | None = No
     return await service.list_matches(page, per_page, status)
 
 
+@router.get("/upcoming", response_model=SuccessResponse[list[MatchSummary]])
+async def get_upcoming_matches() -> SuccessResponse[list[MatchSummary]]:
+    return await service.get_upcoming_matches()
+
+
+@router.get("/results", response_model=SuccessResponse[list[MatchSummary]])
+async def get_match_results() -> SuccessResponse[list[MatchSummary]]:
+    return await service.get_match_results()
+
+
 @router.get("/{match_id}", response_model=SuccessResponse[MatchDetail])
 async def get_match(match_id: int) -> SuccessResponse[MatchDetail]:
     return await service.get_match(match_id)
@@ -47,13 +57,3 @@ async def get_match_preview(match_id: int) -> SuccessResponse[MatchPreview]:
 @router.get("/{match_id}/point-by-point", response_model=SuccessResponse[list[MatchEventItem]])
 async def get_match_point_by_point(match_id: int) -> SuccessResponse[list[MatchEventItem]]:
     return await service.get_match_point_by_point(match_id)
-
-
-@router.get("/upcoming", response_model=SuccessResponse[list[MatchSummary]])
-async def get_upcoming_matches() -> SuccessResponse[list[MatchSummary]]:
-    return await service.get_upcoming_matches()
-
-
-@router.get("/results", response_model=SuccessResponse[list[MatchSummary]])
-async def get_match_results() -> SuccessResponse[list[MatchSummary]]:
-    return await service.get_match_results()

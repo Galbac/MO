@@ -1,7 +1,12 @@
 {
-  "9df6fcece32247398ab81a1b8b07d89c": {
-    "expires_at": 1774050793,
+  "911327744d354db48e189567bbc84868": {
+    "expires_at": 1774052908,
     "revoked": false,
     "user_id": 1
+  },
+  "f9d4361980f944b2a7955c4e4ab2a25b": {
+    "expires_at": 1774052908,
+    "revoked": false,
+    "user_id": 2
   }
 }
