@@ -156,6 +156,8 @@ async def test_api_http_route_smoke_matrix(async_client, admin_auth_headers) -> 
     user_headers = {"Authorization": f"Bearer {password_login.json()['data']['access_token']}"}
 
     await hit("GET", f"{API_PREFIX}/users/me/favorites", headers=user_headers)
+    await hit("GET", f"{API_PREFIX}/users/me/smart-feed", headers=user_headers)
+    await hit("GET", f"{API_PREFIX}/users/me/calendar", headers=user_headers)
     favorite_response = await hit(
         "POST",
         f"{API_PREFIX}/users/me/favorites",
@@ -167,6 +169,26 @@ async def test_api_http_route_smoke_matrix(async_client, admin_auth_headers) -> 
         "DELETE",
         f"{API_PREFIX}/users/me/favorites/{{favorite_id}}",
         url=f"{API_PREFIX}/users/me/favorites/{favorite_id}",
+        headers=user_headers,
+    )
+    reminder_response = await hit(
+        "POST",
+        f"{API_PREFIX}/users/me/calendar/reminders",
+        headers=user_headers,
+        json={"match_id": 2, "remind_before_minutes": 45, "channel": "web"},
+    )
+    reminder_id = reminder_response.json()["data"]["id"]
+    await hit(
+        "PATCH",
+        f"{API_PREFIX}/users/me/calendar/reminders/{{reminder_id}}",
+        url=f"{API_PREFIX}/users/me/calendar/reminders/{reminder_id}",
+        headers=user_headers,
+        json={"remind_before_minutes": 60, "is_active": False},
+    )
+    await hit(
+        "DELETE",
+        f"{API_PREFIX}/users/me/calendar/reminders/{{reminder_id}}",
+        url=f"{API_PREFIX}/users/me/calendar/reminders/{reminder_id}",
         headers=user_headers,
     )
 
@@ -198,6 +220,15 @@ async def test_api_http_route_smoke_matrix(async_client, admin_auth_headers) -> 
     )
 
     await hit("GET", f"{API_PREFIX}/users/me/notifications", headers=user_headers)
+    await hit("GET", f"{API_PREFIX}/users/me/push-subscriptions", headers=user_headers)
+    push_response = await hit(
+        "POST",
+        f"{API_PREFIX}/users/me/push-subscriptions",
+        headers=user_headers,
+        json={"endpoint": f"browser://matrix/{unique}", "device_label": "route-matrix", "keys_json": {"auth": "token"}, "permission": "granted"},
+    )
+    push_id = push_response.json()["data"]["id"]
+    await hit("POST", f"{API_PREFIX}/users/me/push-subscriptions/test", headers=user_headers, json={"title": "Проверка", "body": "Push канал активен"})
     await hit("POST", f"{API_PREFIX}/notifications/test", headers=user_headers)
     notifications_response = await hit("GET", f"{API_PREFIX}/notifications", headers=user_headers)
     notification_id = notifications_response.json()["data"][0]["id"]
@@ -219,6 +250,12 @@ async def test_api_http_route_smoke_matrix(async_client, admin_auth_headers) -> 
         headers=user_headers,
     )
     await hit("PATCH", f"{API_PREFIX}/users/me/notifications/read-all", headers=user_headers)
+    await hit(
+        "DELETE",
+        f"{API_PREFIX}/users/me/push-subscriptions/{{subscription_id}}",
+        url=f"{API_PREFIX}/users/me/push-subscriptions/{push_id}",
+        headers=user_headers,
+    )
 
     await hit("GET", f"{API_PREFIX}/players")
     await hit("GET", f"{API_PREFIX}/players/compare", params={"player1_id": 1, "player2_id": 2})
@@ -247,6 +284,8 @@ async def test_api_http_route_smoke_matrix(async_client, admin_auth_headers) -> 
     await hit("GET", f"{API_PREFIX}/matches/{{match_id}}/timeline", url=f"{API_PREFIX}/matches/1/timeline")
     await hit("GET", f"{API_PREFIX}/matches/{{match_id}}/h2h", url=f"{API_PREFIX}/matches/1/h2h")
     await hit("GET", f"{API_PREFIX}/matches/{{match_id}}/preview", url=f"{API_PREFIX}/matches/1/preview")
+    await hit("GET", f"{API_PREFIX}/matches/{{match_id}}/prediction", url=f"{API_PREFIX}/matches/1/prediction")
+    await hit("GET", f"{API_PREFIX}/matches/{{match_id}}/momentum", url=f"{API_PREFIX}/matches/2/momentum")
     await hit("GET", f"{API_PREFIX}/matches/{{match_id}}/point-by-point", url=f"{API_PREFIX}/matches/1/point-by-point")
     await hit("GET", f"{API_PREFIX}/matches/upcoming")
     await hit("GET", f"{API_PREFIX}/matches/results")

@@ -23,13 +23,80 @@ async function resolveEntityId(listRequest, slug) {
     return entity?.id || null;
 }
 
+function reminderCard(item) {
+    return `
+        <div class="notification-item">
+            <strong>${escapeHtml(item.title || "Матч")}</strong>
+            <div class="text-muted small mt-1">${escapeHtml(item.tournament_name || "")}</div>
+            <div class="text-muted small mt-1">${escapeHtml(formatDate(item.scheduled_at))}</div>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                <span class="badge-soft">${escapeHtml(item.remind_before_minutes || 30)} мин до старта</span>
+                <span class="badge-soft">${escapeHtml(item.source === "manual" ? "Мое напоминание" : "Smart tracking")}</span>
+            </div>
+            ${item.id ? `<div class="d-flex gap-2 mt-3"><button class="btn btn-sm btn-ghost-dark" data-reminder-update="${escapeHtml(item.id)}">Сдвинуть на 60 мин</button><button class="btn btn-sm btn-outline-danger" data-reminder-remove="${escapeHtml(item.id)}">Удалить</button></div>` : ""}
+        </div>`;
+}
+
+function pushDeviceCard(item) {
+    return `
+        <div class="notification-item">
+            <strong>${escapeHtml(item.device_label || "Браузерное устройство")}</strong>
+            <div class="text-muted small mt-1">${escapeHtml(item.permission || "default")}</div>
+            <div class="text-muted small mt-1">${escapeHtml(item.endpoint || "")}</div>
+            <div class="d-flex gap-2 mt-3">
+                <button class="btn btn-sm btn-outline-danger" data-push-remove="${escapeHtml(item.id)}">Удалить</button>
+            </div>
+        </div>`;
+}
+
+function predictionCard(prediction, detail) {
+    const favorite = Number(prediction.favorite_player_id) === Number(detail.player1_id) ? detail.player1_name : detail.player2_name;
+    return `
+        <div class="metric-card">
+            <div class="entity-card__eyebrow">Фаворит</div>
+            <div class="metric-value">${escapeHtml(favorite || "-")}</div>
+            <div class="text-muted mt-2">${escapeHtml(prediction.summary || "")}</div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <span class="badge-soft">${escapeHtml(Math.round((prediction.player1_probability || 0) * 100))}% / ${escapeHtml(Math.round((prediction.player2_probability || 0) * 100))}%</span>
+                <span class="badge-soft">Покрытие: ${escapeHtml(prediction.surface_edge || "-")}</span>
+                <span class="badge-soft">Уверенность: ${escapeHtml(prediction.confidence || "medium")}</span>
+            </div>
+        </div>`;
+}
+
+function momentumCard(momentum, detail) {
+    return `
+        <div class="metric-card">
+            <div class="stats-pair">
+                <div class="stats-pair__value">${escapeHtml(momentum.player1_pressure || 0)}</div>
+                <div class="text-muted small text-center">Давление</div>
+                <div class="stats-pair__value is-right">${escapeHtml(momentum.player2_pressure || 0)}</div>
+            </div>
+            <div class="stats-pair">
+                <div class="stats-pair__value">${escapeHtml(momentum.player1_breaks || 0)}</div>
+                <div class="text-muted small text-center">Брейки</div>
+                <div class="stats-pair__value is-right">${escapeHtml(momentum.player2_breaks || 0)}</div>
+            </div>
+            <div class="stats-pair">
+                <div class="stats-pair__value">${escapeHtml(momentum.player1_service_holds || 0)}</div>
+                <div class="text-muted small text-center">Удержания подачи</div>
+                <div class="stats-pair__value is-right">${escapeHtml(momentum.player2_service_holds || 0)}</div>
+            </div>
+            <div class="timeline-list mt-3">
+                ${(momentum.recent_points || []).map((point) => `<article class="timeline-item"><div class="timeline-item__time">${escapeHtml(point.event_type)}</div><strong>${escapeHtml(point.label)}</strong><div class="text-muted small mt-2">${escapeHtml(detail.player1_name)} ${escapeHtml(point.player1_score)} : ${escapeHtml(point.player2_score)} ${escapeHtml(detail.player2_name)}</div></article>`).join("") || '<div class="state-card">Momentum появится с live-событиями.</div>'}
+            </div>
+        </div>`;
+}
+
 async function initHome() {
-    const [live, rankings, news, players, tournaments] = await Promise.all([
+    const [live, rankings, news, players, tournaments, smartFeed, calendar] = await Promise.all([
         api.live.list(),
         api.rankings.current(),
         api.news.featured().catch(() => api.news.list()),
         api.players.list({ page_size: 6 }),
         api.tournaments.list({ page_size: 4 }),
+        api.users.smartFeed().catch(() => ({ data: { players: [], tournaments: [], matches: [], highlights: [] } })),
+        api.users.calendar().catch(() => ({ data: { items: [] } })),
     ]);
 
     const liveList = extractList(live);
@@ -45,6 +112,10 @@ async function initHome() {
     setHtml("home-news-list", newsList.slice(0, 3).map(newsCard).join(""));
     setHtml("home-players-list", playersList.slice(0, 4).map(playerCard).join(""));
     setHtml("home-tournaments-list", tournamentsList.slice(0, 3).map(tournamentCard).join(""));
+    setHtml("home-smart-players", (extractData(smartFeed).players || []).slice(0, 4).map(playerCard).join("") || '<div class="state-card">Добавляйте игроков в избранное и подписки.</div>');
+    setHtml("home-smart-tournaments", (extractData(smartFeed).tournaments || []).slice(0, 4).map(tournamentCard).join("") || '<div class="state-card">Отмечайте турниры, чтобы они появились здесь.</div>');
+    setHtml("home-calendar-list", ((extractData(calendar).items || []).slice(0, 4)).map(reminderCard).join("") || '<div class="state-card">Личный календарь пока пуст.</div>');
+    setHtml("home-smart-highlights", (extractData(smartFeed).highlights || []).map((item) => `<span class="badge-soft">${escapeHtml(item)}</span>`).join(""));
 }
 
 async function initPlayers() {
@@ -242,7 +313,7 @@ async function initMatchDetail() {
     if (!matchId) return;
 
     const render = async () => {
-        const [detailPayload, statsPayload, timelinePayload, previewPayload, h2hPayload, pointPayload, scorePayload] = await Promise.all([
+        const [detailPayload, statsPayload, timelinePayload, previewPayload, h2hPayload, pointPayload, scorePayload, predictionPayload, momentumPayload] = await Promise.all([
             api.matches.detail(matchId),
             api.matches.stats(matchId),
             api.matches.timeline(matchId),
@@ -250,11 +321,15 @@ async function initMatchDetail() {
             api.matches.h2h(matchId),
             api.matches.pointByPoint(matchId).catch(() => ({ data: [] })),
             api.matches.score(matchId).catch(() => ({ data: {} })),
+            api.matches.prediction(matchId).catch(() => ({ data: {} })),
+            api.matches.momentum(matchId).catch(() => ({ data: {} })),
         ]);
         const detail = extractData(detailPayload);
         const stats = extractData(statsPayload);
         const preview = extractData(previewPayload);
         const h2h = extractData(h2hPayload);
+        const prediction = extractData(predictionPayload);
+        const momentum = extractData(momentumPayload);
 
         setHtml("match-scoreboard", scoreboard(detail, detail.score || stats.score || {}));
         setHtml(
@@ -268,14 +343,37 @@ async function initMatchDetail() {
         );
         setHtml("match-timeline", extractList(timelinePayload).map(timelineItem).join("") || '<div class="state-card">События еще не поступили.</div>');
         setHtml("match-preview", `<div class="text-muted">${escapeHtml((preview.notes || []).join(" ") || preview.summary || "Редакционный превью-блок будет доступен ближе к старту матча.")}</div>`);
+        setHtml("match-prediction", predictionCard(prediction, detail));
+        setHtml("match-momentum", momentumCard(momentum, detail));
         setHtml("match-score-service", `<pre class="mb-0 small">${escapeHtml(JSON.stringify(extractData(scorePayload), null, 2))}</pre>`);
         setHtml("match-h2h", `<div class="metric-value">${escapeHtml(h2h.player1_wins || 0)}:${escapeHtml(h2h.player2_wins || 0)}</div><div class="text-muted">Личных встреч: ${escapeHtml(h2h.total_matches || 0)}</div>`);
+        setHtml(
+            "match-h2h-history",
+            [
+                ...(Array.isArray(h2h.surface_split) ? h2h.surface_split.map((item) => `<div class="notification-item"><strong>${escapeHtml(item.surface)}</strong><div class="text-muted small mt-1">${escapeHtml(item.player1_wins)} : ${escapeHtml(item.player2_wins)}</div></div>`) : []),
+                ...(Array.isArray(h2h.matches) ? h2h.matches.slice(0, 5).map((item) => `<div class="notification-item"><strong>${escapeHtml(item.tournament_name)}</strong><div class="text-muted small mt-1">${escapeHtml(item.surface || "-")} • ${escapeHtml(item.score_summary || "-")}</div></div>`) : []),
+            ].join("") || '<div class="state-card">История очных встреч пока недоступна.</div>',
+        );
         setHtml("match-points", extractList(pointPayload).slice(0, 10).map(timelineItem).join("") || '<div class="state-card">Пошаговая лента розыгрышей подключится во время матча.</div>');
         setHtml("match-news", (detail.related_news || []).map(newsCard).join("") || '<div class="state-card">Связанных новостей пока нет.</div>');
         setHtml("match-form", (detail.recent_matches || []).map(matchCard).join("") || '<div class="state-card">Последние матчи игроков еще не загружены.</div>');
     };
 
     await render();
+    qs("#match-reminder-add")?.addEventListener("click", async () => {
+        await api.users.addReminder({ match_id: matchId, remind_before_minutes: 30, channel: "web" });
+    });
+    qs("#match-subscribe-push")?.addEventListener("click", async () => {
+        const permission = typeof Notification === "undefined" ? "unsupported" : await Notification.requestPermission();
+        if (permission !== "granted") return;
+        const endpoint = `browser://${window.location.host}/match/${matchId}`;
+        await api.users.addPushSubscription({
+            endpoint,
+            device_label: `match-${matchId}`,
+            keys_json: { matchId },
+            permission,
+        });
+    });
     const refresh = debounce(render, 280);
     createLiveSocket([`live:match:${matchId}`], refresh);
 }
@@ -439,25 +537,49 @@ async function initSearch() {
 
 async function initAccount() {
     try {
-        const [userPayload, favoritesPayload, subsPayload] = await Promise.all([api.users.me(), api.users.favorites(), api.users.subscriptions()]);
+        const [userPayload, favoritesPayload, subsPayload, calendarPayload, pushPayload] = await Promise.all([
+            api.users.me(),
+            api.users.favorites(),
+            api.users.subscriptions(),
+            api.users.calendar().catch(() => ({ data: { items: [] } })),
+            api.users.pushSubscriptions().catch(() => ({ data: [] })),
+        ]);
         const user = extractData(userPayload);
         setText("account-name", user.full_name || user.username || "Личный кабинет");
         const favorites = extractList(favoritesPayload);
         const subs = extractList(subsPayload);
+        const calendar = extractData(calendarPayload).items || [];
+        const pushDevices = extractList(pushPayload);
         show("account-favorites-empty", favorites.length === 0);
         show("account-subscriptions-empty", subs.length === 0);
+        show("account-calendar-empty", calendar.length === 0);
+        show("account-push-empty", pushDevices.length === 0);
         setHtml("account-favorites", favorites.map((item) => `<div class="notification-item"><strong>${escapeHtml(item.title || item.entity_type)}</strong><button class="btn btn-sm btn-outline-danger mt-2" data-favorite-remove="${escapeHtml(item.id || item.favorite_id || "")}">Удалить</button></div>`).join("") || "");
         setHtml("account-subscriptions", subs.map((item) => `<div class="notification-item"><strong>${escapeHtml(item.entity_type)}</strong><div class="text-muted small">${escapeHtml(item.channel || "web")}</div><div class="d-flex gap-2 mt-2"><button class="btn btn-sm btn-ghost-dark" data-subscription-update="${escapeHtml(item.id || "")}">Изменить</button><button class="btn btn-sm btn-outline-danger" data-subscription-remove="${escapeHtml(item.id || "")}">Удалить</button></div></div>`).join("") || "");
+        setHtml("account-calendar", calendar.map(reminderCard).join("") || "");
+        setHtml("account-push-list", pushDevices.map(pushDeviceCard).join("") || "");
         document.querySelectorAll("[data-favorite-remove]").forEach((button) => button.addEventListener("click", async () => {
             await api.users.removeFavorite(button.dataset.favoriteRemove);
             initAccount();
         }));
         document.querySelectorAll("[data-subscription-update]").forEach((button) => button.addEventListener("click", async () => {
-            await api.users.updateSubscription(button.dataset.subscriptionUpdate, { channel: "email" });
+            await api.users.updateSubscription(button.dataset.subscriptionUpdate, { channels: ["email"], notification_types: ["match_start"] });
             initAccount();
         }));
         document.querySelectorAll("[data-subscription-remove]").forEach((button) => button.addEventListener("click", async () => {
             await api.users.removeSubscription(button.dataset.subscriptionRemove);
+            initAccount();
+        }));
+        document.querySelectorAll("[data-reminder-update]").forEach((button) => button.addEventListener("click", async () => {
+            await api.users.updateReminder(button.dataset.reminderUpdate, { remind_before_minutes: 60 });
+            initAccount();
+        }));
+        document.querySelectorAll("[data-reminder-remove]").forEach((button) => button.addEventListener("click", async () => {
+            await api.users.removeReminder(button.dataset.reminderRemove);
+            initAccount();
+        }));
+        document.querySelectorAll("[data-push-remove]").forEach((button) => button.addEventListener("click", async () => {
+            await api.users.removePushSubscription(button.dataset.pushRemove);
             initAccount();
         }));
         qs("#account-user-notifications-load")?.addEventListener("click", async () => {
@@ -476,6 +598,27 @@ async function initAccount() {
         qs("[data-auth-refresh]")?.addEventListener("click", async () => {
             await api.auth.refresh({});
             show("account-auth-feedback", true, "Сессия успешно обновлена.");
+        });
+        qs("#account-push-enable")?.addEventListener("click", async () => {
+            const permission = typeof Notification === "undefined" ? "unsupported" : await Notification.requestPermission();
+            if (permission === "denied" || permission === "unsupported") {
+                show("account-error", true, "Браузерные уведомления недоступны или отклонены.");
+                return;
+            }
+            const endpoint = `browser://${window.location.host}/${navigator.userAgent.slice(0, 48)}`;
+            await api.users.addPushSubscription({
+                endpoint,
+                device_label: navigator.platform || "browser",
+                keys_json: { userAgent: navigator.userAgent },
+                permission,
+            });
+            initAccount();
+        });
+        qs("#account-push-test")?.addEventListener("click", async () => {
+            await api.users.testPushSubscription({});
+            if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+                new Notification("Тестовое уведомление", { body: "Браузерный канал подключен." });
+            }
         });
     } catch (error) {
         show("account-error", true, error.message || "Не удалось загрузить аккаунт.");

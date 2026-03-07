@@ -13,6 +13,7 @@ from source.db.models.player import Player
 from source.db.models.ranking_snapshot import RankingSnapshot
 from source.db.models.tournament import Tournament
 from source.db.models.user import User
+from source.db.models.user_product import MatchReminder, PushSubscription
 
 __all__ = [
     "AuditLog",
@@ -32,4 +33,6 @@ __all__ = [
     "Tag",
     "Tournament",
     "User",
+    "MatchReminder",
+    "PushSubscription",
 ]

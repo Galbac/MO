@@ -13,9 +13,9 @@ from source.db.models import HeadToHead, Match, MatchEvent, MatchSet, MatchStats
 from source.db.session import db_session_manager
 from source.repositories import MatchRepository, NewsRepository, PlayerRepository, TournamentRepository
 from source.schemas.pydantic.common import PaginatedResponse, PaginationMeta, SuccessResponse
-from source.schemas.pydantic.match import MatchDetail, MatchEventItem, MatchPreview, MatchScore, MatchSetItem, MatchStats as MatchStatsSchema, MatchSummary
+from source.schemas.pydantic.match import MatchDetail, MatchEventItem, MatchMomentum, MatchMomentumPoint, MatchPrediction, MatchPreview, MatchScore, MatchSetItem, MatchStats as MatchStatsSchema, MatchSummary
 from source.schemas.pydantic.news import NewsArticleDetail, NewsArticleSummary, NewsCategoryItem, TagItem
-from source.schemas.pydantic.player import H2HResponse, PlayerComparison, PlayerDetail, PlayerNewsItem, PlayerStats, PlayerSummary, RankingHistoryPoint, SeoMeta, TitleItem, UpcomingMatchItem
+from source.schemas.pydantic.player import H2HMatchItem, H2HResponse, H2HSurfaceSplitItem, PlayerComparison, PlayerDetail, PlayerNewsItem, PlayerStats, PlayerSummary, RankingHistoryPoint, SeoMeta, TitleItem, UpcomingMatchItem
 from source.schemas.pydantic.tournament import ChampionItem, DrawMatchItem, TournamentDetail, TournamentSummary
 from source.services.cache_service import CacheService
 from source.services.runtime_state_store import RuntimeStateStore
@@ -240,6 +240,16 @@ class PortalQueryService:
         return H2HResponse.model_validate(item, from_attributes=True).model_dump() if item else {}
 
     @staticmethod
+    def _surface_split(h2h: HeadToHead | None) -> list[H2HSurfaceSplitItem]:
+        if h2h is None:
+            return []
+        return [
+            H2HSurfaceSplitItem(surface='hard', player1_wins=h2h.hard_player1_wins, player2_wins=h2h.hard_player2_wins),
+            H2HSurfaceSplitItem(surface='clay', player1_wins=h2h.clay_player1_wins, player2_wins=h2h.clay_player2_wins),
+            H2HSurfaceSplitItem(surface='grass', player1_wins=h2h.grass_player1_wins, player2_wins=h2h.grass_player2_wins),
+        ]
+
+    @staticmethod
     def _match_score(match: Match, sets: list[MatchSet], summary: str | None, serving_player_id: int | None) -> MatchScore:
         return MatchScore(sets=[f"{item.player1_games}-{item.player2_games}" for item in sets], current_game=summary, serving_player_id=serving_player_id, winner_id=match.winner_id, status=match.status, completed_sets=sum(1 for item in sets if item.is_finished))
 
@@ -416,7 +426,28 @@ class PortalQueryService:
                 h2h = await self.players.get_h2h(session, player1_id, player2_id)
                 if h2h is None:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='H2H not found')
-                return SuccessResponse(data=H2HResponse.model_validate(h2h, from_attributes=True))
+                history = await self.matches.list_h2h_history(session, player1_id=player1_id, player2_id=player2_id)
+                matches = [
+                    H2HMatchItem(
+                        match_id=match.id,
+                        tournament_id=tournament.id,
+                        tournament_name=tournament.name,
+                        tournament_slug=tournament.slug,
+                        surface=tournament.surface,
+                        season_year=tournament.season_year,
+                        winner_id=match.winner_id,
+                        score_summary=match.score_summary,
+                        scheduled_at=match.scheduled_at.isoformat() if match.scheduled_at else None,
+                    )
+                    for match, tournament in history
+                ]
+                data = H2HResponse.model_validate(h2h, from_attributes=True).model_copy(
+                    update={
+                        'surface_split': self._surface_split(h2h),
+                        'matches': matches,
+                    }
+                )
+                return SuccessResponse(data=data)
 
         return await self._cached(f'players:h2h:{left}:{right}', SuccessResponse[H2HResponse], loader)
 
@@ -614,6 +645,7 @@ class PortalQueryService:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
             left, right = sorted((match.player1_id, match.player2_id))
             h2h = await self.matches.get_h2h(session, match.player1_id, match.player2_id)
+            history = await self.matches.list_h2h_history(session, player1_id=match.player1_id, player2_id=match.player2_id)
             if h2h is None:
                 return SuccessResponse(
                     data=H2HResponse(
@@ -629,9 +661,30 @@ class PortalQueryService:
                         grass_player1_wins=0,
                         grass_player2_wins=0,
                         last_match_id=None,
+                        surface_split=[],
+                        matches=[],
                     )
                 )
-            return SuccessResponse(data=H2HResponse.model_validate(h2h, from_attributes=True))
+            data = H2HResponse.model_validate(h2h, from_attributes=True).model_copy(
+                update={
+                    'surface_split': self._surface_split(h2h),
+                    'matches': [
+                        H2HMatchItem(
+                            match_id=item.id,
+                            tournament_id=tournament.id,
+                            tournament_name=tournament.name,
+                            tournament_slug=tournament.slug,
+                            surface=tournament.surface,
+                            season_year=tournament.season_year,
+                            winner_id=item.winner_id,
+                            score_summary=item.score_summary,
+                            scheduled_at=item.scheduled_at.isoformat() if item.scheduled_at else None,
+                        )
+                        for item, tournament in history
+                    ],
+                }
+            )
+            return SuccessResponse(data=data)
 
     async def get_match_preview(self, match_id: int):
         async def loader() -> SuccessResponse[MatchPreview]:
@@ -655,6 +708,107 @@ class PortalQueryService:
             return SuccessResponse(data=MatchPreview(h2h_summary=detail.h2h, player1_form=self._player_form(player1_matches, detail.player1_id or 0), player2_form=self._player_form(player2_matches, detail.player2_id or 0), notes=notes))
 
         return await self._cached(f'matches:preview:{match_id}', SuccessResponse[MatchPreview], loader)
+
+    async def get_match_prediction(self, match_id: int):
+        async def loader() -> SuccessResponse[MatchPrediction]:
+            detail = (await self.get_match(match_id)).data
+            async with db_session_manager.session() as session:
+                tournament = await self.tournaments.get(session, detail.tournament_id or 0)
+                player1 = await self.players.get(session, detail.player1_id or 0)
+                player2 = await self.players.get(session, detail.player2_id or 0)
+                player1_matches = await self.players.get_matches(session, detail.player1_id or 0) if detail.player1_id else []
+                player2_matches = await self.players.get_matches(session, detail.player2_id or 0) if detail.player2_id else []
+            player1_form = sum(1 for item in self._player_form(player1_matches, detail.player1_id or 0)[:5] if item == 'W')
+            player2_form = sum(1 for item in self._player_form(player2_matches, detail.player2_id or 0)[:5] if item == 'W')
+            player1_rank = player1.current_rank if player1 and player1.current_rank else 200
+            player2_rank = player2.current_rank if player2 and player2.current_rank else 200
+            rank_edge = max(min((player2_rank - player1_rank) / 50, 0.24), -0.24)
+            form_edge = max(min((player1_form - player2_form) / 10, 0.18), -0.18)
+            h2h_total = int(detail.h2h.get('total_matches') or 0)
+            h2h_delta = int(detail.h2h.get('player1_wins') or 0) - int(detail.h2h.get('player2_wins') or 0)
+            h2h_edge = max(min((h2h_delta / max(h2h_total, 1)) * 0.12, 0.12), -0.12) if h2h_total else 0.0
+            base = 0.5 + rank_edge + form_edge + h2h_edge
+            player1_probability = round(max(min(base, 0.87), 0.13), 2)
+            player2_probability = round(1 - player1_probability, 2)
+            favorite_player_id = detail.player1_id if player1_probability >= player2_probability else detail.player2_id
+            surface_edge = tournament.surface if tournament else None
+            summary = f'Преимущество по форме и рейтингу у {"первого" if favorite_player_id == detail.player1_id else "второго"} игрока.'
+            return SuccessResponse(
+                data=MatchPrediction(
+                    match_id=match_id,
+                    player1_probability=player1_probability,
+                    player2_probability=player2_probability,
+                    favorite_player_id=favorite_player_id,
+                    surface_edge=surface_edge,
+                    h2h_edge='player1' if h2h_edge > 0 else 'player2' if h2h_edge < 0 else 'neutral',
+                    form_edge='player1' if form_edge > 0 else 'player2' if form_edge < 0 else 'neutral',
+                    confidence='high' if abs(player1_probability - player2_probability) >= 0.18 else 'medium',
+                    summary=summary,
+                )
+            )
+
+        return await self._cached(f'matches:prediction:{match_id}', SuccessResponse[MatchPrediction], loader, ttl_seconds=settings.cache.live_ttl_seconds)
+
+    async def get_match_momentum(self, match_id: int):
+        async def loader() -> SuccessResponse[MatchMomentum]:
+            async with db_session_manager.session() as session:
+                match = await self.matches.get(session, match_id)
+                if match is None:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
+                events = await self.matches.get_events(session, match_id)
+                pressure1 = 0
+                pressure2 = 0
+                breaks1 = 0
+                breaks2 = 0
+                holds1 = 0
+                holds2 = 0
+                recent_points: list[MatchMomentumPoint] = []
+                for index, event in enumerate(events[-8:], start=1):
+                    player1_delta = 0
+                    player2_delta = 0
+                    if event.event_type in {'ace', 'point', 'point_updated'}:
+                        if event.player_id == match.player1_id:
+                            player1_delta = 1
+                        elif event.player_id == match.player2_id:
+                            player2_delta = 1
+                    if event.event_type == 'break_point':
+                        if event.player_id == match.player1_id:
+                            player1_delta += 2
+                            breaks1 += 1
+                        elif event.player_id == match.player2_id:
+                            player2_delta += 2
+                            breaks2 += 1
+                    if event.event_type == 'set_finished':
+                        if event.player_id == match.player1_id:
+                            player1_delta += 3
+                            holds1 += 1
+                        elif event.player_id == match.player2_id:
+                            player2_delta += 3
+                            holds2 += 1
+                    pressure1 += player1_delta
+                    pressure2 += player2_delta
+                    recent_points.append(
+                        MatchMomentumPoint(
+                            label=f'{event.event_type} #{index}',
+                            player1_score=pressure1,
+                            player2_score=pressure2,
+                            event_type=event.event_type,
+                        )
+                    )
+                return SuccessResponse(
+                    data=MatchMomentum(
+                        match_id=match_id,
+                        player1_pressure=pressure1,
+                        player2_pressure=pressure2,
+                        player1_service_holds=holds1,
+                        player2_service_holds=holds2,
+                        player1_breaks=breaks1,
+                        player2_breaks=breaks2,
+                        recent_points=recent_points,
+                    )
+                )
+
+        return await self._cached(f'matches:momentum:{match_id}', SuccessResponse[MatchMomentum], loader, ttl_seconds=settings.cache.live_ttl_seconds)
 
     async def get_match_point_by_point(self, match_id: int):
         async def loader() -> SuccessResponse[list[MatchEventItem]]:

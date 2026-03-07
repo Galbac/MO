@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from source.services import PortalQueryService
 from source.schemas.pydantic.common import PaginatedResponse, SuccessResponse
-from source.schemas.pydantic.match import MatchDetail, MatchEventItem, MatchPreview, MatchScore, MatchStats, MatchSummary
+from source.schemas.pydantic.match import MatchDetail, MatchEventItem, MatchMomentum, MatchPrediction, MatchPreview, MatchScore, MatchStats, MatchSummary
 from source.schemas.pydantic.player import H2HResponse
 
 router = APIRouter(prefix="/matches", tags=["matches"])
@@ -52,6 +52,16 @@ async def get_match_h2h(match_id: int) -> SuccessResponse[H2HResponse]:
 @router.get("/{match_id}/preview", response_model=SuccessResponse[MatchPreview])
 async def get_match_preview(match_id: int) -> SuccessResponse[MatchPreview]:
     return await service.get_match_preview(match_id)
+
+
+@router.get("/{match_id}/prediction", response_model=SuccessResponse[MatchPrediction])
+async def get_match_prediction(match_id: int) -> SuccessResponse[MatchPrediction]:
+    return await service.get_match_prediction(match_id)
+
+
+@router.get("/{match_id}/momentum", response_model=SuccessResponse[MatchMomentum])
+async def get_match_momentum(match_id: int) -> SuccessResponse[MatchMomentum]:
+    return await service.get_match_momentum(match_id)
 
 
 @router.get("/{match_id}/point-by-point", response_model=SuccessResponse[list[MatchEventItem]])

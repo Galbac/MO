@@ -2,6 +2,10 @@
 {% block content %}
 <section class="page-section" id="match-scoreboard">
     <div class="scoreboard-card"><div class="skeleton card"></div></div>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+        <button class="btn btn-primary" type="button" id="match-reminder-add">Добавить в календарь</button>
+        <button class="btn btn-ghost-dark" type="button" id="match-subscribe-push">Подписаться на browser push</button>
+    </div>
 </section>
 
 <section class="page-section page-grid two">
@@ -29,6 +33,16 @@
             <div id="match-preview"></div>
         </section>
         <section class="content-card">
+            <div class="section-kicker">Прогноз</div>
+            <h2 class="section-title mt-2 mb-3">Вероятности и edge</h2>
+            <div id="match-prediction"></div>
+        </section>
+        <section class="content-card">
+            <div class="section-kicker">Momentum</div>
+            <h2 class="section-title mt-2 mb-3">Кто забирает импульс</h2>
+            <div id="match-momentum"></div>
+        </section>
+        <section class="content-card">
             <div class="section-kicker">Сервис счета</div>
             <h2 class="section-title mt-2 mb-3">Сырые данные счета</h2>
             <div id="match-score-service"></div>
@@ -37,6 +51,11 @@
             <div class="section-kicker">Личные встречи</div>
             <h2 class="section-title mt-2 mb-3">Личные встречи</h2>
             <div id="match-h2h"></div>
+        </section>
+        <section class="content-card">
+            <div class="section-kicker">История H2H</div>
+            <h2 class="section-title mt-2 mb-3">Покрытия и матчи</h2>
+            <div id="match-h2h-history"></div>
         </section>
         <section class="content-card">
             <div class="section-kicker">Текущая форма</div>

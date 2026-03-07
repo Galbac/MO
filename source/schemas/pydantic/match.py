@@ -73,6 +73,36 @@ class MatchPreview(BaseModel):
     notes: list[str]
 
 
+class MatchPrediction(BaseModel):
+    match_id: int
+    player1_probability: float
+    player2_probability: float
+    favorite_player_id: int | None = None
+    surface_edge: str | None = None
+    h2h_edge: str | None = None
+    form_edge: str | None = None
+    confidence: str = "medium"
+    summary: str
+
+
+class MatchMomentumPoint(BaseModel):
+    label: str
+    player1_score: int
+    player2_score: int
+    event_type: str
+
+
+class MatchMomentum(BaseModel):
+    match_id: int
+    player1_pressure: int = 0
+    player2_pressure: int = 0
+    player1_service_holds: int = 0
+    player2_service_holds: int = 0
+    player1_breaks: int = 0
+    player2_breaks: int = 0
+    recent_points: list[MatchMomentumPoint] = Field(default_factory=list)
+
+
 class MatchDetail(MatchSummary):
     best_of_sets: int
     winner_id: int | None = None

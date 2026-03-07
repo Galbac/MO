@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from source.db.models import FavoriteEntity, Notification, NotificationSubscription
+from source.db.models import FavoriteEntity, MatchReminder, Notification, NotificationSubscription, PushSubscription
 
 
 class EngagementRepository:
@@ -104,6 +104,66 @@ class EngagementRepository:
         await session.commit()
         await session.refresh(item)
         return item
+
+    async def list_match_reminders(self, session: AsyncSession, user_id: int) -> list[MatchReminder]:
+        stmt = select(MatchReminder).where(MatchReminder.user_id == user_id).order_by(MatchReminder.created_at.asc(), MatchReminder.id.asc())
+        return list((await session.scalars(stmt)).all())
+
+    async def get_match_reminder(self, session: AsyncSession, reminder_id: int, user_id: int) -> MatchReminder | None:
+        stmt = select(MatchReminder).where(MatchReminder.id == reminder_id, MatchReminder.user_id == user_id)
+        return await session.scalar(stmt)
+
+    async def find_match_reminder(self, session: AsyncSession, user_id: int, match_id: int) -> MatchReminder | None:
+        stmt = select(MatchReminder).where(MatchReminder.user_id == user_id, MatchReminder.match_id == match_id)
+        return await session.scalar(stmt)
+
+    async def create_match_reminder(self, session: AsyncSession, payload: dict) -> MatchReminder:
+        item = MatchReminder(**payload)
+        session.add(item)
+        await session.commit()
+        await session.refresh(item)
+        return item
+
+    async def update_match_reminder(self, session: AsyncSession, reminder: MatchReminder, payload: dict) -> MatchReminder:
+        for key, value in payload.items():
+            setattr(reminder, key, value)
+        await session.commit()
+        await session.refresh(reminder)
+        return reminder
+
+    async def delete_match_reminder(self, session: AsyncSession, reminder: MatchReminder) -> None:
+        await session.delete(reminder)
+        await session.commit()
+
+    async def list_push_subscriptions(self, session: AsyncSession, user_id: int) -> list[PushSubscription]:
+        stmt = select(PushSubscription).where(PushSubscription.user_id == user_id).order_by(PushSubscription.created_at.desc(), PushSubscription.id.desc())
+        return list((await session.scalars(stmt)).all())
+
+    async def get_push_subscription(self, session: AsyncSession, subscription_id: int, user_id: int) -> PushSubscription | None:
+        stmt = select(PushSubscription).where(PushSubscription.id == subscription_id, PushSubscription.user_id == user_id)
+        return await session.scalar(stmt)
+
+    async def find_push_subscription(self, session: AsyncSession, user_id: int, endpoint: str) -> PushSubscription | None:
+        stmt = select(PushSubscription).where(PushSubscription.user_id == user_id, PushSubscription.endpoint == endpoint)
+        return await session.scalar(stmt)
+
+    async def create_push_subscription(self, session: AsyncSession, payload: dict) -> PushSubscription:
+        item = PushSubscription(**payload)
+        session.add(item)
+        await session.commit()
+        await session.refresh(item)
+        return item
+
+    async def update_push_subscription(self, session: AsyncSession, subscription: PushSubscription, payload: dict) -> PushSubscription:
+        for key, value in payload.items():
+            setattr(subscription, key, value)
+        await session.commit()
+        await session.refresh(subscription)
+        return subscription
+
+    async def delete_push_subscription(self, session: AsyncSession, subscription: PushSubscription) -> None:
+        await session.delete(subscription)
+        await session.commit()
 
     async def delete_notifications_by_entity(
         self,

@@ -105,6 +105,24 @@ class PlayerComparison(BaseModel):
     comparison: dict
 
 
+class H2HSurfaceSplitItem(BaseModel):
+    surface: str
+    player1_wins: int
+    player2_wins: int
+
+
+class H2HMatchItem(BaseModel):
+    match_id: int
+    tournament_id: int | None = None
+    tournament_name: str
+    tournament_slug: str | None = None
+    surface: str | None = None
+    season_year: int | None = None
+    winner_id: int | None = None
+    score_summary: str | None = None
+    scheduled_at: str | None = None
+
+
 class H2HResponse(BaseModel):
     player1_id: int
     player2_id: int
@@ -118,3 +136,5 @@ class H2HResponse(BaseModel):
     grass_player1_wins: int
     grass_player2_wins: int
     last_match_id: int | None = None
+    surface_split: list[H2HSurfaceSplitItem] = Field(default_factory=list)
+    matches: list[H2HMatchItem] = Field(default_factory=list)

@@ -25,7 +25,8 @@ function initSubscriptionButtons() {
                 await api.users.addSubscription({
                     entity_type: button.dataset.entityType,
                     entity_id: button.dataset.entityId,
-                    channel: button.dataset.channel || "web",
+                    notification_types: [button.dataset.notificationType || "match_start"],
+                    channels: [button.dataset.channel || "web"],
                 });
                 button.classList.add("active");
                 showToast("Подписка оформлена", "success");

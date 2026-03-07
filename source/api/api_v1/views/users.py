@@ -6,9 +6,17 @@ from source.schemas.pydantic.notification import NotificationItem
 from source.schemas.pydantic.user import (
     FavoriteCreateRequest,
     FavoriteItem,
+    MatchReminderCreateRequest,
+    MatchReminderItem,
+    MatchReminderUpdateRequest,
     NotificationSubscriptionCreateRequest,
     NotificationSubscriptionItem,
     NotificationSubscriptionUpdateRequest,
+    PushSubscriptionCreateRequest,
+    PushSubscriptionItem,
+    PushSubscriptionTestRequest,
+    SmartFeedBundle,
+    UserCalendarOverview,
     UserPasswordChangeRequest,
     UserProfile,
     UserUpdateRequest,
@@ -55,6 +63,31 @@ async def get_subscriptions(request: Request) -> SuccessResponse[list[Notificati
     return await engagement.list_subscriptions(request)
 
 
+@router.get("/me/smart-feed", response_model=SuccessResponse[SmartFeedBundle])
+async def get_smart_feed(request: Request) -> SuccessResponse[SmartFeedBundle]:
+    return await engagement.get_smart_feed(request)
+
+
+@router.get("/me/calendar", response_model=SuccessResponse[UserCalendarOverview])
+async def get_calendar(request: Request) -> SuccessResponse[UserCalendarOverview]:
+    return await engagement.list_calendar(request)
+
+
+@router.post("/me/calendar/reminders", response_model=SuccessResponse[MatchReminderItem])
+async def create_match_reminder(request: Request, payload: MatchReminderCreateRequest) -> SuccessResponse[MatchReminderItem]:
+    return await engagement.create_match_reminder(request, payload)
+
+
+@router.patch("/me/calendar/reminders/{reminder_id}", response_model=SuccessResponse[MatchReminderItem])
+async def patch_match_reminder(request: Request, reminder_id: int, payload: MatchReminderUpdateRequest) -> SuccessResponse[MatchReminderItem]:
+    return await engagement.update_match_reminder(request, reminder_id, payload)
+
+
+@router.delete("/me/calendar/reminders/{reminder_id}", response_model=SuccessResponse[ActionResult])
+async def delete_match_reminder(request: Request, reminder_id: int) -> SuccessResponse[ActionResult]:
+    return await engagement.delete_match_reminder(request, reminder_id)
+
+
 @router.post("/me/subscriptions", response_model=SuccessResponse[NotificationSubscriptionItem])
 async def create_subscription(request: Request, payload: NotificationSubscriptionCreateRequest) -> SuccessResponse[NotificationSubscriptionItem]:
     return await engagement.create_subscription(request, payload)
@@ -83,3 +116,23 @@ async def patch_me_notification_read(request: Request, notification_id: int) -> 
 @router.patch("/me/notifications/read-all", response_model=SuccessResponse[ActionResult])
 async def patch_me_notifications_read_all(request: Request) -> SuccessResponse[ActionResult]:
     return await engagement.mark_all_notifications_read(request)
+
+
+@router.get("/me/push-subscriptions", response_model=SuccessResponse[list[PushSubscriptionItem]])
+async def get_push_subscriptions(request: Request) -> SuccessResponse[list[PushSubscriptionItem]]:
+    return await engagement.list_push_subscriptions(request)
+
+
+@router.post("/me/push-subscriptions", response_model=SuccessResponse[PushSubscriptionItem])
+async def create_push_subscription(request: Request, payload: PushSubscriptionCreateRequest) -> SuccessResponse[PushSubscriptionItem]:
+    return await engagement.create_push_subscription(request, payload)
+
+
+@router.delete("/me/push-subscriptions/{subscription_id}", response_model=SuccessResponse[ActionResult])
+async def delete_push_subscription(request: Request, subscription_id: int) -> SuccessResponse[ActionResult]:
+    return await engagement.delete_push_subscription(request, subscription_id)
+
+
+@router.post("/me/push-subscriptions/test", response_model=SuccessResponse[ActionResult])
+async def test_push_subscription(request: Request, payload: PushSubscriptionTestRequest) -> SuccessResponse[ActionResult]:
+    return await engagement.test_push_subscription(request, payload)

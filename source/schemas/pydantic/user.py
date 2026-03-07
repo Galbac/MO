@@ -80,3 +80,66 @@ class NotificationSubscriptionUpdateRequest(BaseModel):
     notification_types: list[str] | None = None
     channels: list[str] | None = None
     is_active: bool | None = None
+
+
+class MatchReminderItem(BaseModel):
+    id: int
+    user_id: int
+    match_id: int
+    match_slug: str
+    title: str
+    tournament_name: str
+    scheduled_at: datetime
+    remind_before_minutes: int = 30
+    channel: str = "web"
+    is_active: bool = True
+    reminder_at: datetime | None = None
+    source: str = "manual"
+
+
+class MatchReminderCreateRequest(BaseModel):
+    match_id: int
+    remind_before_minutes: int = Field(default=30, ge=5, le=1440)
+    channel: str = "web"
+
+
+class MatchReminderUpdateRequest(BaseModel):
+    remind_before_minutes: int | None = Field(default=None, ge=5, le=1440)
+    channel: str | None = None
+    is_active: bool | None = None
+
+
+class UserCalendarOverview(BaseModel):
+    items: list[MatchReminderItem] = Field(default_factory=list)
+    total: int = 0
+    active: int = 0
+    next_item_at: datetime | None = None
+
+
+class SmartFeedBundle(BaseModel):
+    players: list[dict] = Field(default_factory=list)
+    tournaments: list[dict] = Field(default_factory=list)
+    matches: list[dict] = Field(default_factory=list)
+    highlights: list[str] = Field(default_factory=list)
+
+
+class PushSubscriptionItem(BaseModel):
+    id: int
+    user_id: int
+    endpoint: str
+    device_label: str | None = None
+    permission: str = "default"
+    is_active: bool = True
+    created_at: datetime | None = None
+
+
+class PushSubscriptionCreateRequest(BaseModel):
+    endpoint: str
+    device_label: str | None = None
+    keys_json: dict = Field(default_factory=dict)
+    permission: str = "granted"
+
+
+class PushSubscriptionTestRequest(BaseModel):
+    title: str = "Тестовое браузерное уведомление"
+    body: str = "Браузерные уведомления для портала включены."

@@ -127,3 +127,70 @@ async def test_subscriptions_reject_invalid_notification_type(async_client, user
         headers=user_auth_headers,
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+async def test_user_calendar_and_reminders_flow(async_client, user_auth_headers) -> None:
+    calendar_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/calendar", headers=user_auth_headers)
+    assert calendar_response.status_code == status.HTTP_200_OK
+    assert "items" in calendar_response.json()["data"]
+
+    create_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/calendar/reminders",
+        json={"match_id": 2, "remind_before_minutes": 45, "channel": "web"},
+        headers=user_auth_headers,
+    )
+    assert create_response.status_code == status.HTTP_200_OK
+    reminder_id = create_response.json()["data"]["id"]
+    assert create_response.json()["data"]["match_id"] == 2
+
+    update_response = await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/calendar/reminders/{reminder_id}",
+        json={"remind_before_minutes": 60, "is_active": False},
+        headers=user_auth_headers,
+    )
+    assert update_response.status_code == status.HTTP_200_OK
+    assert update_response.json()["data"]["remind_before_minutes"] == 60
+    assert update_response.json()["data"]["is_active"] is False
+
+    delete_response = await async_client.delete(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/calendar/reminders/{reminder_id}",
+        headers=user_auth_headers,
+    )
+    assert delete_response.status_code == status.HTTP_200_OK
+
+
+async def test_user_smart_feed_and_push_subscription_flow(async_client, user_auth_headers) -> None:
+    feed_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/smart-feed", headers=user_auth_headers)
+    assert feed_response.status_code == status.HTTP_200_OK
+    assert "players" in feed_response.json()["data"]
+    assert "tournaments" in feed_response.json()["data"]
+
+    list_response = await async_client.get(f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/push-subscriptions", headers=user_auth_headers)
+    assert list_response.status_code == status.HTTP_200_OK
+
+    create_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/push-subscriptions",
+        json={
+            "endpoint": "browser://test/device-1",
+            "device_label": "pytest-browser",
+            "keys_json": {"auth": "token"},
+            "permission": "granted",
+        },
+        headers=user_auth_headers,
+    )
+    assert create_response.status_code == status.HTTP_200_OK
+    subscription_id = create_response.json()["data"]["id"]
+
+    test_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/push-subscriptions/test",
+        json={"title": "Проверка", "body": "Push канал активен"},
+        headers=user_auth_headers,
+    )
+    assert test_response.status_code == status.HTTP_200_OK
+    assert test_response.json()["data"]["details"]["active_devices"] >= 1
+
+    delete_response = await async_client.delete(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/users/me/push-subscriptions/{subscription_id}",
+        headers=user_auth_headers,
+    )
+    assert delete_response.status_code == status.HTTP_200_OK

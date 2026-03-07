@@ -114,6 +114,25 @@
     </section>
 </section>
 
+<section class="page-section page-grid two">
+    <section class="content-card">
+        <div class="section-kicker">Личный календарь</div>
+        <h2 class="section-title mt-2 mb-3">Матчи с напоминаниями</h2>
+        <div class="state-card d-none mb-3" id="account-calendar-empty">Напоминаний пока нет.</div>
+        <div class="cards-grid" id="account-calendar"></div>
+    </section>
+    <section class="content-card">
+        <div class="section-kicker">Browser push</div>
+        <h2 class="section-title mt-2 mb-3">Устройства и уведомления</h2>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <button class="btn btn-primary" type="button" id="account-push-enable">Включить уведомления в браузере</button>
+            <button class="btn btn-ghost-dark" type="button" id="account-push-test">Отправить тест</button>
+        </div>
+        <div class="state-card d-none mb-3" id="account-push-empty">Браузерные устройства еще не подключены.</div>
+        <div class="cards-grid" id="account-push-list"></div>
+    </section>
+</section>
+
 <section class="page-section content-card">
     <div class="section-kicker">Персональные уведомления</div>
     <h2 class="section-title mt-2 mb-3">Уведомления пользователя</h2>

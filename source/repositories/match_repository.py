@@ -211,6 +211,23 @@ class MatchRepository:
         rows = await session.execute(stmt)
         return [(match, surface) for match, surface in rows.all()]
 
+    async def list_h2h_history(self, session: AsyncSession, *, player1_id: int, player2_id: int) -> list[tuple[Match, Tournament]]:
+        left, right = sorted((player1_id, player2_id))
+        stmt = (
+            select(Match, Tournament)
+            .join(Tournament, Tournament.id == Match.tournament_id)
+            .where(
+                or_(
+                    and_(Match.player1_id == left, Match.player2_id == right),
+                    and_(Match.player1_id == right, Match.player2_id == left),
+                ),
+                Match.winner_id.is_not(None),
+            )
+            .order_by(Match.scheduled_at.desc(), Match.id.desc())
+        )
+        rows = await session.execute(stmt)
+        return [(match, tournament) for match, tournament in rows.all()]
+
     async def rebuild_h2h(self, session: AsyncSession, *, player1_id: int, player2_id: int) -> HeadToHead | None:
         left, right = sorted((player1_id, player2_id))
         existing = await self.get_h2h(session, left, right)
