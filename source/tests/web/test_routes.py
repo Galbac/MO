@@ -1,5 +1,7 @@
 from fastapi import status
 
+import source.web.router as web_router
+
 
 async def test_home_page_renders_html(async_client) -> None:
     response = await async_client.get("/")
@@ -119,6 +121,19 @@ async def test_layouts_include_skip_links_and_landmarks(async_client) -> None:
 
     assert admin_response.status_code == status.HTTP_303_SEE_OTHER
     assert admin_response.headers["location"].startswith("/admin/login")
+
+
+async def test_layouts_include_ui_mode_flags(async_client, admin_session_client, monkeypatch, tmp_path) -> None:
+    settings_file = tmp_path / "admin_settings.json"
+    settings_file.write_text('{"ui_mode":"future_3000","evening_theme_enabled":true}')
+    monkeypatch.setattr(web_router, "ADMIN_SETTINGS_FILE", settings_file)
+
+    public_response = await async_client.get("/", follow_redirects=True)
+    admin_response = await admin_session_client.get("/admin/settings")
+
+    assert 'data-ui-mode="future_3000"' in public_response.text
+    assert 'data-evening-theme="true"' in public_response.text
+    assert 'data-ui-mode="future_3000"' in admin_response.text
 
 
 async def test_list_pages_include_accessible_navigation_and_tables(user_session_client, admin_session_client) -> None:

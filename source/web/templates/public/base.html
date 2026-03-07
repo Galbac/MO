@@ -17,7 +17,7 @@
     {% if schema_json %}<script type="application/ld+json">{{ schema_json | safe }}</script>{% endif %}
     {% block head_extra %}{% endblock %}
 </head>
-<body data-page="{{ page_name }}" data-section="public">
+<body data-page="{{ page_name }}" data-section="public" data-ui-mode="{{ ui_mode | default('current') }}" data-evening-theme="{{ 'true' if evening_theme_enabled else 'false' }}">
 <a class="visually-hidden-focusable skip-link" href="#main-content">Перейти к основному контенту</a>
 <div class="page-shell">
     <header class="site-header">
@@ -45,6 +45,10 @@
                         <a class="top-nav__link" data-nav-link href="/h2h">Личные встречи</a>
                     </nav>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="badge-soft d-none d-md-inline-flex">Режим: {{ "3000+" if ui_mode == "future_3000" else "Текущий" }}</span>
+                        {% if evening_theme_enabled %}
+                        <span class="badge-soft d-none d-md-inline-flex">Вечерний вид</span>
+                        {% endif %}
                         {% if current_user %}
                         <span class="badge-soft">{{ current_user.first_name or current_user.username }}{% if current_user.last_name %} {{ current_user.last_name }}{% endif %}</span>
                         {% endif %}

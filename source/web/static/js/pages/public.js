@@ -1,5 +1,5 @@
 import { api } from "/static/js/core/api.js";
-import { renderState, renderSkeletonCards } from "/static/js/core/state.js";
+import { renderSkeletonCards, renderSkeletonTemplate, renderState } from "/static/js/core/state.js";
 import { createLiveSocket } from "/static/js/core/websocket.js";
 import {
     debounce,
@@ -88,6 +88,76 @@ function momentumCard(momentum, detail) {
         </div>`;
 }
 
+function pageSkeleton(variant) {
+    const variants = {
+        live: `
+            <div class="page-skeleton">
+                <div class="page-skeleton__hero"></div>
+                <div class="page-skeleton page-skeleton--cards">
+                    <div class="page-skeleton__card"></div>
+                    <div class="page-skeleton__card"></div>
+                    <div class="page-skeleton__card"></div>
+                </div>
+            </div>`,
+        match: `
+            <div class="page-skeleton">
+                <div class="page-skeleton__hero"></div>
+                <div class="page-skeleton__line"></div>
+                <div class="page-skeleton page-skeleton--cards">
+                    <div class="page-skeleton__card"></div>
+                    <div class="page-skeleton__card"></div>
+                </div>
+            </div>`,
+        compact: `
+            <div class="page-skeleton page-skeleton--cards">
+                <div class="page-skeleton__card"></div>
+                <div class="page-skeleton__card"></div>
+                <div class="page-skeleton__card"></div>
+            </div>`,
+    };
+    return variants[variant] || variants.live;
+}
+
+function setupQuickFilters(containerId, handlers) {
+    const container = qs(`#${containerId}`);
+    if (!container || container.dataset.bound === "true") return;
+    container.dataset.bound = "true";
+    container.querySelectorAll("[data-filter-group]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const group = button.dataset.filterGroup;
+            container.querySelectorAll(`[data-filter-group='${group}']`).forEach((item) => item.classList.remove("is-active"));
+            button.classList.add("is-active");
+            const handler = handlers[group];
+            if (handler) handler(button.dataset.filterValue || "");
+        });
+    });
+}
+
+function filterMatchesList(items, filters) {
+    return items.filter((item) => {
+        const status = String(item.status || "").toLowerCase();
+        const surface = String(item.surface || item.tournament_surface || "").toLowerCase();
+        const tournament = String(item.tournament_name || "").toLowerCase();
+        const countries = [item.country_code, item.player1_country_code, item.player2_country_code, item.player1_country, item.player2_country]
+            .filter(Boolean)
+            .map((value) => String(value).toLowerCase());
+        if (filters.status && status !== filters.status) return false;
+        if (filters.surface && surface !== filters.surface) return false;
+        if (filters.tournament && !tournament.includes(filters.tournament)) return false;
+        if (filters.country && !countries.includes(filters.country)) return false;
+        return true;
+    });
+}
+
+function filterTournamentList(items, filters) {
+    return items.filter((item) => {
+        if (filters.surface && String(item.surface || "").toLowerCase() !== filters.surface) return false;
+        if (filters.status && String(item.status || "").toLowerCase() !== filters.status) return false;
+        if (filters.country && String(item.country_code || "").toLowerCase() !== filters.country) return false;
+        return true;
+    });
+}
+
 async function initHome() {
     const [live, rankings, news, players, tournaments, smartFeed, calendar] = await Promise.all([
         api.live.list(),
@@ -119,13 +189,14 @@ async function initHome() {
 }
 
 async function initPlayers() {
+    const quickFilters = { country: "", hand: "" };
     const render = async () => {
         renderSkeletonCards("players-grid", 6);
         try {
             const payload = await api.players.list({
                 search: qs("#players-search")?.value.trim(),
-                country_code: qs("#players-country")?.value,
-                hand: qs("#players-hand")?.value,
+                country_code: qs("#players-country")?.value || quickFilters.country,
+                hand: qs("#players-hand")?.value || quickFilters.hand,
                 sort: qs("#players-sort")?.value,
             });
             renderState({
@@ -151,7 +222,23 @@ async function initPlayers() {
             const input = qs(selector);
             if (input) input.value = "";
         });
+        quickFilters.country = "";
+        quickFilters.hand = "";
+        document.querySelectorAll("#players-quick-filters .filter-chip").forEach((button) => button.classList.remove("is-active"));
+        qs("#players-quick-filters .filter-chip[data-filter-value='']")?.classList.add("is-active");
         render();
+    });
+    setupQuickFilters("players-quick-filters", {
+        country: (value) => {
+            quickFilters.country = value;
+            if (qs("#players-country")) qs("#players-country").value = value;
+            render();
+        },
+        hand: (value) => {
+            quickFilters.hand = value;
+            if (qs("#players-hand")) qs("#players-hand").value = value;
+            render();
+        },
     });
 }
 
@@ -230,21 +317,39 @@ async function initPlayerDetail() {
 }
 
 async function initTournaments() {
-    renderSkeletonCards("tournaments-grid", 6);
-    try {
-        const [payload, calendarPayload] = await Promise.all([api.tournaments.list(), api.tournaments.calendar().catch(() => ({ data: [] }))]);
-        renderState({
-            targetId: "tournaments-grid",
-            items: extractList(payload),
-            renderer: tournamentCard,
-            emptyId: "tournaments-empty",
-            errorId: "tournaments-error",
-            emptyText: "Турниры по выбранным фильтрам не найдены.",
-        });
-        setHtml("tournaments-calendar", extractList(calendarPayload).slice(0, 3).map(tournamentCard).join("") || '<div class="state-card">Календарь пока пуст.</div>');
-    } catch (error) {
-        renderState({ targetId: "tournaments-grid", items: [], renderer: tournamentCard, error, errorId: "tournaments-error", emptyId: "tournaments-empty" });
-    }
+    const quickFilters = { surface: "", status: "", country: "" };
+    const render = async () => {
+        renderSkeletonCards("tournaments-grid", 6);
+        try {
+            const [payload, calendarPayload] = await Promise.all([api.tournaments.list(), api.tournaments.calendar().catch(() => ({ data: [] }))]);
+            renderState({
+                targetId: "tournaments-grid",
+                items: filterTournamentList(extractList(payload), quickFilters),
+                renderer: tournamentCard,
+                emptyId: "tournaments-empty",
+                errorId: "tournaments-error",
+                emptyText: "Турниры по выбранным фильтрам не найдены.",
+            });
+            setHtml("tournaments-calendar", extractList(calendarPayload).slice(0, 3).map(tournamentCard).join("") || '<div class="state-card">Календарь пока пуст.</div>');
+        } catch (error) {
+            renderState({ targetId: "tournaments-grid", items: [], renderer: tournamentCard, error, errorId: "tournaments-error", emptyId: "tournaments-empty" });
+        }
+    };
+    await render();
+    setupQuickFilters("tournaments-quick-filters", {
+        surface: (value) => {
+            quickFilters.surface = value.toLowerCase();
+            render();
+        },
+        status: (value) => {
+            quickFilters.status = value.toLowerCase();
+            render();
+        },
+        country: (value) => {
+            quickFilters.country = value.toLowerCase();
+            render();
+        },
+    });
 }
 
 async function initTournamentDetail() {
@@ -281,17 +386,18 @@ async function initTournamentDetail() {
 }
 
 async function initMatches() {
+    const quickFilters = { status: "", surface: "", country: "" };
     const render = async () => {
-        renderSkeletonCards("matches-list", 6);
+        renderSkeletonTemplate("matches-list", pageSkeleton("live"));
         try {
             const [payload, upcomingPayload, resultsPayload] = await Promise.all([
-                api.matches.list({ status: qs("#matches-status")?.value }),
+                api.matches.list({ status: qs("#matches-status")?.value || quickFilters.status }),
                 api.matches.upcoming().catch(() => ({ data: [] })),
                 api.matches.results().catch(() => ({ data: [] })),
             ]);
             renderState({
                 targetId: "matches-list",
-                items: extractList(payload),
+                items: filterMatchesList(extractList(payload), quickFilters),
                 renderer: matchCard,
                 emptyId: "matches-empty",
                 errorId: "matches-error",
@@ -305,6 +411,21 @@ async function initMatches() {
     };
     await render();
     qs("#matches-status")?.addEventListener("change", render);
+    setupQuickFilters("matches-quick-filters", {
+        status: (value) => {
+            quickFilters.status = value.toLowerCase();
+            if (qs("#matches-status")) qs("#matches-status").value = value;
+            render();
+        },
+        surface: (value) => {
+            quickFilters.surface = value.toLowerCase();
+            render();
+        },
+        country: (value) => {
+            quickFilters.country = value.toLowerCase();
+            render();
+        },
+    });
 }
 
 async function initMatchDetail() {
@@ -313,6 +434,7 @@ async function initMatchDetail() {
     if (!matchId) return;
 
     const render = async () => {
+        renderSkeletonTemplate("match-scoreboard", pageSkeleton("match"));
         const [detailPayload, statsPayload, timelinePayload, previewPayload, h2hPayload, pointPayload, scorePayload, predictionPayload, momentumPayload] = await Promise.all([
             api.matches.detail(matchId),
             api.matches.stats(matchId),
@@ -379,10 +501,13 @@ async function initMatchDetail() {
 }
 
 async function initLiveCenter() {
+    const quickFilters = { status: "", surface: "", country: "" };
     const render = async () => {
         try {
+            renderSkeletonTemplate("live-matches-list", pageSkeleton("live"));
+            renderSkeletonTemplate("live-feed-list", pageSkeleton("compact"));
             const [matchesPayload, feedPayload] = await Promise.all([api.live.list(), api.live.feed()]);
-            const matches = extractList(matchesPayload);
+            const matches = filterMatchesList(extractList(matchesPayload), quickFilters);
             renderState({
                 targetId: "live-matches-list",
                 items: matches,
@@ -413,6 +538,20 @@ async function initLiveCenter() {
         }
     };
     await render();
+    setupQuickFilters("live-quick-filters", {
+        status: (value) => {
+            quickFilters.status = value.toLowerCase();
+            render();
+        },
+        surface: (value) => {
+            quickFilters.surface = value.toLowerCase();
+            render();
+        },
+        country: (value) => {
+            quickFilters.country = value.toLowerCase();
+            render();
+        },
+    });
     createLiveSocket(["live:all"], debounce(render, 260));
 }
 
@@ -537,6 +676,10 @@ async function initSearch() {
 
 async function initAccount() {
     try {
+        setHtml("account-favorites", pageSkeleton("compact"));
+        setHtml("account-subscriptions", pageSkeleton("compact"));
+        setHtml("account-calendar", pageSkeleton("compact"));
+        setHtml("account-push-list", pageSkeleton("compact"));
         const [userPayload, favoritesPayload, subsPayload, calendarPayload, pushPayload] = await Promise.all([
             api.users.me(),
             api.users.favorites(),

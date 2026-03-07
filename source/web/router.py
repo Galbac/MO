@@ -14,6 +14,7 @@ router = APIRouter()
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 query_service = PortalQueryService()
+ADMIN_SETTINGS_FILE = Path("var/admin_settings.json")
 
 
 def _absolute_url(request: Request, value: str | None) -> str:
@@ -55,6 +56,23 @@ def _seo_defaults(
     }
 
 
+def _ui_settings() -> dict[str, object]:
+    defaults = {
+        "ui_mode": "current",
+        "evening_theme_enabled": False,
+    }
+    if not ADMIN_SETTINGS_FILE.exists():
+        return defaults
+    try:
+        payload = json.loads(ADMIN_SETTINGS_FILE.read_text())
+    except (OSError, json.JSONDecodeError):
+        return defaults
+    return {
+        "ui_mode": payload.get("ui_mode", "current") if payload.get("ui_mode") in {"current", "future_3000"} else "current",
+        "evening_theme_enabled": bool(payload.get("evening_theme_enabled", False)),
+    }
+
+
 def render(
     request: Request,
     template_name: str,
@@ -75,6 +93,7 @@ def render(
         "page_name": page_name,
         "section": section,
         "dev_reload": settings.run.dev_reload,
+        **_ui_settings(),
         **_seo_defaults(request, page_title, description=description, image_url=image_url, og_type=og_type),
         **extra,
     }

@@ -1,7 +1,7 @@
 {% extends "public/base.html" %}
 {% block content %}
 <section class="page-section scoreboard-card">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 live-command-bar">
         <div>
             <div class="section-kicker">Лайв-центр</div>
             <h1 class="hero-title mt-3 mb-0">Прямая спортивная подача: счет, события и пульс матча в одном экране.</h1>
@@ -14,8 +14,19 @@
     </div>
 </section>
 
-<section class="page-section page-grid two">
-    <section class="content-card">
+<section class="page-section chips-toolbar" aria-label="Быстрые фильтры лайв-центра">
+    <div class="filter-chips" id="live-quick-filters">
+        <button class="filter-chip is-active" type="button" data-filter-group="status" data-filter-value="">Все</button>
+        <button class="filter-chip" type="button" data-filter-group="status" data-filter-value="live">Лайв</button>
+        <button class="filter-chip" type="button" data-filter-group="surface" data-filter-value="hard">Хард</button>
+        <button class="filter-chip" type="button" data-filter-group="surface" data-filter-value="clay">Грунт</button>
+        <button class="filter-chip" type="button" data-filter-group="country" data-filter-value="RUS">RUS</button>
+        <button class="filter-chip" type="button" data-filter-group="country" data-filter-value="ITA">ITA</button>
+    </div>
+</section>
+
+<section class="page-section page-grid two live-center-grid">
+    <section class="content-card live-center-panel live-center-panel--matches">
         <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
             <div>
                 <div class="section-kicker">Матчи</div>
@@ -25,9 +36,9 @@
         </div>
         <div class="alert alert-danger d-none" id="live-matches-error"></div>
         <div class="state-card d-none" id="live-matches-empty">Сейчас нет активных лайв-матчей.</div>
-        <div class="cards-grid" id="live-matches-list"></div>
+        <div class="cards-grid live-match-grid" id="live-matches-list"></div>
     </section>
-    <section class="timeline-card surface-dark">
+    <section class="timeline-card surface-dark live-center-panel live-center-panel--feed">
         <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
             <div>
                 <div class="section-kicker">Лента</div>
@@ -41,7 +52,7 @@
     </section>
 </section>
 
-<section class="page-section content-card">
+<section class="page-section content-card live-selected-card">
     <div class="section-kicker">Выбранный лайв-матч</div>
     <h2 class="section-title mt-2 mb-3">Детальная карточка /live/{match_id}</h2>
     <div id="live-match-detail"></div>

@@ -7,6 +7,10 @@ export function renderSkeletonCards(targetId, count = 3) {
     );
 }
 
+export function renderSkeletonTemplate(targetId, markup) {
+    setHtml(targetId, markup);
+}
+
 export function renderState({ targetId, emptyId, errorId, error, items, renderer, emptyText = "Нет данных" }) {
     if (error) {
         show(errorId, true, error.message || String(error));

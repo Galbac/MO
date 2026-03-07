@@ -32,6 +32,18 @@
     <button class="btn btn-ghost-dark" id="players-reset" type="button">Сбросить</button>
 </section>
 
+<section class="page-section chips-toolbar" aria-label="Быстрые фильтры игроков">
+    <div class="filter-chips" id="players-quick-filters">
+        <button class="filter-chip is-active" type="button" data-filter-group="country" data-filter-value="">Все страны</button>
+        <button class="filter-chip" type="button" data-filter-group="country" data-filter-value="SRB">SRB</button>
+        <button class="filter-chip" type="button" data-filter-group="country" data-filter-value="ESP">ESP</button>
+        <button class="filter-chip" type="button" data-filter-group="country" data-filter-value="ITA">ITA</button>
+        <button class="filter-chip" type="button" data-filter-group="country" data-filter-value="RUS">RUS</button>
+        <button class="filter-chip" type="button" data-filter-group="hand" data-filter-value="right">Правая</button>
+        <button class="filter-chip" type="button" data-filter-group="hand" data-filter-value="left">Левая</button>
+    </div>
+</section>
+
 <section class="page-section">
     <div class="alert alert-danger d-none" id="players-error"></div>
     <div class="state-card d-none" id="players-empty">Игроки не найдены.</div>

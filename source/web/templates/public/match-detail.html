@@ -1,8 +1,10 @@
 {% extends "public/base.html" %}
 {% block content %}
 <section class="page-section" id="match-scoreboard">
-    <div class="scoreboard-card"><div class="skeleton card"></div></div>
-    <div class="d-flex flex-wrap gap-2 mt-3">
+    <div class="match-scoreboard-shell">
+        <div class="scoreboard-card"><div class="skeleton card"></div></div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-3 match-scoreboard-actions">
         <button class="btn btn-primary" type="button" id="match-reminder-add">Добавить в календарь</button>
         <button class="btn btn-ghost-dark" type="button" id="match-subscribe-push">Подписаться на browser push</button>
     </div>

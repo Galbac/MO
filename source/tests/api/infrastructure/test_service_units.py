@@ -661,8 +661,10 @@ async def test_admin_support_service_branch_helpers(prepared_test_db: str, monke
     invalidated: list[tuple[str, ...]] = []
     monkeypatch.setattr(service.cache, 'invalidate_prefixes', lambda *prefixes: invalidated.append(prefixes))
 
-    settings_payload = await service.update_settings({'seo_title': 'Portal', 'empty': ''})
+    settings_payload = await service.update_settings({'seo_title': 'Portal', 'ui_mode': 'future_3000', 'evening_theme_enabled': True, 'empty': ''})
     assert settings_payload.data['seo_title'] == 'Portal'
+    assert settings_payload.data['ui_mode'] == 'future_3000'
+    assert settings_payload.data['evening_theme_enabled'] is True
     assert invalidated
 
     list_jobs = await service.list_ranking_jobs()

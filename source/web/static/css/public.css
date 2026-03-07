@@ -108,6 +108,60 @@
     background: rgba(15, 31, 56, 0.04);
 }
 
+.live-center-grid {
+    align-items: start;
+}
+
+.live-center-panel--matches {
+    position: sticky;
+    top: 6.1rem;
+}
+
+.live-match-grid {
+    grid-template-columns: 1fr;
+}
+
+.live-selected-card {
+    overflow: hidden;
+}
+
+.live-command-bar {
+    position: relative;
+}
+
+.live-command-bar::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 -0.8rem 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+}
+
+body[data-evening-theme="true"][data-section="public"] .home-hero,
+body[data-evening-theme="true"][data-section="public"] .hero-card {
+    background:
+        linear-gradient(120deg, rgba(10, 20, 36, 0.96), rgba(14, 28, 48, 0.9)),
+        linear-gradient(135deg, rgba(80, 216, 255, 0.08), rgba(198, 255, 58, 0.05));
+}
+
+body[data-ui-mode="future_3000"][data-section="public"] .hero-visual {
+    background:
+        linear-gradient(145deg, rgba(6, 16, 34, 0.98), rgba(12, 25, 54, 0.92)),
+        radial-gradient(circle at 20% 20%, rgba(89, 232, 255, 0.24), transparent 32%);
+}
+
+body[data-ui-mode="future_3000"][data-section="public"] .hero-visual::before {
+    border-color: rgba(89, 232, 255, 0.28);
+    background:
+        linear-gradient(90deg, transparent 49.5%, rgba(89, 232, 255, 0.22) 50%, transparent 50.5%),
+        linear-gradient(180deg, transparent 49.5%, rgba(159, 124, 255, 0.18) 50%, transparent 50.5%);
+}
+
+body[data-ui-mode="future_3000"][data-section="public"] .form-chart__bar {
+    background: linear-gradient(180deg, var(--cyan), var(--violet), var(--lime));
+    box-shadow: 0 0 22px rgba(89, 232, 255, 0.18);
+}
+
 @media (max-width: 1199px) {
     .home-hero .row {
         row-gap: 1.25rem;
@@ -117,6 +171,10 @@
 @media (max-width: 991px) {
     .player-hero {
         grid-template-columns: 1fr;
+    }
+
+    .live-center-panel--matches {
+        position: static;
     }
 }
 
@@ -145,6 +203,32 @@
     .player-meta-grid {
         grid-template-columns: 1fr;
     }
+
+    .live-center-grid {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .live-center-panel--matches {
+        order: 1;
+    }
+
+    .live-selected-card {
+        order: 2;
+    }
+
+    .live-center-panel--feed {
+        order: 3;
+    }
+
+    .live-match-grid .entity-card {
+        padding: 1rem;
+        border-radius: 1.2rem;
+    }
+
+    .live-command-bar {
+        gap: 1rem;
+    }
 }
 
 @media (max-width: 575px) {
@@ -159,5 +243,12 @@
 
     .form-chart {
         min-height: 4.2rem;
+    }
+
+    .live-center-panel--matches,
+    .live-center-panel--feed,
+    .live-selected-card {
+        padding: 1rem;
+        border-radius: 1.2rem;
     }
 }

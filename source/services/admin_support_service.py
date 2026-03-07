@@ -38,6 +38,16 @@ class AdminSupportService:
         self.jobs_file = self.storage_dir / 'ranking_import_jobs.json'
 
     @staticmethod
+    def _default_settings() -> dict[str, Any]:
+        return {
+            'seo_title': settings.names.title,
+            'support_email': settings.contacts.support_email,
+            'provider_notes': 'live_score_provider=enabled',
+            'ui_mode': 'current',
+            'evening_theme_enabled': False,
+        }
+
+    @staticmethod
     def _require(payload: dict[str, Any], field: str) -> str:
         value = str(payload.get(field, '')).strip()
         if not value:
@@ -107,11 +117,7 @@ class AdminSupportService:
         )
 
     async def get_settings(self) -> SuccessResponse[dict]:
-        payload = self._read_json(self.settings_file) or {
-            'seo_title': settings.names.title,
-            'support_email': settings.contacts.support_email,
-            'provider_notes': 'live_score_provider=enabled',
-        }
+        payload = self._default_settings() | (self._read_json(self.settings_file) or {})
         updated_at = None
         file_exists = self.settings_file.exists()
         if file_exists:
@@ -138,11 +144,11 @@ class AdminSupportService:
             for key, value in payload.items()
             if str(key).strip() and value not in (None, '')
         }
-        current = self._read_json(self.settings_file) or {
-            'seo_title': settings.names.title,
-            'support_email': settings.contacts.support_email,
-            'provider_notes': 'live_score_provider=enabled',
-        }
+        current = self._default_settings() | (self._read_json(self.settings_file) or {})
+        if 'ui_mode' in sanitized and sanitized['ui_mode'] not in {'current', 'future_3000'}:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='ui_mode must be current or future_3000')
+        if 'evening_theme_enabled' in sanitized:
+            sanitized['evening_theme_enabled'] = bool(sanitized['evening_theme_enabled'])
         merged = current | sanitized
         self._write_json(self.settings_file, merged)
         self._invalidate_cache('news:', 'rankings:', 'players:', 'tournaments:', 'matches:', 'live:', 'search:')

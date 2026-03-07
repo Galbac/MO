@@ -400,7 +400,17 @@ async function initSettings() {
         const settings = extractData(payload);
         setHtml("admin-settings-summary", `<div class="admin-note"><strong>${escapeHtml(settings.seo_title || "Makhachkala Open")}</strong><div class="text-muted mt-2">${escapeHtml(settings.support_email || "")}</div></div>`);
         setHtml("admin-settings-notes-preview", `<div class="admin-note">${escapeHtml(settings.provider_notes || "Системные заметки отсутствуют.")}</div>`);
-        setHtml("admin-settings-storage", `<div class="admin-note">Хранилище runtime активно. API готово к вызову ` + escapeHtml("PATCH /admin/settings") + `.</div>`);
+        setHtml("admin-settings-storage", `<div class="admin-note">Хранилище runtime активно. API готово к вызову ` + escapeHtml("PATCH /admin/settings") + `. Текущий UI-режим: <strong>${escapeHtml(settings.ui_mode || "current")}</strong>.</div>`);
+        const form = document.querySelector("form[data-api-path='/admin/settings']");
+        if (form) {
+            form.querySelector("[name='seo_title']").value = settings.seo_title || "";
+            form.querySelector("[name='support_email']").value = settings.support_email || "";
+            form.querySelector("[name='provider_notes']").value = settings.provider_notes || "";
+            const radio = form.querySelector(`[name='ui_mode'][value='${settings.ui_mode || "current"}']`);
+            if (radio) radio.checked = true;
+            const checkbox = form.querySelector("[name='evening_theme_enabled']");
+            if (checkbox) checkbox.checked = Boolean(settings.evening_theme_enabled);
+        }
     } catch (error) {
         show("admin-settings-error", true, error.message || "Ошибка загрузки настроек.");
     }

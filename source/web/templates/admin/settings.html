@@ -32,6 +32,28 @@
             <input class="form-control span-6" name="seo_title" placeholder="SEO-заголовок">
             <input class="form-control span-6" name="support_email" placeholder="Почта поддержки">
             <textarea class="form-control span-12" rows="5" name="provider_notes" placeholder="Служебные заметки для команды"></textarea>
+            <div class="span-12">
+                <div class="section-kicker mb-2">UX / UI режим</div>
+                <div class="d-flex flex-wrap gap-3">
+                    <label class="entity-card p-3 flex-grow-1">
+                        <input class="form-check-input me-2" type="radio" name="ui_mode" value="current">
+                        <strong>Текущий спортивный режим</strong>
+                        <div class="text-muted small mt-2">Чистый, спортивный, редакционный и премиальный интерфейс.</div>
+                    </label>
+                    <label class="entity-card p-3 flex-grow-1">
+                        <input class="form-check-input me-2" type="radio" name="ui_mode" value="future_3000">
+                        <strong>Режим 3000-х</strong>
+                        <div class="text-muted small mt-2">Футуристичный, нереалистичный, светящийся и более смелый визуальный слой.</div>
+                    </label>
+                </div>
+            </div>
+            <label class="span-12 entity-card p-3 d-flex align-items-center justify-content-between gap-3">
+                <span>
+                    <strong class="d-block">Вечерняя тема</strong>
+                    <span class="text-muted small d-block mt-1">Отдельная вечерняя тема с глубокими тонами, не просто инверсия.</span>
+                </span>
+                <input class="form-check-input" type="checkbox" name="evening_theme_enabled" value="true">
+            </label>
         </div>
         <div class="d-flex gap-2 mt-4">
             <button class="btn btn-primary" type="submit">Сохранить настройки</button>

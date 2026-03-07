@@ -9,7 +9,7 @@
     <link rel="canonical" href="{{ canonical_url | default('') }}">
     {% block head_extra %}{% endblock %}
 </head>
-<body data-page="{{ page_name | default('admin-base') }}" data-section="admin">
+<body data-page="{{ page_name | default('admin-base') }}" data-section="admin" data-ui-mode="{{ ui_mode | default('current') }}" data-evening-theme="{{ 'true' if evening_theme_enabled else 'false' }}">
 <a class="visually-hidden-focusable skip-link" href="#admin-main-content">Перейти к содержимому админки</a>
 <div class="admin-layout">
     <aside class="admin-sidebar">
@@ -73,6 +73,7 @@
                 <strong class="d-block mt-2">Админ-панель Makhachkala Open</strong>
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge-soft">Режим сайта: {{ "3000+" if ui_mode == "future_3000" else "Текущий" }}</span>
                 {% if current_user %}
                 <span class="badge-soft">{{ current_user.first_name or current_user.username }}{% if current_user.last_name %} {{ current_user.last_name }}{% endif %}</span>
                 {% endif %}

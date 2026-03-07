@@ -35,4 +35,73 @@
     --font-body: "Manrope", "Segoe UI", sans-serif;
     --transition: 180ms ease;
     --container-max: 1360px;
+    --page-accent: linear-gradient(135deg, rgba(198, 255, 58, 0.26), rgba(80, 216, 255, 0.18));
+    --glass-border: rgba(255, 255, 255, 0.68);
+    --panel-highlight: rgba(250, 252, 255, 0.8);
+}
+
+body[data-evening-theme="true"] {
+    --bg: #09101d;
+    --bg-soft: #101a2d;
+    --bg-alt: #050b14;
+    --surface: rgba(13, 22, 38, 0.88);
+    --surface-strong: #101b2d;
+    --surface-dark: rgba(6, 12, 22, 0.92);
+    --surface-dark-strong: #08111e;
+    --text: #ebf4ff;
+    --text-soft: #95abc7;
+    --text-on-dark: #f7fbff;
+    --line: rgba(148, 177, 214, 0.14);
+    --line-strong: rgba(148, 177, 214, 0.24);
+    --shadow-sm: 0 16px 32px rgba(2, 9, 18, 0.36);
+    --shadow-md: 0 28px 68px rgba(1, 7, 16, 0.48);
+    --shadow-lg: 0 40px 96px rgba(0, 0, 0, 0.56);
+    --page-accent: linear-gradient(135deg, rgba(80, 216, 255, 0.18), rgba(143, 132, 255, 0.18));
+    --glass-border: rgba(148, 177, 214, 0.18);
+    --panel-highlight: rgba(15, 31, 56, 0.42);
+}
+
+body[data-ui-mode="future_3000"] {
+    --bg: #ecf6ff;
+    --bg-soft: #dceaff;
+    --bg-alt: #071126;
+    --surface: rgba(246, 251, 255, 0.76);
+    --surface-strong: rgba(255, 255, 255, 0.88);
+    --surface-dark: rgba(8, 18, 38, 0.88);
+    --surface-dark-strong: #071126;
+    --text: #08162d;
+    --text-soft: #49627f;
+    --line: rgba(73, 98, 127, 0.16);
+    --line-strong: rgba(73, 98, 127, 0.28);
+    --lime: #d6ff3f;
+    --cyan: #59e8ff;
+    --teal: #36e2d1;
+    --orange: #ff8a3d;
+    --violet: #9f7cff;
+    --page-accent: linear-gradient(135deg, rgba(89, 232, 255, 0.22), rgba(159, 124, 255, 0.18), rgba(214, 255, 63, 0.18));
+    --glass-border: rgba(255, 255, 255, 0.46);
+    --panel-highlight: rgba(255, 255, 255, 0.48);
+    --shadow-sm: 0 16px 38px rgba(37, 57, 96, 0.14);
+    --shadow-md: 0 28px 76px rgba(17, 28, 66, 0.18);
+    --shadow-lg: 0 42px 110px rgba(8, 16, 38, 0.24);
+}
+
+body[data-ui-mode="future_3000"][data-evening-theme="true"] {
+    --bg: #040814;
+    --bg-soft: #09101f;
+    --bg-alt: #02050d;
+    --surface: rgba(7, 15, 29, 0.76);
+    --surface-strong: rgba(10, 20, 38, 0.92);
+    --surface-dark: rgba(2, 7, 15, 0.94);
+    --surface-dark-strong: #020612;
+    --text: #f4fbff;
+    --text-soft: #91a9ca;
+    --line: rgba(89, 232, 255, 0.16);
+    --line-strong: rgba(159, 124, 255, 0.26);
+    --page-accent: linear-gradient(135deg, rgba(89, 232, 255, 0.18), rgba(159, 124, 255, 0.2), rgba(214, 255, 63, 0.14));
+    --glass-border: rgba(89, 232, 255, 0.16);
+    --panel-highlight: rgba(11, 22, 43, 0.58);
+    --shadow-sm: 0 18px 42px rgba(0, 0, 0, 0.38);
+    --shadow-md: 0 34px 88px rgba(0, 0, 0, 0.52);
+    --shadow-lg: 0 50px 128px rgba(0, 0, 0, 0.66);
 }
