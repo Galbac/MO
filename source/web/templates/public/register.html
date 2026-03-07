@@ -14,24 +14,48 @@
         </div>
         <div class="col-lg-6">
             <section class="content-card">
-                <div class="section-kicker">Создание аккаунта</div>
-                <h2 class="section-title mt-2 mb-4">Регистрация</h2>
-                <form data-api-path="/auth/register" data-api-method="POST">
-                    <div class="d-grid gap-3">
-                        <input class="form-control form-control-lg" name="email" type="email" placeholder="Электронная почта" required>
-                        <input class="form-control form-control-lg" name="username" placeholder="Имя пользователя" required>
-                        <input class="form-control form-control-lg" name="password" type="password" placeholder="Пароль" required>
-                        <input class="form-control" name="locale" placeholder="Локаль" value="ru">
-                        <input class="form-control" name="timezone" placeholder="Часовой пояс" value="Europe/Moscow">
-                        <label class="form-check d-flex align-items-start gap-2">
-                            <input class="form-check-input mt-1" type="checkbox" name="privacy_consent" required>
-                            <span>Я согласен(на) на обработку персональных данных и ознакомлен(а) с тем, что данные собираются для работы аккаунта, уведомлений и лайв-сервиса.</span>
-                        </label>
-                        <button class="btn btn-lime btn-lg" type="submit">Создать аккаунт</button>
-                        <div class="alert alert-success d-none mb-0" data-form-feedback>Регистрация выполнена. Теперь можно открыть портал.</div>
-                        <div class="alert alert-danger d-none mb-0" data-form-error>Не удалось зарегистрироваться.</div>
+                <div class="section-kicker">Доступ к аккаунту</div>
+                <div class="toolbar__tabs mt-3 mb-4" data-tab-group="auth-access">
+                    <button class="toolbar__tab {% if auth_mode == 'register' %}is-active{% endif %}" data-tab-target="auth-register-panel" type="button">Регистрация</button>
+                    <button class="toolbar__tab {% if auth_mode == 'login' %}is-active{% endif %}" data-tab-target="auth-login-panel" type="button">Вход</button>
+                </div>
+
+                <div id="auth-register-panel" data-tab-panel="auth-access" class="{% if auth_mode == 'login' %}d-none{% endif %}">
+                    <h2 class="section-title mt-2 mb-4">Регистрация</h2>
+                    <form data-api-path="/auth/register" data-api-method="POST">
+                        <div class="d-grid gap-3">
+                            <input class="form-control form-control-lg" name="email" type="email" placeholder="Электронная почта" required>
+                            <input class="form-control form-control-lg" name="username" placeholder="Имя пользователя" required>
+                            <input class="form-control form-control-lg" name="password" type="password" placeholder="Пароль" required>
+                            <input class="form-control" name="locale" placeholder="Локаль" value="ru">
+                            <input class="form-control" name="timezone" placeholder="Часовой пояс" value="Europe/Moscow">
+                            <label class="form-check d-flex align-items-start gap-2">
+                                <input class="form-check-input mt-1" type="checkbox" name="privacy_consent" required>
+                                <span>Я согласен(на) на обработку персональных данных и ознакомлен(а) с тем, что данные собираются для работы аккаунта, уведомлений и лайв-сервиса.</span>
+                            </label>
+                            <button class="btn btn-lime btn-lg" type="submit">Создать аккаунт</button>
+                            <div class="alert alert-success d-none mb-0" data-form-feedback>Регистрация выполнена. Теперь можно открыть портал.</div>
+                            <div class="alert alert-danger d-none mb-0" data-form-error>Не удалось зарегистрироваться.</div>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="auth-login-panel" data-tab-panel="auth-access" class="{% if auth_mode != 'login' %}d-none{% endif %}">
+                    <h2 class="section-title mt-2 mb-4">Вход</h2>
+                    <form data-api-path="/auth/login" data-api-method="POST">
+                        <div class="d-grid gap-3">
+                            <input class="form-control form-control-lg" name="email_or_username" placeholder="Почта или имя пользователя" required>
+                            <input class="form-control form-control-lg" name="password" type="password" placeholder="Пароль" required>
+                            <button class="btn btn-lime btn-lg" type="submit">Войти в аккаунт</button>
+                            <div class="alert alert-success d-none mb-0" data-form-feedback>Вход выполнен. Перенаправляем в портал.</div>
+                            <div class="alert alert-danger d-none mb-0" data-form-error>Неверный логин или пароль.</div>
+                        </div>
+                    </form>
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <a href="/register" class="btn btn-ghost-dark">Создать новый аккаунт</a>
                     </div>
-                </form>
+                </div>
+
                 <div class="d-flex gap-2 mt-4">
                     <a href="/portal" class="btn btn-ghost-dark">Перейти к порталу</a>
                     <a href="/admin/login" class="btn btn-ghost-dark">Вход в админку</a>

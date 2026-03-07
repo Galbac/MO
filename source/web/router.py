@@ -275,7 +275,12 @@ async def home(request: Request):
 
 @router.get("/register", include_in_schema=False)
 async def register_page(request: Request):
-    return render(request, "public/register.html", page_title="Регистрация", page_name="register", section="public", description="Регистрация в Makhachkala Open с согласием на обработку персональных данных.", robots="noindex,nofollow")
+    return render(request, "public/register.html", page_title="Регистрация", page_name="register", section="public", description="Регистрация в Makhachkala Open с согласием на обработку персональных данных.", robots="noindex,nofollow", auth_mode="register")
+
+
+@router.get("/login", include_in_schema=False)
+async def login_page(request: Request):
+    return render(request, "public/register.html", page_title="Вход", page_name="login", section="public", description="Вход в аккаунт Makhachkala Open для доступа к порталу, лайв-центру и персональным функциям.", robots="noindex,nofollow", auth_mode="login")
 
 
 @router.get("/portal", include_in_schema=False)

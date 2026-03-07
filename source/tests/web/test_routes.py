@@ -11,6 +11,16 @@ async def test_home_page_renders_html(async_client) -> None:
     assert "Makhachkala Open" in response.text
     assert "Начните с регистрации" in response.text
     assert "Согласие на обработку данных" in response.text
+    assert "Вход" in response.text
+
+
+async def test_login_page_renders_html(async_client) -> None:
+    response = await async_client.get("/login")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert "text/html" in response.headers["content-type"]
+    assert "Войти в аккаунт" in response.text
+    assert "Почта или имя пользователя" in response.text
 
 
 async def test_portal_page_renders_html(async_client) -> None:
