@@ -220,7 +220,7 @@ async def test_admin_content_service_branch_coverage(prepared_test_db: str, monk
     )
     assert event_result.data.event_type == 'ace'
 
-    reopened = await service.reopen_admin_match(2, actor_id=1)
+    reopened = await service.reopen_admin_match(1, actor_id=1)
     assert reopened.data.message == 'Match reopened'
 
     news = await service.get_admin_news(1)

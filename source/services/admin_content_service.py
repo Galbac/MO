@@ -22,6 +22,41 @@ from source.services.runtime_state_store import RuntimeStateStore
 
 
 class AdminContentService:
+    VALID_MATCH_STATUSES = {
+        'scheduled',
+        'about_to_start',
+        'live',
+        'suspended',
+        'interrupted',
+        'finished',
+        'retired',
+        'walkover',
+        'cancelled',
+        'postponed',
+    }
+    COMPLETED_MATCH_STATUSES = {'finished', 'retired', 'walkover'}
+    TERMINAL_MATCH_STATUSES = COMPLETED_MATCH_STATUSES | {'cancelled', 'postponed'}
+    MATCH_STATUS_TRANSITIONS = {
+        'scheduled': {'about_to_start', 'live', 'postponed', 'cancelled'},
+        'about_to_start': {'scheduled', 'live', 'postponed', 'cancelled'},
+        'live': {'about_to_start', 'suspended', 'interrupted', 'finished', 'retired', 'walkover', 'cancelled'},
+        'suspended': {'live', 'interrupted', 'postponed', 'cancelled'},
+        'interrupted': {'live', 'postponed', 'cancelled'},
+        'postponed': {'scheduled', 'about_to_start', 'cancelled'},
+        'cancelled': set(),
+        'finished': set(),
+        'retired': set(),
+        'walkover': set(),
+    }
+    VALID_NEWS_STATUSES = {'draft', 'review', 'scheduled', 'published', 'archived'}
+    NEWS_STATUS_TRANSITIONS = {
+        'draft': {'review', 'scheduled', 'published', 'archived'},
+        'review': {'draft', 'scheduled', 'published', 'archived'},
+        'scheduled': {'draft', 'review', 'published', 'archived'},
+        'published': {'archived'},
+        'archived': {'draft'},
+    }
+
     def __init__(self) -> None:
         self.players = PlayerRepository()
         self.tournaments = TournamentRepository()
@@ -224,13 +259,103 @@ class AdminContentService:
             payload['meta'] = extra
         await live_hub.broadcast(channels=channels, payload=payload)
 
+    @classmethod
+    def _normalize_match_status(cls, value: str) -> str:
+        normalized = str(value or '').strip().lower()
+        if normalized not in cls.VALID_MATCH_STATUSES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail='Недопустимый статус матча.',
+            )
+        return normalized
+
+    @classmethod
+    def _ensure_match_transition(cls, current_status: str, new_status: str) -> str:
+        current = cls._normalize_match_status(current_status)
+        target = cls._normalize_match_status(new_status)
+        if current == target:
+            return target
+        if target not in cls.MATCH_STATUS_TRANSITIONS.get(current, set()):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f'Переход статуса матча "{current}" -> "{target}" запрещен.',
+            )
+        return target
+
+    @classmethod
+    def _normalize_news_status(cls, value: str) -> str:
+        normalized = str(value or '').strip().lower()
+        if normalized not in cls.VALID_NEWS_STATUSES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail='Недопустимый статус новости.',
+            )
+        return normalized
+
+    @classmethod
+    def _ensure_news_transition(cls, current_status: str, new_status: str) -> str:
+        current = cls._normalize_news_status(current_status)
+        target = cls._normalize_news_status(new_status)
+        if current == target:
+            return target
+        if target not in cls.NEWS_STATUS_TRANSITIONS.get(current, set()):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f'Переход статуса новости "{current}" -> "{target}" запрещен.',
+            )
+        return target
+
     @staticmethod
-    def _decide_winner(match, sets: list[Any]) -> int | None:
-        if match.status == 'retired':
+    def _validate_match_participants(payload: dict[str, Any]) -> None:
+        if int(payload['player1_id']) == int(payload['player2_id']):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail='У матча должны быть два разных игрока.',
+            )
+        winner_id = payload.get('winner_id')
+        if winner_id is not None and int(winner_id) not in {int(payload['player1_id']), int(payload['player2_id'])}:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail='Победитель должен быть одним из участников матча.',
+            )
+
+    @staticmethod
+    def _validate_score_payload(payload: MatchScoreUpdateRequest, *, best_of_sets: int) -> None:
+        if payload.sets and len(payload.sets) > best_of_sets:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail='Количество сетов превышает формат матча.',
+            )
+        if not payload.sets:
+            return
+        actual_tokens = re.findall(r'\d+-\d+', str(payload.score_summary))
+        expected_tokens = [f'{item.player1_games}-{item.player2_games}' for item in payload.sets]
+        if actual_tokens[:len(expected_tokens)] != expected_tokens:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail='Сводный счет не совпадает с переданными сетами.',
+            )
+
+    @classmethod
+    def _resolve_finalize_status(cls, current_status: str) -> str:
+        normalized = cls._normalize_match_status(current_status)
+        if normalized in {'cancelled', 'postponed'}:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail='Отмененный или перенесенный матч нельзя финализировать.',
+            )
+        if normalized in {'retired', 'walkover'}:
+            return normalized
+        return 'finished'
+
+    @staticmethod
+    def _decide_winner(match, sets: list[Any], *, target_status: str | None = None) -> int | None:
+        status_value = target_status or match.status
+        if status_value == 'retired':
             if match.winner_id:
                 return match.winner_id
-            return match.player2_id if match.retire_reason and match.player1_id else None
-        if match.status == 'walkover':
+            return match.player2_id if getattr(match, 'retire_reason', None) and getattr(match, 'player1_id', None) else None
+        if status_value == 'walkover':
             return match.winner_id
         player1_sets = sum(1 for item in sets if item.player1_games > item.player2_games)
         player2_sets = sum(1 for item in sets if item.player2_games > item.player1_games)
@@ -429,8 +554,11 @@ class AdminContentService:
         return SuccessResponse(data=data)
 
     async def create_admin_match(self, payload: dict[str, Any], actor_id: int | None = None):
+        normalized_payload = self._match_payload(payload)
+        normalized_payload['status'] = self._normalize_match_status(str(normalized_payload.get('status') or 'scheduled'))
+        self._validate_match_participants(normalized_payload)
         async with db_session_manager.session() as session:
-            match = await self.matches.create(session, self._match_payload(payload))
+            match = await self.matches.create(session, normalized_payload)
             after = self._entity_dict(match)
         await self._log_audit(action='match.create', entity_type='match', entity_id=match.id, before_json=None, after_json=after, user_id=actor_id)
         self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:', 'search:')
@@ -445,7 +573,10 @@ class AdminContentService:
             if match is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
             before = self._entity_dict(match)
-            updated = await self.matches.update(session, match, self._match_payload(payload, before))
+            normalized_payload = self._match_payload(payload, before)
+            normalized_payload['status'] = self._ensure_match_transition(str(before.get('status') or 'scheduled'), str(normalized_payload.get('status') or before.get('status') or 'scheduled'))
+            self._validate_match_participants(normalized_payload)
+            updated = await self.matches.update(session, match, normalized_payload)
             after = self._entity_dict(updated)
         await self._log_audit(action='match.update', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
         self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:', 'search:')
@@ -466,13 +597,33 @@ class AdminContentService:
         return self._action_result(entity_type='match', action='delete', entity_id=match_id, message='Match deleted')
 
     async def update_admin_match_status(self, match_id: int, payload: MatchStatusUpdateRequest, actor_id: int | None = None):
-        return await self.update_admin_match(match_id, {'status': payload.status}, actor_id=actor_id)
+        async with db_session_manager.session() as session:
+            match = await self.matches.get(session, match_id)
+            if match is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
+            before = self._entity_dict(match)
+            target_status = self._ensure_match_transition(str(match.status or 'scheduled'), payload.status)
+            update_payload: dict[str, Any] = {'status': target_status}
+            if target_status == 'live' and match.actual_start_at is None:
+                update_payload['actual_start_at'] = datetime.now(tz=UTC)
+            if target_status not in {'retired', 'walkover'}:
+                update_payload.setdefault('retire_reason', None)
+                update_payload.setdefault('walkover_reason', None)
+            updated = await self.matches.update(session, match, update_payload)
+            after = self._entity_dict(updated)
+        await self._log_audit(action='match.update_status', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
+        self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:', 'search:')
+        if before.get('status') != after.get('status') and after.get('status') in {'about_to_start', 'live'}:
+            await self.workflows.process_match_status_change(match_id, str(after.get('status')))
+        await self._broadcast_match_update(match_id, 'match_status_changed', {'status': after.get('status')})
+        return await self.query.get_match(match_id)
 
     async def update_admin_match_score(self, match_id: int, payload: MatchScoreUpdateRequest, actor_id: int | None = None):
         async with db_session_manager.session() as session:
             match = await self.matches.get(session, match_id)
             if match is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
+            self._validate_score_payload(payload, best_of_sets=int(match.best_of_sets or 3))
             before = self._entity_dict(match)
             updated = await self.matches.update(session, match, {'score_summary': payload.score_summary})
             if payload.sets:
@@ -514,8 +665,22 @@ class AdminContentService:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
             before = self._entity_dict(match)
             sets = await self.matches.get_sets(session, match_id)
-            winner_id = self._decide_winner(match, sets)
-            updated = await self.matches.update(session, match, {'status': 'finished', 'winner_id': winner_id, 'actual_end_at': datetime.now(tz=UTC)})
+            target_status = self._resolve_finalize_status(str(match.status or 'scheduled'))
+            if target_status == 'finished' and not sets:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Нельзя завершить матч без данных по сетам.')
+            winner_id = self._decide_winner(match, sets, target_status=target_status)
+            if winner_id is None:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Не удалось определить победителя матча.')
+            if match.status == target_status and match.winner_id == winner_id and match.actual_end_at is not None:
+                return self._action_result(
+                    entity_type='match',
+                    action='finalize',
+                    entity_id=match_id,
+                    message='Матч уже завершен.',
+                    status='ok',
+                    details={'winner_id': winner_id, 'idempotent': True},
+                )
+            updated = await self.matches.update(session, match, {'status': target_status, 'winner_id': winner_id, 'actual_end_at': datetime.now(tz=UTC)})
             after = self._entity_dict(updated)
         await self._log_audit(action='match.finalize', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
         self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:', 'rankings:')
@@ -539,8 +704,15 @@ class AdminContentService:
             if match is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
             before = self._entity_dict(match)
-            updated = await self.matches.update(session, match, {'status': 'scheduled', 'actual_end_at': None})
+            current_status = self._normalize_match_status(str(match.status or 'scheduled'))
+            if current_status == 'scheduled' and match.winner_id is None and match.actual_end_at is None:
+                return self._action_result(entity_type='match', action='reopen', entity_id=match_id, message='Матч уже открыт для редактирования.', details={'status': 'scheduled', 'idempotent': True})
+            if current_status not in self.TERMINAL_MATCH_STATUSES:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Открыть заново можно только завершенный, отмененный или перенесенный матч.')
+            updated = await self.matches.update(session, match, {'status': 'scheduled', 'winner_id': None, 'actual_end_at': None, 'retire_reason': None, 'walkover_reason': None})
             after = self._entity_dict(updated)
+        if current_status in self.COMPLETED_MATCH_STATUSES:
+            await self.workflows.rollback_finalized_match(match_id)
         await self._log_audit(action='match.reopen', entity_type='match', entity_id=match_id, before_json=before, after_json=after, user_id=actor_id)
         self._invalidate_cache('matches:', 'players:', 'tournaments:', 'live:')
         await self._broadcast_match_update(match_id, 'match_status_changed', {'status': 'scheduled'})
@@ -597,8 +769,9 @@ class AdminContentService:
             if article is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='News not found')
             before = self._entity_dict(article)
-            publish_at = datetime.fromisoformat(payload.publish_at) if payload.publish_at else (datetime.now(tz=UTC) if payload.status == 'published' else article.published_at)
-            updated = await self.news.update(session, article, {'status': payload.status, 'published_at': publish_at})
+            next_status = self._ensure_news_transition(str(article.status or 'draft'), payload.status)
+            publish_at = datetime.fromisoformat(payload.publish_at) if payload.publish_at else (datetime.now(tz=UTC) if next_status == 'published' else article.published_at)
+            updated = await self.news.update(session, article, {'status': next_status, 'published_at': publish_at})
             after = self._entity_dict(updated)
         await self._log_audit(action='news.update_status', entity_type='news', entity_id=news_id, before_json=before, after_json=after, user_id=actor_id)
         self._invalidate_cache('news:', 'search:', 'players:', 'tournaments:')

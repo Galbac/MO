@@ -105,6 +105,27 @@ class EngagementRepository:
         await session.refresh(item)
         return item
 
+    async def delete_notifications_by_entity(
+        self,
+        session: AsyncSession,
+        *,
+        entity_type: str,
+        entity_id: int,
+        notification_type: str | None = None,
+    ) -> int:
+        notifications = await session.scalars(select(Notification))
+        removed = 0
+        for item in notifications.all():
+            payload = item.payload_json or {}
+            if payload.get('entity_type') != entity_type or int(payload.get('entity_id') or 0) != int(entity_id):
+                continue
+            if notification_type and item.type != notification_type:
+                continue
+            await session.delete(item)
+            removed += 1
+        await session.commit()
+        return removed
+
     async def find_duplicate_notification(self, session: AsyncSession, *, user_id: int, type_: str, title: str, entity_type: str | None, entity_id: int | None) -> Notification | None:
         notifications = await self.list_notifications(session, user_id)
         for item in notifications:

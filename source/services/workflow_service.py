@@ -497,13 +497,24 @@ class WorkflowService:
             match = await self.matches.get(session, match_id)
             if match is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
-            if match.status not in {'finished', 'retired', 'walkover'} or not match.winner_id:
-                return 0
-            tournament = await self.tournaments.get(session, match.tournament_id)
-            if tournament is None:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
-            await self.matches.upsert_h2h(session, player1_id=match.player1_id, player2_id=match.player2_id, winner_id=match.winner_id, surface=tournament.surface, match_id=match.id)
+            rebuilt = await self.matches.rebuild_h2h(session, player1_id=match.player1_id, player2_id=match.player2_id)
         self.cache.invalidate_prefixes('players:', 'matches:', 'tournaments:', 'search:')
+        return 1 if rebuilt is not None else 0
+
+    async def rollback_finalized_match(self, match_id: int) -> int:
+        async with db_session_manager.session() as session:
+            match = await self.matches.get(session, match_id)
+            if match is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Match not found')
+            await self.matches.rebuild_h2h(session, player1_id=match.player1_id, player2_id=match.player2_id)
+            await self._rebuild_player_aggregates(session, {match.player1_id, match.player2_id})
+            await self.engagement.delete_notifications_by_entity(
+                session,
+                entity_type='match',
+                entity_id=match.id,
+                notification_type='match_finished',
+            )
+        self.cache.invalidate_prefixes('players:', 'matches:', 'tournaments:', 'live:', 'search:')
         return 1
 
     async def publish_due_scheduled_news(self, news_id: int | None = None) -> int:

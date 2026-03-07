@@ -445,7 +445,13 @@ async def test_api_http_route_smoke_matrix(async_client, admin_auth_headers) -> 
         f"{API_PREFIX}/admin/matches/{{match_id}}/score",
         url=f"{API_PREFIX}/admin/matches/{match_id}/score",
         headers=admin_auth_headers,
-        json={"score_summary": "6-4 2-1", "sets": []},
+        json={
+            "score_summary": "6-4 6-3",
+            "sets": [
+                {"set_number": 1, "player1_games": 6, "player2_games": 4, "is_finished": True},
+                {"set_number": 2, "player1_games": 6, "player2_games": 3, "is_finished": True},
+            ],
+        },
     )
     await hit(
         "PATCH",

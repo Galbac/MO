@@ -62,6 +62,10 @@ export const api = {
     post,
     patch,
     delete: del,
+    health: {
+        live: () => get("/health"),
+        ready: () => get("/health/ready"),
+    },
     auth: {
         register: (body) => post("/auth/register", body),
         login: (body) => post("/auth/login", body),
@@ -214,6 +218,8 @@ export const api = {
             schedule: (id, body) => post(`/admin/news/${id}/schedule`, body),
             cover: (id, body) => post(`/admin/news/${id}/cover`, body),
             tags: (id, body) => post(`/admin/news/${id}/tags`, body),
+            categoriesList: () => get("/admin/news/categories/list"),
+            tagsList: () => get("/admin/news/tags/list"),
         },
         categories: {
             list: () => get("/admin/news-categories"),
@@ -228,14 +234,51 @@ export const api = {
             delete: (id) => del(`/admin/tags/${id}`),
         },
         integrations: {
-            list: () => get("/admin/integrations"),
+            list: (params) => get("/admin/integrations", params),
+            summary: () => get("/admin/integrations/summary"),
+            detail: (provider) => get(`/admin/integrations/${provider}`),
             update: (provider, body) => patch(`/admin/integrations/${provider}`, body),
-            sync: (provider) => post(`/admin/integrations/${provider}/sync`, {}),
+            sync: (provider, body) => post(`/admin/integrations/${provider}/sync`, body ?? {}),
             logs: (provider) => get(`/admin/integrations/${provider}/logs`),
+            logsSummary: (provider) => get(`/admin/integrations/${provider}/logs/summary`),
         },
         audit: {
             list: (params) => get("/admin/audit-logs", params),
+            summary: (params) => get("/admin/audit-logs/summary", params),
             detail: (id) => get(`/admin/audit-logs/${id}`),
+        },
+        jobs: {
+            list: (params) => get("/admin/jobs", params),
+            summary: () => get("/admin/jobs/summary"),
+            process: () => post("/admin/jobs/process", {}),
+            prune: (body) => post("/admin/jobs/prune", body ?? {}),
+            detail: (id) => get(`/admin/jobs/${id}`),
+            cancel: (id) => post(`/admin/jobs/${id}/cancel`, {}),
+            retry: (id) => post(`/admin/jobs/${id}/retry`, {}),
+        },
+        logs: {
+            list: (params) => get("/admin/logs", params),
+            categories: () => get("/admin/logs/categories"),
+            summary: (params) => get("/admin/logs/summary", params),
+        },
+        maintenance: {
+            list: () => get("/admin/maintenance"),
+            backups: () => get("/admin/maintenance/backups"),
+            run: (body) => post("/admin/maintenance/run", body ?? {}),
+        },
+        mediaLibrary: {
+            list: (params) => get("/admin/media", params),
+            summary: () => get("/admin/media/summary"),
+            upload: (body) => post("/admin/media/upload", body),
+            detail: (id) => get(`/admin/media/${id}`),
+            delete: (id) => del(`/admin/media/${id}`),
+        },
+        notificationOps: {
+            list: () => get("/admin/notifications"),
+            templates: () => get("/admin/notifications/templates"),
+            summary: () => get("/admin/notifications/summary"),
+            deliveryLog: (params) => get("/admin/notifications/delivery-log", params),
+            test: () => post("/admin/notifications/test", {}),
         },
         settings: {
             get: () => get("/admin/settings"),

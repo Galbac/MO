@@ -80,11 +80,17 @@ async def test_admin_matches_crud_and_actions_flow(async_client, admin_auth_head
 
     score_response = await async_client.patch(
         f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}/score",
-        json={"score_summary": "6-4 2-1", "sets": []},
+        json={
+            "score_summary": "6-4 6-3",
+            "sets": [
+                {"set_number": 1, "player1_games": 6, "player2_games": 4, "is_finished": True},
+                {"set_number": 2, "player1_games": 6, "player2_games": 3, "is_finished": True},
+            ],
+        },
         headers=admin_auth_headers,
     )
     assert score_response.status_code == status.HTTP_200_OK
-    assert score_response.json()["data"]["score_summary"] == "6-4 2-1"
+    assert score_response.json()["data"]["score_summary"] == "6-4 6-3"
 
     finalize_response = await async_client.post(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}/finalize", headers=admin_auth_headers)
     assert finalize_response.status_code == status.HTTP_200_OK
@@ -93,6 +99,129 @@ async def test_admin_matches_crud_and_actions_flow(async_client, admin_auth_head
     delete_response = await async_client.delete(f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}", headers=admin_auth_headers)
     assert delete_response.status_code == status.HTTP_200_OK
     assert delete_response.json()["data"]["message"] == "Match deleted"
+
+
+async def test_admin_match_status_rejects_invalid_transition(async_client, admin_auth_headers) -> None:
+    create_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches",
+        json={"slug": "invalid-transition-match", "tournament_id": 1, "player1_id": 1, "player2_id": 2, "status": "scheduled", "scheduled_at": "2026-03-10T12:00:00+00:00"},
+        headers=admin_auth_headers,
+    )
+    assert create_response.status_code == status.HTTP_200_OK
+    match_id = create_response.json()["data"]["id"]
+
+    response = await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}/status",
+        json={"status": "finished"},
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_409_CONFLICT
+    assert "запрещен" in response.json()["errors"][0]["message"].lower()
+
+
+async def test_admin_match_score_rejects_inconsistent_sets(async_client, admin_auth_headers) -> None:
+    create_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches",
+        json={"slug": "invalid-score-match", "tournament_id": 1, "player1_id": 1, "player2_id": 2, "status": "live", "scheduled_at": "2026-03-10T12:00:00+00:00"},
+        headers=admin_auth_headers,
+    )
+    assert create_response.status_code == status.HTTP_200_OK
+    match_id = create_response.json()["data"]["id"]
+
+    response = await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}/score",
+        json={"score_summary": "6-3", "sets": [{"set_number": 1, "player1_games": 6, "player2_games": 4, "is_finished": True}]},
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert "не совпадает" in response.json()["errors"][0]["message"].lower()
+
+
+async def test_admin_match_reopen_rolls_back_h2h(async_client, admin_auth_headers) -> None:
+    player1_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/players",
+        json={"first_name": "Andrey", "last_name": "Alpha", "full_name": "Andrey Alpha", "slug": "andrey-alpha", "country_code": "RUS", "current_rank": 101},
+        headers=admin_auth_headers,
+    )
+    assert player1_response.status_code == status.HTTP_200_OK
+    player1_id = player1_response.json()["data"]["id"]
+
+    player2_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/players",
+        json={"first_name": "Boris", "last_name": "Beta", "full_name": "Boris Beta", "slug": "boris-beta", "country_code": "KAZ", "current_rank": 102},
+        headers=admin_auth_headers,
+    )
+    assert player2_response.status_code == status.HTTP_200_OK
+    player2_id = player2_response.json()["data"]["id"]
+
+    tournament_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/tournaments",
+        json={"name": "Rollback Open 2026", "slug": "rollback-open-2026", "category": "atp_250", "surface": "hard", "season_year": 2026, "country_code": "RUS"},
+        headers=admin_auth_headers,
+    )
+    assert tournament_response.status_code == status.HTTP_200_OK
+    tournament_id = tournament_response.json()["data"]["id"]
+
+    match_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches",
+        json={
+            "slug": "rollback-alpha-vs-beta",
+            "tournament_id": tournament_id,
+            "player1_id": player1_id,
+            "player2_id": player2_id,
+            "status": "live",
+            "scheduled_at": "2026-03-10T12:00:00+00:00",
+        },
+        headers=admin_auth_headers,
+    )
+    assert match_response.status_code == status.HTTP_200_OK
+    match_id = match_response.json()["data"]["id"]
+
+    score_response = await async_client.patch(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}/score",
+        json={
+            "score_summary": "6-4 6-3",
+            "sets": [
+                {"set_number": 1, "player1_games": 6, "player2_games": 4, "is_finished": True},
+                {"set_number": 2, "player1_games": 6, "player2_games": 3, "is_finished": True},
+            ],
+        },
+        headers=admin_auth_headers,
+    )
+    assert score_response.status_code == status.HTTP_200_OK
+
+    finalize_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}/finalize",
+        headers=admin_auth_headers,
+    )
+    assert finalize_response.status_code == status.HTTP_200_OK
+
+    h2h_after_finalize = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/players/h2h?player1_id={player1_id}&player2_id={player2_id}",
+        headers=admin_auth_headers,
+    )
+    assert h2h_after_finalize.status_code == status.HTTP_200_OK
+    assert h2h_after_finalize.json()["data"]["total_matches"] == 1
+
+    reopen_response = await async_client.post(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}/reopen",
+        headers=admin_auth_headers,
+    )
+    assert reopen_response.status_code == status.HTTP_200_OK
+
+    match_detail_response = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/admin/matches/{match_id}",
+        headers=admin_auth_headers,
+    )
+    assert match_detail_response.status_code == status.HTTP_200_OK
+    assert match_detail_response.json()["data"]["status"] == "scheduled"
+    assert match_detail_response.json()["data"]["winner_id"] is None
+
+    h2h_after_reopen = await async_client.get(
+        f"{settings.api.prefix}{settings.api.v1.prefix}/players/h2h?player1_id={player1_id}&player2_id={player2_id}",
+        headers=admin_auth_headers,
+    )
+    assert h2h_after_reopen.status_code == status.HTTP_404_NOT_FOUND
 
 
 async def test_admin_news_crud_and_publish_flow(async_client, admin_auth_headers) -> None:

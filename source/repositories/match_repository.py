@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import date, datetime, time
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from source.db.models import HeadToHead, Match, MatchEvent, MatchSet, MatchStats, NewsArticle
+from source.db.models import HeadToHead, Match, MatchEvent, MatchSet, MatchStats, NewsArticle, Tournament
 
 
 class MatchRepository:
@@ -192,6 +192,93 @@ class MatchRepository:
         await session.commit()
         await session.refresh(record)
         return record
+
+    async def list_completed_pair_matches(self, session: AsyncSession, *, player1_id: int, player2_id: int) -> list[tuple[Match, str | None]]:
+        left, right = sorted((player1_id, player2_id))
+        stmt = (
+            select(Match, Tournament.surface)
+            .join(Tournament, Tournament.id == Match.tournament_id)
+            .where(
+                or_(
+                    and_(Match.player1_id == left, Match.player2_id == right),
+                    and_(Match.player1_id == right, Match.player2_id == left),
+                ),
+                Match.status.in_(["finished", "retired", "walkover"]),
+                Match.winner_id.is_not(None),
+            )
+            .order_by(Match.scheduled_at.asc(), Match.id.asc())
+        )
+        rows = await session.execute(stmt)
+        return [(match, surface) for match, surface in rows.all()]
+
+    async def rebuild_h2h(self, session: AsyncSession, *, player1_id: int, player2_id: int) -> HeadToHead | None:
+        left, right = sorted((player1_id, player2_id))
+        existing = await self.get_h2h(session, left, right)
+        completed_matches = await self.list_completed_pair_matches(session, player1_id=left, player2_id=right)
+
+        if not completed_matches:
+            if existing is not None:
+                await session.execute(delete(HeadToHead).where(HeadToHead.id == existing.id))
+                await session.commit()
+            return None
+
+        if existing is None:
+            existing = HeadToHead(
+                player1_id=left,
+                player2_id=right,
+                total_matches=0,
+                player1_wins=0,
+                player2_wins=0,
+                hard_player1_wins=0,
+                hard_player2_wins=0,
+                clay_player1_wins=0,
+                clay_player2_wins=0,
+                grass_player1_wins=0,
+                grass_player2_wins=0,
+                last_match_id=None,
+            )
+            session.add(existing)
+            await session.flush()
+
+        existing.total_matches = 0
+        existing.player1_wins = 0
+        existing.player2_wins = 0
+        existing.hard_player1_wins = 0
+        existing.hard_player2_wins = 0
+        existing.clay_player1_wins = 0
+        existing.clay_player2_wins = 0
+        existing.grass_player1_wins = 0
+        existing.grass_player2_wins = 0
+        existing.last_match_id = completed_matches[-1][0].id
+
+        for match, surface in completed_matches:
+            existing.total_matches += 1
+            winner_is_left = match.winner_id == left
+            if winner_is_left:
+                existing.player1_wins += 1
+            else:
+                existing.player2_wins += 1
+
+            normalized_surface = (surface or "").lower()
+            if normalized_surface == "hard":
+                if winner_is_left:
+                    existing.hard_player1_wins += 1
+                else:
+                    existing.hard_player2_wins += 1
+            elif normalized_surface == "clay":
+                if winner_is_left:
+                    existing.clay_player1_wins += 1
+                else:
+                    existing.clay_player2_wins += 1
+            elif normalized_surface == "grass":
+                if winner_is_left:
+                    existing.grass_player1_wins += 1
+                else:
+                    existing.grass_player2_wins += 1
+
+        await session.commit()
+        await session.refresh(existing)
+        return existing
 
     async def get_related_news(self, session: AsyncSession, limit: int = 2) -> list[NewsArticle]:
         stmt = select(NewsArticle).order_by(NewsArticle.published_at.desc()).limit(limit)
